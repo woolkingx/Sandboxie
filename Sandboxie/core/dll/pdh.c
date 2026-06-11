@@ -20,20 +20,26 @@
 //---------------------------------------------------------------------------
 
 #include "dll.h"
+#include <pdh.h>
+#include <pdhmsg.h>
 
-static _FX UINT Pdh_PdhConnectMachineW(LPCWSTR lpwsMachine);
+#ifndef PDH_ACCESS_DENIED
+#define PDH_ACCESS_DENIED ((PDH_STATUS)0xC0000BDBL)
+#endif
 
-static _FX UINT Pdh_PdhLookupPerfNameByIndexW(
+static _FX PDH_STATUS Pdh_PdhConnectMachineW(LPCWSTR lpwsMachine);
+
+static _FX PDH_STATUS Pdh_PdhLookupPerfNameByIndexW(
     LPCWSTR szMachineName,
     DWORD dwNameIndex,
     LPTSTR szNameBuffer,
     LPDWORD pcchNameBufferSize
 );
 
-typedef UINT(*P_PdhConnectMachineW)(
+typedef PDH_STATUS(*P_PdhConnectMachineW)(
     LPCWSTR lpwsMachine);
 
-typedef UINT(*P_PdhLookupPerfNameByIndexW)(
+typedef PDH_STATUS(*P_PdhLookupPerfNameByIndexW)(
     LPCWSTR szMachineName,
     DWORD dwNameIndex,
     LPTSTR szNameBuffer,
@@ -69,21 +75,21 @@ _FX BOOLEAN Pdh_Init(HMODULE module)
 // Pdh_PdhConnectMachineW
 //---------------------------------------------------------------------------
 
-static _FX UINT Pdh_PdhConnectMachineW(LPCWSTR lpwsMachine)
+static _FX PDH_STATUS Pdh_PdhConnectMachineW(LPCWSTR lpwsMachine)
 {
-    return ERROR_ACCESS_DENIED;
+    return PDH_ACCESS_DENIED;
 }
 
 //---------------------------------------------------------------------------
 // Pdh_PdhLookupPerfNameByIndexW
 //---------------------------------------------------------------------------
 
-static _FX UINT Pdh_PdhLookupPerfNameByIndexW(
+static _FX PDH_STATUS Pdh_PdhLookupPerfNameByIndexW(
     LPCWSTR szMachineName,
     DWORD dwNameIndex,
     LPTSTR szNameBuffer,
     LPDWORD pcchNameBufferSize
 )
 {
-    return ERROR_ACCESS_DENIED;
+    return PDH_ACCESS_DENIED;
 }

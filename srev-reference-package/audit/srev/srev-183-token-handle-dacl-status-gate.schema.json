@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-183-token-handle-dacl-status-gate.schema.json",
+  "title": "SREV-183 Token handle DACL status gate",
+  "id": "TOKEN_HANDLE_DACL_STATUS_GATE",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "owner",
+    "reviewed_public_surface",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/drv/token.c"
+    },
+    "reviewed_public_surface": {
+      "const": "Sandboxie/core/drv/token.h"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 7
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 3
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/drv/token.c",
+  "reviewed_public_surface": "Sandboxie/core/drv/token.h",
+  "contracts": [
+    "Token_FilterDacl owns the restricted-token DACL update route after token filtering",
+    "Token_SetHandleDacl builds an absolute security descriptor for an existing DACL and applies it to token process or thread handles",
+    "security descriptor construction DDIs return NTSTATUS and must fail closed before ZwSetSecurityObject",
+    "RtlSetDaclSecurityDescriptor references the supplied ACL and this local route requires the rebuilt ACL to be non-NULL",
+    "ZwSetSecurityObject with DACL_SECURITY_INFORMATION is the only executor that mutates the target object DACL in this helper",
+    "Sandboxie/core/drv/token.h was reviewed as the token owner public declaration surface but Token_SetHandleDacl remains private to token.c",
+    "this SREV does not change token filtering policy SID selection default-DACL sizing object targets handle ownership or access masks",
+    "runtime proof is required"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtlcreatesecuritydescriptor",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtlsetdaclsecuritydescriptor",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-zwsetsecurityobject"
+  ],
+  "runtime_gate": "Windows driver build, restricted-token launch smoke, failure-injection proof for security descriptor DDI failures, and object-open smoke after admin-group filtering"
+}

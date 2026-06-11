@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "GUI_DDE_DATA_PROXY_ROUTE_MAP",
+  "title": "GUI DDE DATA proxy route map",
+  "type": "object",
+  "owner": "Sandboxie/core/svc/GuiServer.cpp",
+  "stage": "schema -> boundary -> topology -> action -> verify",
+  "source_functions": [
+    "GuiServer::DdeProxyThreadSlave",
+    "GuiServer::SendCopyDataSlave",
+    "Gui_DDE_DATA_Posting",
+    "Dde_SetRequestProxyWnd",
+    "Dde_TakeRequestProxyWnd"
+  ],
+  "contracts": [
+    "DDE request data replies are routed by pending request identity rather than by one process-global proxy HWND",
+    "The route key is real client HWND plus the DDE item atom carried by WM_DDE_REQUEST and WM_DDE_DATA",
+    "DdeProxyThreadSlave extracts the WM_DDE_REQUEST item atom with UnpackDDElParam before registering the proxy HWND",
+    "Gui_DDE_DATA_Posting sends the real client HWND and WM_DDE_DATA item atom through GUI_SEND_COPYDATA",
+    "SendCopyDataSlave takes and removes the matching route before posting the private DDE DATA hop",
+    "Missing routes fail without posting to an unrelated proxy window",
+    "Windows runtime proof is still required for overlapping DDE request/data behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/about-dynamic-data-exchange",
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/wm-dde-request",
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/wm-dde-data",
+    "https://learn.microsoft.com/en-us/windows/win32/api/dde/nf-dde-packddelparam",
+    "https://learn.microsoft.com/en-us/windows/win32/api/dde/nf-dde-unpackddelparam",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-postmessagew",
+    "https://learn.microsoft.com/en-us/windows/win32/winmsg/about-messages-and-message-queues"
+  ],
+  "local_edges": [
+    "DdeProxyThreadSlave WM_DDE_REQUEST -> UnpackDDElParam -> Dde_SetRequestProxyWnd client item proxy",
+    "Gui_DDE_DATA_Posting WM_DDE_DATA -> UnpackDDElParam -> GUI_SEND_COPYDATA hwnd client cds_key item",
+    "SendCopyDataSlave which dde -> Dde_TakeRequestProxyWnd client item -> PostMessage matched proxy",
+    "DdeProxyThreadSlave private WM_USER hop -> PostMessage client WM_DDE_DATA"
+  ],
+  "runtime_gate": "Windows SbieSvc and DLL build with two overlapping DDE request/data replies returning through their own proxy windows and missing-route failure proof",
+  "status": "patched-source-level-after-official-dde-request-data-route-review-needs-windows-runtime-proof"
+}

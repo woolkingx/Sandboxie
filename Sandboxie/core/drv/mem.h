@@ -60,6 +60,9 @@ WCHAR *Mem_AllocStringEx(
 
 #define Mem_AllocString(pool,model) Mem_AllocStringEx((pool),(model),FALSE)
 
+WCHAR *Mem_AllocUnicodeStringEx(
+    POOL *pool, const UNICODE_STRING *model_string, BOOLEAN InitMsg);
+
 void Mem_FreeString(WCHAR *string);
 
 

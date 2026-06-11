@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-086-guiclass-adobe-wm-create-class-shape.schema.json",
+  "title": "SREV-086 GUI Adobe WM_CREATE class shape",
+  "id": "GUI_ADOBE_WM_CREATE_CLASS_SHAPE",
+  "owner": "Sandboxie/core/dll/guiclass.c",
+  "type": "object",
+  "properties": {
+    "registered_class": {
+      "type": "string",
+      "description": "Window class name or atom registered through Win32 class APIs"
+    },
+    "create_class": {
+      "type": "string",
+      "description": "CreateWindowEx class name or atom crossing into window creation"
+    },
+    "create_struct": {
+      "type": "string",
+      "description": "WM_NCCREATE / WM_CREATE CREATESTRUCT lpszClass payload"
+    },
+    "no_rename_class": {
+      "type": "string",
+      "description": "Local Sandboxie class-name compatibility classification"
+    },
+    "private_callback": {
+      "type": "string",
+      "description": "Existing private KernelCallbackTable create-struct rewrite"
+    }
+  },
+  "required": [
+    "registered_class",
+    "create_class",
+    "create_struct",
+    "no_rename_class",
+    "private_callback"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "RegisterClassEx/CreateWindowEx class identity is the public Win32 boundary",
+    "WM_NCCREATE and WM_CREATE pass CREATESTRUCT.lpszClass across the app wndproc boundary",
+    "known class-name-sensitive compatibility classes use NoRename rather than relying on private callback offsets",
+    "com.adobe.ape.stage and OWL.* are classified as NoRename well-known classes",
+    "GetClassName remains the public query boundary for class names",
+    "private KernelCallbackTable offsets are not extended by this SREV"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-registerclassexw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-wndclassexw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-createwindowexw",
+    "https://learn.microsoft.com/en-us/windows/win32/winmsg/wm-nccreate",
+    "https://learn.microsoft.com/en-us/windows/win32/winmsg/wm-create",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-createstructw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-defwindowprocw"
+  ]
+}

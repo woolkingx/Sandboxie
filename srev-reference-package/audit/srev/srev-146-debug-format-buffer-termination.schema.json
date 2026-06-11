@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-146-debug-format-buffer-termination.schema.json",
+  "title": "SREV-146 debug format buffer termination",
+  "id": "DEBUG_FORMAT_BUFFER_TERMINATION",
+  "owner": "Sandboxie/core/dll/debug.c",
+  "type": "object",
+  "properties": {
+    "format_writer": {
+      "type": "string",
+      "description": "P_vsnprintf / _vsnprintf counted format writer"
+    },
+    "string_consumer": {
+      "type": "string",
+      "description": "OutputDebugStringA and Sbie_snwprintf string consumers"
+    },
+    "local_buffer": {
+      "type": "string",
+      "description": "DbgPrint and DbgTrace stack char buffer"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows WITH_DEBUG DLL build and long-format runtime proof"
+    }
+  },
+  "required": [
+    "format_writer",
+    "string_consumer",
+    "local_buffer",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "DbgPrint and DbgTrace own the local debug-format buffer before passing it to string-consuming debug or monitor APIs",
+    "_vsnprintf is a counted writer but does not guarantee null termination when output is truncated",
+    "The local buffer must reserve one byte for a terminator by passing sizeof(tmp1) - 1 as the count",
+    "The local buffer must be initialized before _vsnprintf and must have the final byte set to '\\0' after _vsnprintf",
+    "This SREV does not change debug hook installation, monitor categories, trace routing, or any non-debug sandbox policy decision"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/vsnprintf-vsnprintf-vsnprintf-l-vsnwprintf-vsnwprintf-l?view=msvc-170"
+  ]
+}

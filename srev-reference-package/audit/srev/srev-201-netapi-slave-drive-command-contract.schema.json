@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "NETAPI_SLAVE_DRIVE_COMMAND_CONTRACT",
+  "owner": "Sandboxie/core/svc/netapiserver.h",
+  "implementation": "Sandboxie/core/svc/netapiserver.cpp",
+  "entry_surface": "Sandboxie/core/svc/netapiserver.h",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/lmuse/nf-lmuse-netuseadd",
+    "https://learn.microsoft.com/en-us/windows/win32/api/lmuse/ns-lmuse-use_info_2",
+    "https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-definedosdevicew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessasuserw"
+  ],
+  "data_shapes": {
+    "local_device": {
+      "input": "NetUseAdd local device string",
+      "owner": "NetApiServer::LaunchSlave",
+      "invariant": "only a single A-Z drive letter followed by ':' launches the helper"
+    },
+    "slave_command": {
+      "input": "Sandboxie_NetProxy:Use=<drive>",
+      "owner": "NetApiServer::RunSlave",
+      "invariant": "only a valid drive letter plus command terminator reaches DefineDosDevice"
+    },
+    "dos_device": {
+      "input": "uppercase drive plus ':'",
+      "owner": "DefineDosDevice",
+      "invariant": "device name is a documented drive-letter MS-DOS device"
+    }
+  },
+  "contracts": [
+    "LaunchSlave validates the local device drive letter before creating the helper command",
+    "RunSlave validates the command drive letter before DefineDosDevice",
+    "RunSlave requires a command terminator after the drive letter",
+    "DefineDosDevice receives an uppercase drive-letter device name",
+    "This SREV preserves NetUseAdd policy and success-only LaunchSlave behavior"
+  ],
+  "runtime_gate": "Windows service build plus valid mapped-drive broadcast and malformed NetProxy command smoke",
+  "status": "patched-source-level-after-official-netapi-definedosdevice-shape-review-needs-windows-runtime-proof"
+}

@@ -90,7 +90,7 @@ struct _PROCESS {
 
     void *primary_token;
 
-    PSID *SandboxieLogonSid;
+    PSID SandboxieLogonSid;
 
     // thread data
 

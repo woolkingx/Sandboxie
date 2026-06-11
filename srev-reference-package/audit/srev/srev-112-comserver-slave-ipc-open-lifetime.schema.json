@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-112-comserver-slave-ipc-open-lifetime.schema.json",
+  "title": "SREV-112 comserver slave IPC open lifetime",
+  "id": "COMSERVER_SLAVE_IPC_OPEN_LIFETIME",
+  "owner": "Sandboxie/core/svc/comserver.cpp",
+  "type": "object",
+  "properties": {
+    "official_ipc_shape": {
+      "type": "string",
+      "description": "Official Win32 named synchronization and file mapping shape"
+    },
+    "official_com_shape": {
+      "type": "string",
+      "description": "Official COM thread initialization and process security shape"
+    },
+    "source_change": {
+      "type": "string",
+      "description": "RunSlave startup validation, Event2 check, and cleanup hardening"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows COM proxy startup/open failure/runtime proof"
+    }
+  },
+  "required": [
+    "official_ipc_shape",
+    "official_com_shape",
+    "source_change",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "RunSlave accepts only the bounded parent-generated proxy command line",
+    "the proxy command line must contain the colon separator before object-name suffix replacement",
+    "the slave opens the parent-created mutex request event reply event and file mapping by name in the Global namespace",
+    "Event1 is the request event waited by the slave",
+    "Event2 is the reply event signaled by the slave after writing pMap",
+    "each opened kernel handle is owned by the slave process and is closed on startup failure",
+    "each mapped view returned by MapViewOfFile is owned by the slave process and is unmapped on startup failure",
+    "CoInitializeEx must succeed before COM library calls are used by the slave",
+    "successful CoInitializeEx is balanced by CoUninitialize on the local cleanup path",
+    "this SREV must not change object names access masks COM request dispatch or parent death ExitProcess behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-openeventw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-openfilemappingw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-mapviewoffile",
+    "https://learn.microsoft.com/en-us/windows/win32/memory/closing-a-file-mapping-object",
+    "https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-closehandle",
+    "https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-unmapviewoffile",
+    "https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-coinitializeex",
+    "https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-coinitializesecurity",
+    "https://learn.microsoft.com/en-us/windows/win32/sync/mutex-objects"
+  ]
+}

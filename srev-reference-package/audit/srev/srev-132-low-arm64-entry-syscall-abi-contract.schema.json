@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "LOW_ARM64_ENTRY_SYSCALL_ABI_CONTRACT",
+  "title": "Low ARM64 entry syscall ABI contract",
+  "type": "object",
+  "required": [
+    "owner",
+    "severity",
+    "contracts",
+    "official_references",
+    "runtime_gates"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/low/entry_arm.asm"
+    },
+    "severity": {
+      "const": "minor"
+    },
+    "contracts": {
+      "type": "array",
+      "minItems": 8,
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "SystemServiceARM64 is an ARM64 syscall bridge that follows the Windows ARM64 volatile register and 16-byte stack-alignment contract"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "string",
+        "format": "uri"
+      }
+    },
+    "runtime_gates": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "contracts": [
+    "SystemServiceARM64 is an ARM64 syscall bridge that follows the Windows ARM64 volatile register and 16-byte stack-alignment contract",
+    "SystemServiceARM64 spills original x0-x7 syscall arguments before repurposing x0-x7 for NtDeviceIoControlFile",
+    "SystemServiceARM64 records the syscall index from x17 and the original argument-stack pointer in API_NUM_ARGS slots",
+    "SystemServiceARM64 builds the NtDeviceIoControlFile call with x0-x7 plus two stack arguments and returns the call status in x0",
+    "PrepSyscalls patches the ServiceDataPtr slot immediately before SystemServiceARM64 with the SBIELOW_DATA pointer",
+    "ARM64EC PrepSyscalls routes data->NtDeviceIoControlFile to NtDeviceIoControlFileEC and copies the native svc instruction into DeviceIoControlSvc",
+    "NtDeviceIoControlFileEC preserves the local handle-stub sentinel and branches through MyHandleStubHijack only when the emulator changes the sentinel",
+    "EcExitThunkPtr is sourced from the ARM64EC syscall extra-data trailer and used only by MyHandleStubHijack",
+    "This SREV is a source-level ABI classification and does not change syscall detour bytes or ARM64EC thunk policy"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/cpp/build/arm64-windows-abi-conventions?view=msvc-170",
+    "https://learn.microsoft.com/en-us/windows/arm/arm64ec-abi",
+    "https://learn.microsoft.com/en-us/windows/arm/arm64ec"
+  ],
+  "runtime_gates": [
+    "Windows ARM64 lowlevel build proving entry_arm.asm assembles and links with init.c exports",
+    "ARM64 sandbox process startup proving SystemServiceARM64 preserves stack alignment and returns the driver-call NTSTATUS",
+    "ARM64EC sandbox process startup proving NtDeviceIoControlFileEC and EcExitThunkPtr route through the emulator exit path",
+    "SbieLow syscall hook smoke proving original syscall x0-x7 arguments are delivered through API_INVOKE_SYSCALL slots",
+    "negative runtime smoke with syscall hooks disabled proving no ARM64EC wrapper state is used when is_arm64ec is false"
+  ]
+}

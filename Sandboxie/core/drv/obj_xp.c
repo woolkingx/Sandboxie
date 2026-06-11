@@ -33,6 +33,9 @@ static BOOLEAN Obj_HookAnyProc(
     ULONG_PTR NewProc, ULONG_PTR *OldProc,
     ULONG *IncPtr, ULONG_PTR *pHookEntry);
 
+static BOOLEAN Obj_BuildObjectTypeName(
+    WCHAR *ObjectName, ULONG ObjectNameChars, const WCHAR *TypeName);
+
 
 //---------------------------------------------------------------------------
 
@@ -93,13 +96,28 @@ _FX BOOLEAN Obj_HookAnyProc(
     OBJECT_TYPE *object;
     ULONG_PTR HookEntry;
     ULONG_PTR ProcPtr;
+    const WCHAR *LogName;
 
     //
     // hook object type procedure
     //
 
-    wcscpy(ObjectName, L"\\ObjectTypes\\");
-    wcscat(ObjectName, TypeName);
+    LogName = (TypeName ? TypeName : L"(null)");
+
+    if ((! TypeName) || (! NewProc) || (! OldProc) || (! pHookEntry)) {
+        Log_Status_Ex(
+            MSG_OBJ_HOOK_ANY_PROC, 0x01, STATUS_INVALID_PARAMETER, LogName);
+        return FALSE;
+    }
+
+    if (! Obj_BuildObjectTypeName(
+            ObjectName, sizeof(ObjectName) / sizeof(WCHAR), TypeName)) {
+
+        Log_Status_Ex(
+            MSG_OBJ_HOOK_ANY_PROC, 0x02, STATUS_BUFFER_OVERFLOW, TypeName);
+        return FALSE;
+    }
+
     RtlInitUnicodeString(&uni, ObjectName);
     InitializeObjectAttributes(&objattrs,
         &uni, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
@@ -119,30 +137,38 @@ _FX BOOLEAN Obj_HookAnyProc(
 
     else {
 
-        ProcPtr = (ULONG_PTR)(((UCHAR *)&object->TypeInfo) + ProcOffset);
-
-        *OldProc = *(ULONG_PTR *)ProcPtr;
-
-        //
-        // create a hook entry which will jump to OldProc or NewProc.
-        // if OldProc is null, we pass the number of arguments it would
-        // take, so the hook entry can handle that case
-        //
-
-        HookEntry = Process_BuildHookEntry(
-            NewProc, (*OldProc ? *OldProc : NumArgs), IncPtr);
-
-        if (! HookEntry) {
-            status = STATUS_INSUFFICIENT_RESOURCES;
-            Log_Status_Ex(MSG_OBJ_HOOK_ANY_PROC, 0x33, status, TypeName);
+        if (ProcOffset > sizeof(object->TypeInfo) - sizeof(ULONG_PTR)) {
+            status = STATUS_INVALID_PARAMETER;
+            Log_Status_Ex(MSG_OBJ_HOOK_ANY_PROC, 0x23, status, TypeName);
 
         } else {
 
-            *pHookEntry = HookEntry;
+            ProcPtr = (ULONG_PTR)(((UCHAR *)&object->TypeInfo) + ProcOffset);
 
-            KeMemoryBarrier();
+            *OldProc = *(ULONG_PTR *)ProcPtr;
 
-            InterlockedExchangePointer((void **)ProcPtr, (void *)HookEntry);
+            //
+            // create a hook entry which will jump to OldProc or NewProc.
+            // if OldProc is null, we pass the number of arguments it would
+            // take, so the hook entry can handle that case
+            //
+
+            HookEntry = Process_BuildHookEntry(
+                NewProc, (*OldProc ? *OldProc : NumArgs), IncPtr);
+
+            if (! HookEntry) {
+                status = STATUS_INSUFFICIENT_RESOURCES;
+                Log_Status_Ex(MSG_OBJ_HOOK_ANY_PROC, 0x33, status, TypeName);
+
+            } else {
+
+                *pHookEntry = HookEntry;
+
+                KeMemoryBarrier();
+
+                InterlockedExchangePointer(
+                    (void **)ProcPtr, (void *)HookEntry);
+            }
         }
 
         ObDereferenceObject(object);
@@ -151,4 +177,36 @@ _FX BOOLEAN Obj_HookAnyProc(
     ZwClose(handle);
 
     return (NT_SUCCESS(status));
+}
+
+
+//---------------------------------------------------------------------------
+// Obj_BuildObjectTypeName
+//---------------------------------------------------------------------------
+
+
+_FX BOOLEAN Obj_BuildObjectTypeName(
+    WCHAR *ObjectName, ULONG ObjectNameChars, const WCHAR *TypeName)
+{
+    const WCHAR *Prefix;
+    ULONG PrefixLen;
+    ULONG TypeLen;
+
+    if ((! ObjectName) || (! ObjectNameChars) || (! TypeName))
+        return FALSE;
+
+    Prefix = L"\\ObjectTypes\\";
+    PrefixLen = (ULONG)wcslen(Prefix);
+    TypeLen = (ULONG)wcslen(TypeName);
+
+    if (PrefixLen >= ObjectNameChars)
+        return FALSE;
+
+    if (TypeLen >= ObjectNameChars - PrefixLen)
+        return FALSE;
+
+    memcpy(ObjectName, Prefix, PrefixLen * sizeof(WCHAR));
+    memcpy(ObjectName + PrefixLen, TypeName, (TypeLen + 1) * sizeof(WCHAR));
+
+    return TRUE;
 }

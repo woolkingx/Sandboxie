@@ -176,9 +176,14 @@ found_match:
 
     if (SbieApi_QueryConfBool(NULL, L"PromptForFileMigration", TRUE))
     {
+        memzero(&req, sizeof(req));
         req.msgid = MAN_FILE_MIGRATION;
         req.file_size = file_size;
-        wcscpy(req.file_path, TruePath);
+        ULONG path_chars = wcslen(TruePath);
+        if (path_chars >= ARRAYSIZE(req.file_path))
+            path_chars = ARRAYSIZE(req.file_path) - 1;
+        wmemcpy(req.file_path, TruePath, path_chars);
+        req.file_path[path_chars] = L'\0';
 
         rpl = SbieDll_CallServerQueue(INTERACTIVE_QUEUE_NAME, &req, sizeof(req), sizeof(*rpl));
     }
@@ -536,6 +541,11 @@ _FX NTSTATUS File_MigrateJunction(
         TrueHandle, &IoStatusBlock, &open_info,
         sizeof(FILE_NETWORK_OPEN_INFORMATION), FileNetworkOpenInformation);
 
+    if (!NT_SUCCESS(status)) {
+        NtClose(TrueHandle);
+        return status;
+    }
+
     //
     // Get the reparse point data from the source
     //
@@ -544,8 +554,10 @@ _FX NTSTATUS File_MigrateJunction(
     REPARSE_DATA_BUFFER* reparseDataBuffer = (REPARSE_DATA_BUFFER*)buf;
     status = __sys_NtFsControlFile(TrueHandle, NULL, NULL, NULL, &IoStatusBlock, FSCTL_GET_REPARSE_POINT, NULL, 0, reparseDataBuffer, MAXIMUM_REPARSE_DATA_BUFFER_SIZE);
 
-    if (!NT_SUCCESS(status))
+    if (!NT_SUCCESS(status)) {
+        NtClose(TrueHandle);
         return status;
+    }
 
     if (Secure_CopyACLs) {
 
@@ -591,6 +603,7 @@ _FX NTSTATUS File_MigrateJunction(
         NtClose(TrueHandle);
         if (pSecurityDescriptor)
             Dll_Free(pSecurityDescriptor);
+        return status;
     }
 
     //

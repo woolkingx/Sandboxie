@@ -990,10 +990,9 @@ _FX BOOLEAN Key_MountHive3(
                 InitializeObjectAttributes(&objattrs,
                     &uni, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
 
-                // ZwLoadKey can fail with device path if current process's devicemap is null
-                // One workaround is to call ObOpenObjectByName and it will trigger devicemap
-                // to be initialized. Note, Using C: is not necessary. The disk volume doesn't
-                // need to be there.L"\\??\\A:" works in the tests.
+                // SREV-337: warm the current process DosDevices/device-map
+                // context before ZwLoadKey resolves a hive source path.  The
+                // drive letter is only a trigger; the volume need not exist.
                 if (STATUS_SUCCESS == ObOpenObjectByName(
                     &objattrs, *IoFileObjectType, KernelMode, NULL, 0, NULL, &handle))
                 {
@@ -1506,6 +1505,7 @@ _FX NTSTATUS Key_Api_SetLowLabel(PROCESS *proc, ULONG64 *parms)
     UNICODE_STRING objname;
     WCHAR *path;
     ULONG path_len;
+    ULONG i;
     NTSTATUS status;
 
     //
@@ -1520,22 +1520,32 @@ _FX NTSTATUS Key_Api_SetLowLabel(PROCESS *proc, ULONG64 *parms)
     // check and capture parameters
     //
 
-    path_len = args->path_len.val & ~1;
-    if ((! path_len) || (path_len > 512 * sizeof(WCHAR)))
+    path_len = args->path_len.val;
+    if ((path_len & 1) || (! path_len) || (path_len > 512 * sizeof(WCHAR)))
         return STATUS_INVALID_PARAMETER;
 
     ProbeForRead(args->path_str.val, path_len, sizeof(WCHAR));
 
-    path = Mem_Alloc(proc->pool, path_len + 8);
+    path = Mem_Alloc(proc->pool, path_len + sizeof(WCHAR));
+    if (! path)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
     memcpy(path, args->path_str.val, path_len);
     path[path_len / sizeof(WCHAR)] = L'\0';
+
+    for (i = 0; i < path_len / sizeof(WCHAR); ++i) {
+        if (path[i] == L'\0') {
+            status = STATUS_INVALID_PARAMETER;
+            goto finish;
+        }
+    }
 
     //
     // path must be in the box
     //
 
     RtlInitUnicodeString(&objname, path);
-    if (! Box_IsBoxedPath(proc->box, file, &objname))
+    if (Box_IsBoxedPath(proc->box, key, &objname))
         status = STATUS_SUCCESS;
     else
         status = STATUS_ACCESS_DENIED;
@@ -1564,7 +1574,9 @@ _FX NTSTATUS Key_Api_SetLowLabel(PROCESS *proc, ULONG64 *parms)
         }
     }
 
-    Mem_Free(path, path_len + 8);
+finish:
+
+    Mem_Free(path, path_len + sizeof(WCHAR));
 
     return status;
 }

@@ -752,11 +752,12 @@ _FX CACHE_PATH *File_TranslateReparsePoints_3(
 
             Obj_GetName(pool, object, &Name, &NameLength);
 
-            if (Name && (Name != &Obj_Unnamed)) {
+            if (Name && (Name != &Obj_Unnamed) &&
+                    Name->Name.Buffer &&
+                    (Name->Name.Length % sizeof(WCHAR)) == 0) {
 
-                WCHAR *path3 = Name->Name.Buffer;
-                dst_len = wcslen(path3);
-                while (dst_len && path3[dst_len - 1] == L'\\')
+                dst_len = Name->Name.Length / sizeof(WCHAR);
+                while (dst_len && Name->Name.Buffer[dst_len - 1] == L'\\')
                     --dst_len;
             }
 

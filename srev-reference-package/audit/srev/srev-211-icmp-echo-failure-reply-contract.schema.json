@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "ICMP_ECHO_FAILURE_REPLY_CONTRACT",
+  "owner": "Sandboxie/core/svc/iphlpserver.h",
+  "implementation": "Sandboxie/core/svc/iphlpserver.cpp",
+  "wire": "Sandboxie/core/svc/iphlpwire.h",
+  "status": "patched-source-level-after-official-icmp-echo-failure-shape-review-needs-windows-runtime-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/icmpapi/nf-icmpapi-icmpsendecho2",
+    "https://learn.microsoft.com/en-us/windows/win32/api/icmpapi/nf-icmpapi-icmpsendecho2ex",
+    "https://learn.microsoft.com/en-us/windows/win32/api/icmpapi/nf-icmpapi-icmp6sendecho2",
+    "https://learn.microsoft.com/en-us/windows/win32/api/ipexport/ns-ipexport-icmp_echo_reply"
+  ],
+  "contracts": [
+    "iphlpserver.h owns the service broker declaration boundary",
+    "iphlpserver.cpp owns the ICMP echo API call and reply normalization logic",
+    "Unavailable API entry points are represented by NULL state before LoadLibrary and GetProcAddress succeeds",
+    "A synchronous ICMP API return of zero is an error path not a one-reply success path",
+    "On error the broker returns the Win32 status from GetLastError, zero replies, and zero reply bytes",
+    "IPv4 reply pointer normalization runs only for successful replies"
+  ],
+  "runtime_gate": "Windows SbieSvc/DLL build plus ICMP smoke tests for IPv4, IPv4 source-address echo, and IPv6 echo. Failure cases such as unreachable destination, access denial, and deliberately too-small reply buffers must return zero replies with the expected Win32/IP error and must not expose rewritten fake reply data."
+}

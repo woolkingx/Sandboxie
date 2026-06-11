@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "PSTORE_CREATE_INSTANCE_OUTPUT_CONTRACT",
+  "owner": "Sandboxie/core/dll/pst.cpp",
+  "status": "patched-source-level-after-official-pstore-output-loader-shape-review-needs-windows-runtime-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/devnotes/pstorecreateinstance",
+    "https://learn.microsoft.com/en-us/windows/win32/devnotes/ipstore",
+    "https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-cotaskmemalloc",
+    "https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulehandlew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getprocaddress"
+  ],
+  "contracts": [
+    "pst.cpp owns the local Protected Storage hook boundary for PStoreCreateInstance",
+    "ppProvider is an out pointer and must be validated before any write",
+    "On a local failure after the output pointer is accepted, the output slot is cleared before returning failure",
+    "GetProcAddress may only be called after the GetModuleHandle result is proven non-NULL",
+    "Success publishes a local IPStoreImpl and returns S_OK",
+    "pReserved and dwFlags semantic fidelity remains a Windows runtime compatibility gate"
+  ],
+  "runtime_gate": "Windows DLL build plus Protected Storage smoke proving ordinary PStoreCreateInstance(&provider, NULL, NULL, 0) still returns a usable IPStore implementation and malformed caller arguments do not crash the hook path"
+}

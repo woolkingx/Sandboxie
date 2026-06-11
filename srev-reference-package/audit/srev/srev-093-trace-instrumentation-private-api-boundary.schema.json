@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-093-trace-instrumentation-private-api-boundary.schema.json",
+  "title": "SREV-093 Trace instrumentation private API boundary",
+  "id": "TRACE_INSTRUMENTATION_PRIVATE_API_BOUNDARY",
+  "owner": "Sandboxie/core/dll/trace.c",
+  "type": "object",
+  "properties": {
+    "call_trace_config": {
+      "type": "string",
+      "description": "CallTraceEx opt-in configuration"
+    },
+    "private_process_information_class": {
+      "type": "string",
+      "description": "ProcessInstrumentationCallback local enum and private NtSetInformationProcess edge"
+    },
+    "privilege_state": {
+      "type": "string",
+      "description": "SeDebugPrivilege and AdjustTokenPrivileges constraints"
+    },
+    "callback_abi": {
+      "type": "string",
+      "description": "Architecture-specific callback register/context ABI"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows build and architecture proof required before behavior change"
+    }
+  },
+  "required": [
+    "call_trace_config",
+    "private_process_information_class",
+    "privilege_state",
+    "callback_abi",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "CallTraceEx may request a process instrumentation callback only through the trace owner",
+    "ProcessInstrumentationCallback is a private NtSetInformationProcess class in this tree",
+    "public SetProcessInformation documentation does not define the instrumentation callback class",
+    "pre-10041 privilege behavior must stay fail-closed until proven by runtime matrix",
+    "AdjustTokenPrivileges cannot add SeDebugPrivilege to a token that lacks it",
+    "driver-mediated privilege or temporary privilege enablement is not a source-only fix",
+    "ARM64EC is not covered by the native ARM64 callback restore path"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-setprocessinformation",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntqueryinformationprocess",
+    "https://learn.microsoft.com/en-us/windows/win32/procthread/process-security-and-access-rights",
+    "https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-adjusttokenprivileges",
+    "https://learn.microsoft.com/en-us/windows/win32/secauthz/privilege-constants",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/debug-privilege",
+    "https://learn.microsoft.com/en-us/windows/arm/arm64ec",
+    "https://learn.microsoft.com/en-us/windows/arm/arm64ec-abi",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-rtlcapturecontext",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winnt/nf-winnt-rtlrestorecontext"
+  ]
+}

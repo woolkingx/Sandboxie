@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-024-killall-enum-count.schema.json",
+  "title": "SREV-024 KillAll process enumeration count",
+  "id": "KILLALL_ENUM_COUNT_SHAPE",
+  "owner": "Sandboxie/core/svc/ProcessServer.cpp",
+  "type": "object",
+  "properties": {
+    "terminate_apis_shape": {
+      "type": "string",
+      "description": "TerminateJobObject terminates all processes in a job; TerminateProcess terminates one process handle; both APIs define executor behavior only, not Sandboxie PID enumeration"
+    },
+    "enum_contract": {
+      "type": "string",
+      "description": "SbieApi_EnumProcessEx(..., pids, &count) passes caller capacity; driver Process_Enumerate writes at most *count entries then sets *count = num; valid indexes are 0 <= i < count"
+    },
+    "terminatejob_default": {
+      "type": "string",
+      "description": "TerminateJob defaults to FALSE and is set TRUE only through the explicit TerminateJobObject policy branch; NoAddProcessToJob/NoSecurityIsolation paths must not leave it uninitialized"
+    },
+    "iteration_invariant": {
+      "type": "string",
+      "description": "Manual PID termination uses `for (i = 0; i < count; ++i)`; never reads pids[count]"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate: KillAll with job termination disabled never sends GUI_KILL_JOB; manual fallback terminates each PID once without reading past the slice; TerminateJobObject-enabled boxes still send GUI job-kill before manual fallback; RPCSS boxed caller still avoids job termination"
+    }
+  },
+  "required": [
+    "terminate_apis_shape",
+    "enum_contract",
+    "terminatejob_default",
+    "iteration_invariant",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Job termination is only selected by explicit policy",
+    "Manual fallback iterates exactly the returned PID count",
+    "TerminateJob is initialized to FALSE on every path before being read"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-terminatejobobject",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-terminateprocess"
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "IPC_SELF_IMPERSONATION_STATUS_GATE",
+  "title": "IPC self impersonation status gate",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/ipc.c",
+  "stage": "schema -> boundary -> topology -> logic -> verify",
+  "source_functions": [
+    "Ipc_ImpersonateSelf",
+    "Ipc_NtImpersonateClientOfPort",
+    "Ipc_NtAlpcImpersonateClientOfPort"
+  ],
+  "contracts": [
+    "Ipc_ImpersonateSelf success means an existing SecurityImpersonation token was preserved or a self TokenImpersonation token was installed",
+    "NtQueryInformationToken(TokenImpersonationLevel) owns the current thread token level read",
+    "NtDuplicateToken(TokenImpersonation) owns the self primary-token to impersonation-token conversion",
+    "NtSetInformationThread(ThreadImpersonationToken) owns the thread-token install result",
+    "Ipc_ImpersonateSelf must return the actual self-impersonation status",
+    "SREV-110 owns the adjacent driver-side private-offset impersonation replay shim"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntqueryinformationtoken",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntduplicatetoken",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winnt/ne-winnt-security_impersonation_level",
+    "https://learn.microsoft.com/de-de/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntsetinformationthread",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-psimpersonateclient"
+  ],
+  "local_edges": [
+    "native NtImpersonateClientOfPort or NtAlpcImpersonateClientOfPort -> Ipc_ImpersonateSelf for non-system callers",
+    "thread token query -> SecurityImpersonation fast path",
+    "current process token -> NtDuplicateToken TokenImpersonation -> NtSetInformationThread ThreadImpersonationToken",
+    "failure -> restore old thread token when present -> return failure status",
+    "SREV-110 -> adjacent driver impersonation replay owner"
+  ],
+  "runtime_gate": "Windows LPC/ALPC impersonation smoke with native success, self-token fallback success, forced duplicate/install failure, and RPCSS/admin exception behavior",
+  "status": "patched-source-level-self-impersonation-status-gate-needs-windows-runtime-proof"
+}

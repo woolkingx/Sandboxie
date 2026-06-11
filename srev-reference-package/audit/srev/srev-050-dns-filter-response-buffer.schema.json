@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-050-dns-filter-response-buffer.schema.json",
+  "title": "SREV-050 DNS filter WSAQUERYSETW response buffer contract",
+  "id": "DNS_FILTER_WSAQUERYSET_RESPONSE_BUFFER",
+  "api": "WSA_FillResponseStructure",
+  "owner": "Sandboxie/core/dll/dns_filter.c",
+  "type": "object",
+  "properties": {
+    "lpqsResults": {
+      "type": "string",
+      "description": "Caller-provided WSALookupServiceNextW output buffer base"
+    },
+    "lpdwBufferLength": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Caller-provided buffer byte capacity on input and required capacity on WSAEFAULT"
+    },
+    "packed_layout": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "WSAQUERYSETW-owned strings, CSADDR_INFO entries, socket addresses, BLOB, HOSTENT, and relative HOSTENT payloads"
+    }
+  },
+  "required": [
+    "lpqsResults",
+    "lpdwBufferLength",
+    "packed_layout"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "WSALookupServiceNextW receives lpqsResults as a caller-provided output buffer",
+    "lpdwBufferLength is the byte capacity on input and required size on WSAEFAULT",
+    "WSA_FillResponseStructure owns the packed WSAQUERYSETW response layout",
+    "Every write advance in the packed response must be gated against bufferEnd in release builds",
+    "The final sanity check is diagnostic only and cannot be the first release-mode overflow gate",
+    "HOSTENT pointer-typed fields store relative offsets from the HOSTENT base"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-wsalookupservicenextw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsock2/ns-winsock2-wsaquerysetw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsock2/ns-winsock2-blob"
+  ]
+}

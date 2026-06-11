@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-143-file-link-prefix-guid-translation.schema.json",
+  "title": "SREV-143 File link prefix and GUID translation",
+  "id": "FILE_LINK_PREFIX_GUID_TRANSLATION",
+  "owner": "Sandboxie/core/dll/file_link.c",
+  "type": "object",
+  "properties": {
+    "permanent_link_prefix": {
+      "type": "string",
+      "description": "Permanent link source prefix match and boundary contract"
+    },
+    "guid_translation": {
+      "type": "string",
+      "description": "Volume GUID path translation return-value ownership"
+    },
+    "lock_owner": {
+      "type": "string",
+      "description": "File_DrivesAndLinks_CritSec lock ownership on successful lookups"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows permanent-link and volume-GUID symlink runtime proof"
+    }
+  },
+  "required": [
+    "permanent_link_prefix",
+    "guid_translation",
+    "lock_owner",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "file_link.c owns permanent-link prefix matching and volume GUID path translation inside the DLL path metadata lock",
+    "A permanent link source match is valid only when PathLen >= src_len, the prefix bytes match, and the character at Path[src_len] is either a backslash or NUL",
+    "Path[PathLen] is the end of the caller-supplied string when PathLen comes from wcslen(path), so it cannot prove the prefix boundary",
+    "Known volume GUID targets in \\\\??\\\\Volume{GUID}\\\\ form must return the allocated File_ConcatPath2 result to the caller",
+    "The GUID lookup lock is released exactly once after a successful File_GetLinkForGuid lookup",
+    "File_ConcatPath2 remains the owner-local path allocation helper and returns a NUL-terminated allocated string",
+    "Symlink and reparse target byte offsets remain interpreted as counted REPARSE_DATA_BUFFER data"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file",
+    "https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-volume",
+    "https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getvolumenameforvolumemountpointw",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_reparse_data_buffer"
+  ]
+}

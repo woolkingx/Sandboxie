@@ -156,6 +156,10 @@ static const GUID IID_IPropertyStore = {
     0x886D8EEB, 0x8CF2, 0x4446,
         { 0x8D, 0x02, 0xCD, 0xBA, 0x1D, 0xBD, 0xCF, 0x99 } };
 
+static const GUID Taskbar_IID_IUnknown = {
+    0x00000000, 0x0000, 0x0000,
+        { 0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46 } };
+
 static const GUID FOLDERID_Recent = {
     0xAE50C081, 0xEBD2, 0x438A,
         { 0x86, 0x55, 0x8A, 0x09, 0x2E, 0x34, 0x98, 0x7A } };
@@ -380,20 +384,23 @@ _FX BOOLEAN Taskbar_ShouldOverrideAppUserModelId(void)
 _FX HRESULT Taskbar_SetCurrentProcessExplicitAppUserModelID_hack(
     const WCHAR* AppId)
 {
+    HRESULT hr;
+    ULONG SavedWindowFlags;
+    RTL_USER_PROCESS_PARAMETERS* ProcessParms;
 
-    // ToDo
-    // Fix-Me: BUG when ProcessParms->WindowTitle is already set LocalFree 
-    // performed by SetCurrentProcessExplicitAppUserModelID crashes, WTF why?!
-    //
-    // To work around this issue, we clear the flag that indicates this value being set
-    // this way we trade a memory leak for an crash
-    //
+    ProcessParms = Proc_GetRtlUserProcessParameters();
+    if (! ProcessParms)
+        return __sys_SetCurrentProcessExplicitAppUserModelID(AppId);
 
-    // HACK ALERT! if we clear 0x5000 the WindowTitle buffer will not be freed
-    RTL_USER_PROCESS_PARAMETERS* ProcessParms = Proc_GetRtlUserProcessParameters();
+    SavedWindowFlags = ProcessParms->WindowFlags;
     ProcessParms->WindowFlags &= ~0x5000;
+
+    hr = __sys_SetCurrentProcessExplicitAppUserModelID(AppId);
+
+    ProcessParms->WindowFlags =
+        (ProcessParms->WindowFlags & ~0x5000) | (SavedWindowFlags & 0x5000);
     
-    return __sys_SetCurrentProcessExplicitAppUserModelID(AppId);
+    return hr;
 }
 
 _FX HRESULT Taskbar_SetCurrentProcessExplicitAppUserModelID(
@@ -866,12 +873,17 @@ _FX TASKBAR_UNKNOWN *Taskbar_AllocUnknown(ULONG methods, IUnknown *pReal)
 _FX HRESULT Taskbar_Unknown_QueryInterface(
     IPropertyStore *This, REFIID riid, void **ppv)
 {
-    if (memcmp(riid, &IID_IPropertyStore, sizeof(GUID)) != 0) {
+    if (! ppv)
+        return E_POINTER;
+
+    if (memcmp(riid, &Taskbar_IID_IUnknown, sizeof(GUID)) != 0 &&
+            memcmp(riid, &IID_IPropertyStore, sizeof(GUID)) != 0) {
+        *ppv = NULL;
         SbieApi_Log(2205, L"SHGetPropertyStoreForWindow");
         return E_NOINTERFACE;
     }
-    This->lpVtbl->AddRef(This);
     *ppv = This;
+    This->lpVtbl->AddRef(This);
     return S_OK;
 }
 

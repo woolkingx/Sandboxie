@@ -125,6 +125,28 @@ typedef struct _SYSTEM_SERVICE_TABLE
     PUCHAR ParamTable;
 } SYSTEM_SERVICE_TABLE, *PSYSTEM_SERVICE_TABLE;
 
+
+static BOOLEAN Syscall_IsShadowTableCandidate(PSYSTEM_SERVICE_TABLE pTable)
+{
+    BOOLEAN match = FALSE;
+
+    if ((!pTable) || ((PVOID)pTable == (PVOID)&KeServiceDescriptorTable))
+        return FALSE;
+
+    __try {
+        if (MmIsAddressValid(pTable)) {
+            match = (memcmp(
+                pTable, &KeServiceDescriptorTable,
+                sizeof(SYSTEM_SERVICE_TABLE)) == 0);
+        }
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        match = FALSE;
+    }
+
+    return match;
+}
+
+
 PSYSTEM_SERVICE_TABLE GetShadowTableAddress()
 {
     PUCHAR pCheckByte = (PUCHAR)KeAddSystemServiceTable;
@@ -134,9 +156,7 @@ PSYSTEM_SERVICE_TABLE GetShadowTableAddress()
     for (i = 0; i < 1024; i++)
     {
         pTable = *(PSYSTEM_SERVICE_TABLE*)pCheckByte;
-        if (!MmIsAddressValid(pTable) ||
-            ((PVOID)pTable == (PVOID)&KeServiceDescriptorTable) ||
-            (memcmp(pTable, &KeServiceDescriptorTable, sizeof(SYSTEM_SERVICE_TABLE))))
+        if (!Syscall_IsShadowTableCandidate(pTable))
         {
             pCheckByte++;
             pTable = NULL;

@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "SCM_NOTIFY_APC_CONTRACT",
+  "owner": "Sandboxie/core/dll/scm_notify.c",
+  "entry_surface": "Sandboxie/core/dll/scm_notify.c",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-notifyservicestatuschangew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/ns-winsvc-service_notify_2w",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openthread",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-queueuserapc",
+    "https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createeventw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createthread",
+    "https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitformultipleobjects",
+    "https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-gettickcount"
+  ],
+  "data_shapes": {
+    "notify_registration": {
+      "input": "SC_HANDLE, dwNotifyMask, SERVICE_NOTIFY pointer",
+      "owned_state": "SCM_NOTIFY_ELEM",
+      "invariant": "caller buffer and callback are validated before storage or callback"
+    },
+    "watcher_resources": {
+      "input": "OpenThread, CreateEvent, CreateThread",
+      "owned_state": "SCM_NOTIFY_GLOBAL watcher handles",
+      "invariant": "registration returns success only after required handles exist"
+    },
+    "apc_delivery": {
+      "input": "SERVICE_STATUS_PROCESS from Sandboxie service query",
+      "output": "QueueUserAPC to caller thread with caller SERVICE_NOTIFY pointer",
+      "invariant": "notification becomes inactive only after APC enqueue succeeds"
+    },
+    "wait_state": {
+      "input": "SERVICE_QUERY_RPL",
+      "output": "copied dwCurrentState",
+      "invariant": "state is copied before Dll_Free"
+    }
+  },
+  "contracts": [
+    "pNotifyBuffer is checked before SERVICE_NOTIFY dereference",
+    "dwVersion is accepted only for locally supported versions 1 or 2",
+    "pfnNotifyCallback is non-null before registration succeeds",
+    "dwNotifyMask is nonzero before registration succeeds",
+    "OpenThread failure returns the Win32 failure code",
+    "SCM_NOTIFY_GLOBAL and SCM_NOTIFY_ELEM allocation failures return ERROR_NOT_ENOUGH_MEMORY",
+    "CreateEvent failure returns the Win32 failure code",
+    "CreateThread failure returns the Win32 failure code",
+    "Existing notification entries update data and mask on re-registration",
+    "QueueUserAPC success gates inactive transition",
+    "APC callback dispatch checks pfnNotifyCallback before calling it",
+    "Scm_WaitServiceState copies current_state before freeing SERVICE_QUERY_RPL"
+  ],
+  "runtime_gate": "Windows DLL build plus SCM notification callback, re-registration, APC failure, wait timeout, cancel, and success smoke",
+  "status": "patched-source-level-after-official-scm-apc-shape-review-needs-windows-runtime-proof"
+}

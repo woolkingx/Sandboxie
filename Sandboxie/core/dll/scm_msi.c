@@ -346,20 +346,20 @@ _FX void Scm_SetupMsiWaiter()
 _FX BOOLEAN Scm_MsiDll(HMODULE module)
 {
     //
-    // MSI library unloading
-    //      XXX - Ldr module no longer does unload notifications
-    //            so we might rely on MsiCloseHandle instead
+    // SREV-092: MSI module lifetime owns the in-use event. msi.dll load creates
+    // the per-process event hold; msi.dll unload releases that hold through the
+    // Ldr_Dlls unload callback. Do not bind this event to MsiCloseHandle: that
+    // API closes one per-thread installer handle and is not the process/module
+    // lifetime owner.
     //
 
-    /* if (! module) {
-
+    if (!module) {
         if (Msi_ServerInUseEvent) {
             CloseHandle(Msi_ServerInUseEvent);
-            Msi_ServerInUseEvent = FALSE;
+            Msi_ServerInUseEvent = NULL;
         }
-
         return TRUE;
-    }*/
+    }
 
     //
     // indicate we are one more process that is using the MSI Server

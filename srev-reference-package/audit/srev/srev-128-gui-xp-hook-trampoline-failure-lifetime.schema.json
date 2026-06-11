@@ -1,0 +1,69 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "GUI_XP_HOOK_TRAMPOLINE_FAILURE_LIFETIME",
+  "title": "GUI XP hook trampoline failure lifetime",
+  "type": "object",
+  "required": [
+    "owner",
+    "severity",
+    "contracts",
+    "official_references",
+    "runtime_gates"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/drv/gui_xp.c"
+    },
+    "severity": {
+      "const": "major"
+    },
+    "contracts": {
+      "type": "array",
+      "minItems": 8,
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "Gui_HookService stores the original source function pointer in owner-local storage before any failure edge can free the hook context"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "string",
+        "format": "uri"
+      }
+    },
+    "runtime_gates": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "contracts": [
+    "Gui_HookService stores the original source function pointer in owner-local storage before any failure edge can free the hook context",
+    "GUI_HOOKSERVICE_CONTEXT SaveBytesAddr mirrors the original source function pointer but is not the failure-restore owner after context cleanup",
+    "Hook_BuildTramp may return NULL when instruction analysis or trampoline allocation/copy fails",
+    "Gui_HookService checks the Hook_BuildTramp result before SpySweeper push-jump trampoline writes through it",
+    "push_jmp_target special trampoline patching only runs after Trampoline is non-null",
+    "failure cleanup frees GUI_HOOKSERVICE_CONTEXT only before restoring pSourceFunc from OriginalSourceFunc",
+    "failure cleanup never dereferences context after ExFreePoolWithTag(context, tzuk)",
+    "successful hook topology and Process_BuildHookEntry behavior are unchanged",
+    "XP win32k service discovery hotfix prolog handling MDL locking and DPC freeze topology are unchanged"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-exallocatepoolwithtag",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-exfreepool"
+  ],
+  "runtime_gates": [
+    "Windows XP or supported lab build of gui_xp.c",
+    "hook install smoke for NtUserPostThreadMessage NtUserSendInput NtUserBlockInput NtUserSetWindowsHookEx NtUserSetWinEventHook NtRequestPort and NtRequestWaitReplyPort",
+    "failure injection where Hook_BuildTramp returns NULL on a push_jmp_target prolog proving no NULL write and FALSE return",
+    "failure injection after pSourceFunc has been set to Trampoline proving pSourceFunc restores to the original function pointer without reading freed context",
+    "Driver Verifier or kernel debugger observation proving no freed GUI_HOOKSERVICE_CONTEXT access on failure"
+  ]
+}

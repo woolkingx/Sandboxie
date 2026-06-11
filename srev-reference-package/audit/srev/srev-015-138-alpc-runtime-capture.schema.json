@@ -1,0 +1,319 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-015-138-alpc-runtime-capture.schema.json",
+  "title": "SREV-015/SREV-138 ALPC runtime capture evidence",
+  "id": "ALPC_RUNTIME_CAPTURE_EVIDENCE",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "record_id",
+    "windows_build",
+    "architecture",
+    "sandboxie_commit",
+    "capture_tool",
+    "endpoint_path",
+    "source_path",
+    "mirror_header",
+    "port_message",
+    "connect",
+    "message_view",
+    "negative_control",
+    "evidence"
+  ],
+  "properties": {
+    "record_id": {
+      "type": "string"
+    },
+    "windows_build": {
+      "type": "string"
+    },
+    "architecture": {
+      "type": "string",
+      "enum": ["x86", "x64", "wow64", "arm64"]
+    },
+    "sandboxie_commit": {
+      "type": "string"
+    },
+    "capture_tool": {
+      "type": "string"
+    },
+    "endpoint_path": {
+      "type": "string"
+    },
+    "source_path": {
+      "type": "string",
+      "enum": [
+        "NtAlpcConnectPort",
+        "NtAlpcConnectPortEx",
+        "NtAlpcSendWaitReceivePort",
+        "SbieSvc AlpcRequestHandler",
+        "driver endpoint policy",
+        "old LPC control"
+      ]
+    },
+    "mirror_header": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "drv_alpc_h",
+        "common_win32_ntddk_h",
+        "matches"
+      ],
+      "properties": {
+        "drv_alpc_h": {
+          "$ref": "#/definitions/mirrorValues"
+        },
+        "common_win32_ntddk_h": {
+          "$ref": "#/definitions/mirrorValues"
+        },
+        "matches": {
+          "type": "boolean"
+        }
+      }
+    },
+    "port_message": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "data_length",
+        "total_length",
+        "type",
+        "data_info_offset",
+        "message_id",
+        "client_view_size",
+        "callback_id",
+        "within_max_portmsg_length",
+        "payload_bounds_valid"
+      ],
+      "properties": {
+        "data_length": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total_length": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "type": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "data_info_offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "message_id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "client_view_size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "callback_id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "within_max_portmsg_length": {
+          "type": "boolean"
+        },
+        "payload_bounds_valid": {
+          "type": "boolean"
+        }
+      }
+    },
+    "connect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pre_mask_flags",
+        "post_wow64_mask_flags",
+        "alpc_port_attributes_flags",
+        "security_qos",
+        "max_message_length",
+        "status",
+        "route"
+      ],
+      "properties": {
+        "pre_mask_flags": {
+          "type": "string"
+        },
+        "post_wow64_mask_flags": {
+          "type": "string"
+        },
+        "alpc_port_attributes_flags": {
+          "type": "string"
+        },
+        "security_qos": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "impersonation_level",
+            "context_tracking_mode",
+            "effective_only"
+          ],
+          "properties": {
+            "impersonation_level": {
+              "type": "string"
+            },
+            "context_tracking_mode": {
+              "type": "string"
+            },
+            "effective_only": {
+              "type": "boolean"
+            }
+          }
+        },
+        "max_message_length": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "type": "string"
+        },
+        "route": {
+          "type": "string",
+          "enum": ["proxied", "native", "rejected", "not_applicable"]
+        }
+      }
+    },
+    "message_view": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "send_flags",
+        "receive_flags",
+        "reply_length",
+        "message_id",
+        "callback_id",
+        "view_base",
+        "view_size",
+        "unmap_special_case",
+        "service_side_mask_result",
+        "reply_status"
+      ],
+      "properties": {
+        "send_flags": {
+          "type": "string"
+        },
+        "receive_flags": {
+          "type": "string"
+        },
+        "reply_length": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "message_id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "callback_id": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "view_base": {
+          "type": "string"
+        },
+        "view_size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unmap_special_case": {
+          "type": "boolean"
+        },
+        "service_side_mask_result": {
+          "type": "string"
+        },
+        "reply_status": {
+          "type": "string"
+        }
+      }
+    },
+    "negative_control": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "expected",
+        "actual",
+        "passed"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "expected": {
+          "type": "string"
+        },
+        "actual": {
+          "type": "string"
+        },
+        "passed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "etw_trace",
+        "debugger_transcript",
+        "capture_timestamp",
+        "notes"
+      ],
+      "properties": {
+        "etw_trace": {
+          "type": "string"
+        },
+        "debugger_transcript": {
+          "type": "string"
+        },
+        "capture_timestamp": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "mirrorValues": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sizeof_port_message",
+        "sizeof_port_data_info",
+        "sizeof_alpc_port_attributes",
+        "sizeof_alpc_message_view",
+        "field_offsets"
+      ],
+      "properties": {
+        "sizeof_port_message": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sizeof_port_data_info": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sizeof_alpc_port_attributes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sizeof_alpc_message_view": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "field_offsets": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

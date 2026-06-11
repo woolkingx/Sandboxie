@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:sandboxie:srev-047-key-low-label-boxed-path",
+  "title": "SREV-047 key low-label boxed-path contract",
+  "type": "object",
+  "id": "KEY_LOW_LABEL_BOXED_PATH",
+  "api": "Key_Api_SetLowLabel",
+  "owner": "Sandboxie/core/drv/key.c",
+  "data": {
+    "input": [
+      "API_SET_LOW_LABEL_ARGS path_len",
+      "API_SET_LOW_LABEL_ARGS path_str"
+    ],
+    "output": "low-label security descriptor is applied only to boxed registry-key paths"
+  },
+  "contracts": [
+    "path_len is a byte count and must be even, non-empty, and within the local 512-WCHAR cap",
+    "path_str must be copied into a kernel-owned NUL-terminated buffer before registry topology checks",
+    "embedded NUL inside the counted path payload is invalid",
+    "Key_Api_SetLowLabel must check the key sandbox root, not the file sandbox root",
+    "ZwOpenKey and ZwSetSecurityObject run only when Box_IsBoxedPath(proc->box, key, path) is true",
+    "out-of-box registry-key paths are denied before security descriptor mutation"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwopenkey",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-zwsetsecurityobject"
+  ],
+  "required": [
+    "path_len",
+    "path_str",
+    "boxed_key_path"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "path_len": {
+      "type": "object",
+      "required": [
+        "unit",
+        "alignment",
+        "max"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "unit": { "const": "bytes" },
+        "alignment": { "const": "even WCHAR byte count" },
+        "max": { "const": "512 WCHARs" }
+      }
+    },
+    "path_str": {
+      "type": "object",
+      "required": [
+        "owner",
+        "terminator",
+        "embedded_nul"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "owner": { "const": "kernel copy before use" },
+        "terminator": { "const": "synthesized after counted payload" },
+        "embedded_nul": { "const": "invalid" }
+      }
+    },
+    "boxed_key_path": {
+      "type": "object",
+      "required": [
+        "component",
+        "allow",
+        "deny"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "component": { "const": "key" },
+        "allow": { "const": "Box_IsBoxedPath true" },
+        "deny": { "const": "out-of-box registry-key path" }
+      }
+    }
+  }
+}

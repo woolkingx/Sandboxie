@@ -209,8 +209,15 @@ HANDLE WINAPI ImDiskOpenDeviceByMountPoint(LPCWSTR MountPoint, DWORD AccessMode)
             return INVALID_HANDLE_VALUE;
 
         ReparseData = (PREPARSE_DATA_BUFFER)HeapAlloc(GetProcessHeap(),
-            HEAP_GENERATE_EXCEPTIONS | HEAP_ZERO_MEMORY,
+            HEAP_ZERO_MEMORY,
             buffer_size);
+
+        if (!ReparseData)
+        {
+            CloseHandle(hDir);
+            SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+            return INVALID_HANDLE_VALUE;
+        }
 
         if (!DeviceIoControl(hDir, FSCTL_GET_REPARSE_POINT,
             NULL, 0,
@@ -233,17 +240,46 @@ HANDLE WINAPI ImDiskOpenDeviceByMountPoint(LPCWSTR MountPoint, DWORD AccessMode)
             return INVALID_HANDLE_VALUE;
         }
 
-        DeviceName.Length =
+        const DWORD reparse_header_size =
+            FIELD_OFFSET(REPARSE_DATA_BUFFER, MountPointReparseBuffer);
+        const DWORD mount_path_header_size =
+            FIELD_OFFSET(REPARSE_DATA_BUFFER, MountPointReparseBuffer.PathBuffer) -
+            reparse_header_size;
+        const DWORD returned_data_size =
+            (dw >= reparse_header_size) ? dw - reparse_header_size : 0;
+        const DWORD path_data_size =
+            (ReparseData->ReparseDataLength >= mount_path_header_size)
+            ? ReparseData->ReparseDataLength - mount_path_header_size
+            : 0;
+        const USHORT substitute_name_offset =
+            ReparseData->MountPointReparseBuffer.SubstituteNameOffset;
+        const USHORT substitute_name_length =
             ReparseData->MountPointReparseBuffer.SubstituteNameLength;
+
+        if ((dw < reparse_header_size + mount_path_header_size) ||
+            (ReparseData->ReparseDataLength < mount_path_header_size) ||
+            (ReparseData->ReparseDataLength > returned_data_size) ||
+            (substitute_name_length == 0) ||
+            ((substitute_name_offset | substitute_name_length) & (sizeof(WCHAR) - 1)) ||
+            ((DWORD)substitute_name_offset + substitute_name_length > path_data_size))
+        {
+            HeapFree(GetProcessHeap(), 0, ReparseData);
+            SetLastError(ERROR_INVALID_DATA);
+            return INVALID_HANDLE_VALUE;
+        }
+
+        DeviceName.Length =
+            substitute_name_length;
         
         DeviceName.Buffer = (PWSTR)
             ((PUCHAR)ReparseData->MountPointReparseBuffer.PathBuffer +
-            ReparseData->MountPointReparseBuffer.SubstituteNameOffset);
+            substitute_name_offset);
         
         DeviceName.MaximumLength = DeviceName.Length;
     }
     
-    if (DeviceName.Buffer[(DeviceName.Length >> 1) - 1] == L'\\')
+    if (DeviceName.Length &&
+        DeviceName.Buffer[(DeviceName.Length >> 1) - 1] == L'\\')
     {
         DeviceName.Buffer[(DeviceName.Length >> 1) - 1] = 0;
         DeviceName.Length -= 2;
@@ -368,7 +404,7 @@ std::wstring ImDiskQueryDeviceProxy(const std::wstring& FileName)
 
 ULONGLONG ImDiskQueryDeviceSize(const std::wstring& FileName)
 {
-    ULONGLONG size;
+    ULONGLONG size = 0;
 
     UNICODE_STRING file_name;
     RtlInitUnicodeString(&file_name, (WCHAR*)FileName.c_str());

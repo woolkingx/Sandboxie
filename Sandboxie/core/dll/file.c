@@ -467,9 +467,11 @@ _FX ULONG File_FindBoxPrefix(const WCHAR* Path)
         const WCHAR* Path;
         ULONG PathLen;
     } BoxFilePaths[3] = {
+        // SREV-264: File_AltBoxPath is a legacy mount-point prefix fallback.
+        // Removal must first reprove the SREV-057 raw-root/mount-point matrix.
         Dll_BoxFilePath, Dll_BoxFilePathLen,
         Dll_BoxFileRawPath, Dll_BoxFileRawPathLen,
-        File_AltBoxPath, File_AltBoxPathLen // ToDo: deprecated, remove - raw path is more reliable and covers all cases
+        File_AltBoxPath, File_AltBoxPathLen
     }, *Dll_BoxFile;
 
     for (int i = 0; i < ARRAYSIZE(BoxFilePaths); i++) {
@@ -2180,11 +2182,9 @@ _FX NTSTATUS File_GetName_FromFileId(
     //
     // assuming the requested file exists outside the sandbox:
     //
-    // if caller is trying to open by FileId using a parent directory,
-    // the parent directory may be D:\sandbox\drive\C rather than the
-    // real C: and this would cause a problem if both the C: and D:
-    // drives have a file with the same FileId.  to workaround this,
-    // we always prefer to use the real C: as parent directory
+    // SREV-266: File IDs are file-system scoped, so opening by FileId through
+    // D:\sandbox\drive\C can target the sandbox volume instead of real C:.
+    // Prefer the true parent path before falling back to caller/root handles.
     //
 
     if (1) {
@@ -2512,15 +2512,18 @@ _FX NTSTATUS File_NtOpenFile(
 #ifdef _M_ARM64EC
 
     //
-	// TODO: Fix-Me:
-    // In ARM64EC xtajit64.dll calls NtOpenFile and when this happens __chkstk_arm64ec
-	// crashes causing a stack overflow. To avoid this we call NtOpenFile directly.
+    // SREV-267: SREV-054 owns this ARM64EC compatibility bypass. When
+    // xtajit64.dll is the caller, the normal File_NtCreateFileImpl route can
+    // hit __chkstk_arm64ec stack overflow; only the SREV-054 half-open image
+    // range may use the direct NtOpenFile path.
     //
 
     extern UINT_PTR Dll_xtajit64;
+    extern UINT_PTR Dll_xtajit64_End;
     ULONG_PTR pRetAddr = (ULONG_PTR)_ReturnAddress();
 
-    if (pRetAddr > Dll_xtajit64 && pRetAddr < Dll_xtajit64 + 0x180000) {
+    if (Dll_xtajit64 && Dll_xtajit64_End &&
+            pRetAddr >= Dll_xtajit64 && pRetAddr < Dll_xtajit64_End) {
 
         //SbieApi_Log(2301, L"NtOpenFile bypass on ARM64EC for %S", 
         // ObjectAttributes && ObjectAttributes->ObjectName && ObjectAttributes->ObjectName->Buffer ? ObjectAttributes->ObjectName->Buffer : L"[UNNAMED]");
@@ -3167,7 +3170,9 @@ ReparseLoop:
     // use the Everyone security descriptor
     //
 
-    // $Workaround$ - 3rd party fix
+    // SREV-268: Outlook OICE_ previewer files need the local public
+    // Secure_EveryoneSD compatibility descriptor; keep this scoped to the
+    // Outlook image type and OICE_ path segment.
     if (Dll_ImageType == DLL_IMAGE_OFFICE_OUTLOOK &&
             wcsstr(TruePath, L"\\OICE_")) {
 
@@ -3273,7 +3278,8 @@ ReparseLoop:
 
         if (CreateOptions & FILE_DELETE_ON_CLOSE) {
 
-            // $Workaround$ - 3rd party fix
+            // Digital Guardian blocks direct true-file checks for write/closed
+            // paths, so delete-on-close treats the true file as absent.
             if (Dll_DigitalGuardian && (PATH_IS_WRITE(mp_flags) || PATH_IS_CLOSED(mp_flags)))
             {
                 HaveTrueFile = 'N';
@@ -3524,7 +3530,10 @@ ReparseLoop:
             // do that with an exe that exists outside the sandbox
             //
 
-            // $Workaround$ - 3rd party fix
+            // SREV-269: Firefox 106+ plugin executable probes can request the
+            // broad GENERIC_WRITE mapping for an existing true-path .exe.
+            // Strip only that generic write request before the true-file open
+            // decision so this branch cannot become a general write bypass.
             if (Dll_ImageType == DLL_IMAGE_MOZILLA_FIREFOX && (DesiredAccess & GENERIC_WRITE)) {
                 const WCHAR *dot = wcsrchr(TruePath, L'.');
                 if (dot && _wcsicmp(dot, L".exe") == 0)
@@ -4263,21 +4272,31 @@ NTSTATUS File_NtCreateFileProxy(
         Sbie_snwprintf(_QueueName, 32, L"*USERPROXY_%08X", Dll_SessionId);
     }
 
-    if (ObjectAttributes->RootDirectory != NULL || ObjectAttributes->ObjectName == NULL) {
+    if (ObjectAttributes->RootDirectory != NULL || ObjectAttributes->ObjectName == NULL
+            || ObjectAttributes->ObjectName->Buffer == NULL) {
 
         SbieApi_Log(2205, L"NtCreateFile (EFS)");
         return STATUS_ACCESS_DENIED;
     }
 
-    ULONG path_len = ObjectAttributes->ObjectName->Length + sizeof(WCHAR);
+    ULONG name_len = ObjectAttributes->ObjectName->Length;
+    if ((name_len & (sizeof(WCHAR) - 1)) != 0)
+        return STATUS_INVALID_PARAMETER;
+
+    if (name_len > (ULONG)-1 - sizeof(USER_OPEN_FILE_REQ) - sizeof(WCHAR)
+            || EaLength > (ULONG)-1 - sizeof(USER_OPEN_FILE_REQ) - sizeof(WCHAR) - name_len)
+        return STATUS_INVALID_PARAMETER;
+
+    ULONG path_len = name_len + sizeof(WCHAR);
     ULONG req_len = sizeof(USER_OPEN_FILE_REQ) + path_len + EaLength;
     ULONG path_pos = sizeof(USER_OPEN_FILE_REQ);
     ULONG ea_pos = path_pos + path_len;
 
     USER_OPEN_FILE_REQ *req = (USER_OPEN_FILE_REQ *)Dll_AllocTemp(req_len);
 
-    WCHAR* path_buff = ((UCHAR*)req) + path_pos;
-    memcpy(path_buff, ObjectAttributes->ObjectName->Buffer, path_len);
+    WCHAR* path_buff = (WCHAR*)(((UCHAR*)req) + path_pos);
+    memcpy(path_buff, ObjectAttributes->ObjectName->Buffer, name_len);
+    path_buff[name_len / sizeof(WCHAR)] = L'\0';
 
     if (EaBuffer && EaLength > 0) {
         void* ea_buff = ((UCHAR*)req) + ea_pos;
@@ -5543,18 +5562,26 @@ _FX NTSTATUS File_NtQueryFullAttributesFile(
 {
     NTSTATUS status = File_NtQueryFullAttributesFileImpl(ObjectAttributes, FileInformation);
 
+    UNICODE_STRING *ObjectName = NULL;
+    if (ObjectAttributes)
+        ObjectName = ObjectAttributes->ObjectName;
+
     if (status == STATUS_OBJECT_NAME_NOT_FOUND && Dll_ImageType == DLL_IMAGE_MSI_INSTALLER
-        && ObjectAttributes != NULL && ObjectAttributes->ObjectName != NULL 
-        // ObjectAttributes->ObjectName == "\\??\\C:\\Config.Msi" // or any other system drive
-        && ObjectAttributes->ObjectName->Buffer && ObjectAttributes->ObjectName->Length == 34
-        && _wcsicmp(ObjectAttributes->ObjectName->Buffer + 6, L"\\Config.Msi") == 0
+        && ObjectName != NULL
+        // ObjectName == "\\??\\C:\\Config.Msi" // or any other system drive
+        && ObjectName->Buffer && ObjectName->Length == 34
+        && ObjectName->MaximumLength >= ObjectName->Length + sizeof(WCHAR)
+        && ObjectName->Buffer[ObjectName->Length / sizeof(WCHAR)] == L'\0'
+        && _wcsnicmp(ObjectName->Buffer + 6, L"\\Config.Msi", 11) == 0
         ) {
 
         //
-        // MSI bug: this must not fail, hence we create the directory and retry
+        // SREV-270: this MSI Config.Msi compatibility retry passes ObjectName
+        // to CreateDirectory, so it is legal only after the UNICODE_STRING
+        // MaximumLength proves a trailing NUL beyond Length.
         //
 
-        CreateDirectory(ObjectAttributes->ObjectName->Buffer, NULL);
+        CreateDirectory(ObjectName->Buffer, NULL);
 
         status = File_NtQueryFullAttributesFileImpl(ObjectAttributes, FileInformation);
     }
@@ -5910,16 +5937,11 @@ _FX NTSTATUS File_NtQueryInformationFile(
         // that the file can be opened by it without unscrambling
         // (see also File_GetName_FromFileId)
         //
-        // the reason for this is the possibly of files on both C:
-        // and D: drives having the same FileId.  the program may
-        // wish to open use a handle on drive C: to open using the
-        // FileId by might end up using a sandbox handle like
-        // D:\sandbox\drive\C which is actually on drive D:.  this
-        // makes it impossible to figure out if the program wants
-        // the file on C: or the sandboxed file on D:.  to make
-        // this less likely to be a problem, we scrambe the FileId
-        // for files in the sandbox.  see also NtQueryDirectoryFile
-        // and File_GetFullInformation
+        // SREV-266: File IDs are unique only within their file system.  When a
+        // sandboxed file lives under D:\sandbox\drive\C, its ID must not be
+        // reusable as a real C: open-by-id token without the paired
+        // File_GetName_FromFileId unscramble path.  See also
+        // NtQueryDirectoryFile and File_GetFullInformation.
         //
 
         if (FileInformationClass == FileInternalInformation &&
@@ -5977,10 +5999,10 @@ _FX NTSTATUS File_NtQueryInformationFile(
     if (file_link) {
 
         //
-        // File_GetName may translate a path to a volume that is mounted
-        // without a drive letter, for example \Device\HarddiskVolume2\XXX
-        // translates to \Device\HarddiskVolume1\MOUNT\XXX, and we want
-        // to make sure that we return \XXX rather than \MOUNT\XXX
+        // SREV-271: FileNameInformation returns a root-relative name.
+        // When a target volume is reached through a mounted folder, strip the
+        // mounted-folder destination prefix and return the target-volume
+        // suffix rather than the mount-location suffix.
         //
 
         TruePath += file_link->dst_len;
@@ -6037,7 +6059,12 @@ _FX NTSTATUS File_NtQueryInformationFile(
                     }
                 }
             }
-            else { // todo: fix-me this is not elegant
+            else {
+                //
+                // SREV-271: no DOS drive presentation exists for this NT path.
+                // If it matches a known volume GUID/device entry, return the
+                // suffix relative to that volume identity.
+                //
                 TruePathLen = wcslen(TruePath);
                 const FILE_GUID* guid = File_GetGuidForPath(TruePath, TruePathLen);
                 if (guid) {
@@ -6197,7 +6224,10 @@ _FX NTSTATUS File_NtQueryInformationByName(
             status != STATUS_OBJECT_NAME_NOT_FOUND &&
             status != STATUS_OBJECT_PATH_NOT_FOUND)) {
 
-            // todo
+            // SREV-272: NtQueryInformationByName returns a class-specific
+            // buffer. Delete-mark filtering cannot treat FileInformation as
+            // FILE_BASIC_INFORMATION unless FileInformationClass proves that
+            // layout and Length covers CreationTime.
             /*if (!File_Delete_v2) {
 
                 if (NT_SUCCESS(status) &&
@@ -6517,14 +6547,10 @@ _FX WCHAR *File_GetFinalPathNameByHandleW_2(WCHAR *TruePath, ULONG dwFlags)
     if (file_link) {
 
         //
-        // if the volume is mounted on a directory then the TruePath here
-        // will specify the NT path to the location of the mount, i.e.
-        // \Device\HarddiskVolume1\MOUNT\XXX  instead of
-        // \Device\HarddiskVolume2\XXX
-        //
-        // for non-DOS return values we need to convert the path back
-        // to the form \Device\HarddiskVolume2\XXX.  for DOS return
-        // values we use the drive letter of the mounted location
+        // SREV-273: GetFinalPathNameByHandleW volume-name flags choose the
+        // caller-visible volume identity.  Mounted-folder true paths use the
+        // target device for NT/NONE output and the mounted-location drive for
+        // DOS output.
         //
 
         if (file_link->dst_len == TruePath_len)
@@ -6870,8 +6896,15 @@ _FX NTSTATUS File_NtSetInformationFile(
             status = File_RenameFile(FileHandle, FileInformation, TRUE);
 
         }
-        else // todo
+        else
         {
+            //
+            // SREV-274: only FileLinkInformation/Ex have the local
+            // FILE_LINK_INFORMATION create-hard-link path.  Keep these
+            // alternate hard-link classes as a native compatibility probe
+            // unless a class-specific setter contract is proven.
+            //
+
             FillIoStatusBlock = FALSE;
 
             status = __sys_NtSetInformationFile(
@@ -7443,9 +7476,9 @@ _FX LONG File_RenameOpenFile(
 				info, info_len, FileRenameInformation);
 		}
 
-        // FIXME, we may get STATUS_NOT_SAME_DEVICE, however, in most cases,
-        // this API call is used to rename a file inside a folder, rather
-        // than move files across folders, so that isn't a problem
+        // SREV-275: FILE_RENAME_INFORMATION is an NT same-volume rename.
+        // STATUS_NOT_SAME_DEVICE is the legal result for cross-volume targets;
+        // Win32 copy/delete fallback belongs above this hook.
 
         Dll_Free(info);
     }
@@ -7884,7 +7917,8 @@ _FX NTSTATUS File_RenameFile(
             {
                 status = STATUS_OBJECT_NAME_NOT_FOUND;
             }
-            // $Workaround$ - 3rd party fix
+            // Without Digital Guardian, query true-file attributes directly;
+            // the Digital Guardian path uses the matched-path fallback below.
             else if (!Dll_DigitalGuardian)
             {
                 status = __sys_NtQueryFullAttributesFile(&objattrs, &open_info);
@@ -7948,10 +7982,9 @@ issue_rename:
 
     if (! NT_SUCCESS(status)) {
 
-        // FIXME, we may get STATUS_NOT_SAME_DEVICE here, if the rename
-        // involves an OpenFilePath, however, in most cases, this call
-        // is coming from kernel32!MoveFileXxx, which is smart enough
-        // to copy a file when it can't be renamed (MOVEFILE_COPY_ALLOWED)
+        // SREV-275: FILE_RENAME_INFORMATION cannot move across volumes.
+        // Preserve STATUS_NOT_SAME_DEVICE so Win32 MoveFileEx callers with
+        // MOVEFILE_COPY_ALLOWED can decide whether to copy/delete instead.
 
         if (! NT_SUCCESS(status))
             __leave;
@@ -8342,7 +8375,8 @@ _FX BOOLEAN SbieDll_TranslateNtToDosPath(WCHAR *path)
     path_len = wcslen(path);
     
     //
-    // workaround for hidden box root
+    // SREV-276: if the caller-visible DOS sandbox root is configured, translate
+    // the hidden NT box root back to that DOS root before generic drive lookup.
     //
 
     if (Dll_BoxFileDosPathLen && Dll_BoxFilePathLen <= path_len && _wcsnicmp(path, Dll_BoxFilePath, Dll_BoxFilePathLen) == 0)
@@ -8378,13 +8412,12 @@ _FX BOOLEAN SbieDll_TranslateNtToDosPath(WCHAR *path)
         return TRUE;
     }
 
-    // 
-    // sometimes we have to use a path which has no drive letter
-    // to make this work we use the \\.\ prefix which replaces \Device\
-    // and is accepted by regular non NT Win32 APIs
-    // 
-    // Note: fix me this makes chrome crash handler hang
-    // 
+    //
+    // SREV-276: do not invent a generic \Device\ -> \\.\ fallback here.
+    // Win32 device names are DOS-device namespace links, not a lossless
+    // replacement for every NT device path, and this disabled fallback is a
+    // known Chrome handler compatibility trap.
+    //
 
     /*if (_wcsnicmp(path, L"\\Device\\", 8) == 0) {
 
@@ -8569,7 +8602,7 @@ _FX NTSTATUS StopTailCallOptimization(NTSTATUS status)
     return status;
 }
 
-// $Workaround$ - 3rd party fix
+// Loader callback for the Digital Guardian module-presence flag.
 _FX BOOLEAN DigitalGuardian_Init(HMODULE hModule)
 {
     Dll_DigitalGuardian = hModule;

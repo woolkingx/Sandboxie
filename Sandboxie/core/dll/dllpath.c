@@ -125,12 +125,15 @@ _FX BOOLEAN Dll_InitPathList(void)
     pool2 = Pool_Create();
     if (! pool2) {
         SbieApi_Log(2305, NULL);
+        Pool_Delete(pool);
         return FALSE;
     }
 
     anchor = Pool_Alloc(pool, sizeof(PATH_LIST_ANCHOR));
     if (! anchor) {
         SbieApi_Log(2305, NULL);
+        Pool_Delete(pool2);
+        Pool_Delete(pool);
         return FALSE;
     }
     Dll_PathListAnchor = anchor;
@@ -728,30 +731,35 @@ _FX void Dll_RefreshPathList(void)
         List_Init(&read_paths);
 #endif
 
-        POOL* pool2 = Pool_Create();
+        POOL *pool2 = Pool_Create();
         if (pool2) {
 
-            Pool_Delete(Dll_PathListAnchor->pool2);
-            Dll_PathListAnchor->pool2 = pool2;
-        }
-
 #ifdef USE_MATCH_PATH_EX
-        if (Dll_InitPathList2(Dll_PathListAnchor->pool2, 'fx', &normal_paths, &open_paths, &closed_paths, &write_paths, &read_paths)) {
+            if (Dll_InitPathList2(pool2, 'fx', &normal_paths, &open_paths, &closed_paths, &write_paths, &read_paths)) {
 #else
-        if (Dll_InitPathList2(Dll_PathListAnchor->pool2, 'fx', &open_paths, &closed_paths, &write_paths)) {
+            if (Dll_InitPathList2(pool2, 'fx', &open_paths, &closed_paths, &write_paths)) {
 #endif
 
+                POOL *old_pool2 = Dll_PathListAnchor->pool2;
+                Dll_PathListAnchor->pool2 = pool2;
+
 #ifdef USE_MATCH_PATH_EX
-            memcpy(&Dll_PathListAnchor->normal_file_path,   &normal_paths, sizeof(LIST));
+                memcpy(&Dll_PathListAnchor->normal_file_path,   &normal_paths, sizeof(LIST));
 #endif
-            memcpy(&Dll_PathListAnchor->open_file_path,     &open_paths, sizeof(LIST));
-            memcpy(&Dll_PathListAnchor->closed_file_path,   &closed_paths, sizeof(LIST));
-            memcpy(&Dll_PathListAnchor->write_file_path,    &write_paths, sizeof(LIST));
+                memcpy(&Dll_PathListAnchor->open_file_path,     &open_paths, sizeof(LIST));
+                memcpy(&Dll_PathListAnchor->closed_file_path,   &closed_paths, sizeof(LIST));
+                memcpy(&Dll_PathListAnchor->write_file_path,    &write_paths, sizeof(LIST));
 #ifdef USE_MATCH_PATH_EX
-            memcpy(&Dll_PathListAnchor->read_file_path,     &read_paths, sizeof(LIST));
+                memcpy(&Dll_PathListAnchor->read_file_path,     &read_paths, sizeof(LIST));
 #endif
 
-            Dll_PathListAnchor->file_paths_initialized = TRUE;
+                Dll_PathListAnchor->file_paths_initialized = TRUE;
+                Pool_Delete(old_pool2);
+                pool2 = NULL;
+            }
+
+            if (pool2)
+                Pool_Delete(pool2);
         }
     }
 

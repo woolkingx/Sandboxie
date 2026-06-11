@@ -256,13 +256,16 @@ _FX void WaitForDebugger(SBIELOW_DATA *data)
 
 _FX void WriteMemorySafe(SBIELOW_DATA* data, void *Address, SIZE_T Size, void *Data)
 {
+    NTSTATUS status;
     void *RegionBase = Address;
     SIZE_T RegionSize = Size;
-    ULONG OldProtect;
+    ULONG OldProtect = 0;
 
-    SBIELOW_CALL(NtProtectVirtualMemory)(
+    status = SBIELOW_CALL(NtProtectVirtualMemory)(
         NtCurrentProcess(), &RegionBase, &RegionSize,
         PAGE_EXECUTE_READWRITE, &OldProtect);
+    if (! NT_SUCCESS(status))
+        return;
 
     // memcopy is not available, lets do our own
     switch (Size) {
@@ -373,7 +376,8 @@ _FX void InitSyscalls(SBIELOW_DATA *data, void * SystemService)
     ULONG SyscallNum;
     void *RegionBase;
     SIZE_T RegionSize;
-    ULONG OldProtect;
+    ULONG OldProtect = 0;
+    NTSTATUS status;
 
     SystemServiceAsm = (UCHAR *)SystemService;
 
@@ -438,9 +442,14 @@ _FX void InitSyscalls(SBIELOW_DATA *data, void * SystemService)
         // and then restore the original page protection
         //
 
-        SBIELOW_CALL(NtProtectVirtualMemory)(
+        OldProtect = 0;
+        status = SBIELOW_CALL(NtProtectVirtualMemory)(
             NtCurrentProcess(), &RegionBase, &RegionSize,
             PAGE_EXECUTE_READWRITE, &OldProtect);
+        if (! NT_SUCCESS(status)) {
+            SyscallPtr += 2;
+            continue;
+        }
 
         SyscallNum = SyscallPtr[0];
 
@@ -658,7 +667,8 @@ _FX void DisableCHPE(SBIELOW_DATA* data)
 
     void *RegionBase;
     SIZE_T RegionSize;
-    ULONG OldProtect;
+    ULONG OldProtect = 0;
+    NTSTATUS status;
     ULONG* aCode;
 
     //
@@ -667,9 +677,11 @@ _FX void DisableCHPE(SBIELOW_DATA* data)
 
     RegionBase = (void*)data->RtlImageOptionsEx_tramp;
     RegionSize = sizeof(data->RtlImageOptionsEx_tramp);
-    SBIELOW_CALL(NtProtectVirtualMemory)(
+    status = SBIELOW_CALL(NtProtectVirtualMemory)(
         NtCurrentProcess(), &RegionBase, &RegionSize,
         PAGE_EXECUTE_READWRITE, &OldProtect);
+    if (! NT_SUCCESS(status))
+        return;
 
     ULONG DetourSize = 28;
     memcpy(data->RtlImageOptionsEx_tramp, RtlImageOptionsEx, DetourSize); 
@@ -693,9 +705,12 @@ _FX void DisableCHPE(SBIELOW_DATA* data)
 
     RegionBase = (void*)RtlImageOptionsEx;
     RegionSize = DetourSize;
-    SBIELOW_CALL(NtProtectVirtualMemory)(
+    OldProtect = 0;
+    status = SBIELOW_CALL(NtProtectVirtualMemory)(
         NtCurrentProcess(), &RegionBase, &RegionSize,
         PAGE_EXECUTE_READWRITE, &OldProtect);
+    if (! NT_SUCCESS(status))
+        return;
 
 	aCode = (ULONG*)RtlImageOptionsEx;
     aCode[0] = 0x580000a7;	// ldr x7, 20 - data

@@ -64,7 +64,7 @@ static void Process_NotifyProcess(
 #endif
 
 static void Process_NotifyProcessEx(
-    PEPROCESS ParentId, HANDLE ProcessId, PPS_CREATE_NOTIFY_INFO CreateInfo);
+    PEPROCESS Process, HANDLE ProcessId, PPS_CREATE_NOTIFY_INFO CreateInfo);
 
 static PROCESS *Process_Create(
     HANDLE ProcessId, const BOX *box, const WCHAR *image_path,
@@ -523,6 +523,10 @@ _FX PROCESS *Process_FindSandboxed(HANDLE ProcessId, KIRQL *out_irql)
     {
         if (proc->bHostInject)
         {
+            if (out_irql) {
+                ExReleaseResourceLite(Process_ListLock);
+                KeLowerIrql(*out_irql);
+            }
             proc = NULL;
         }
     }
@@ -780,7 +784,9 @@ _FX PROCESS *Process_Create(
     // check certificate
     //
 
-    if (!(Verify_CertInfo.active && Verify_CertInfo.opt_sec) && !proc->image_sbie) {
+    BOOLEAN test_mode = MyIsTestMode();
+
+    if (!(test_mode || (Verify_CertInfo.active && Verify_CertInfo.opt_sec)) && !proc->image_sbie) {
 
         const WCHAR* exclusive_setting = NULL;
         if (proc->use_security_mode)
@@ -811,7 +817,7 @@ _FX PROCESS *Process_Create(
         }
     }
 
-    if (!(Verify_CertInfo.active && Verify_CertInfo.opt_enc) && !proc->image_sbie) {
+    if (!(test_mode || (Verify_CertInfo.active && Verify_CertInfo.opt_enc)) && !proc->image_sbie) {
         
         const WCHAR* exclusive_setting = NULL;
         if (proc->confidential_box)
@@ -1103,9 +1109,9 @@ _FX void Process_NotifyProcessEx(
                 }
             }
 
-            //DbgPrint("Process_NotifyProcess_Create pid=%d parent=%d current=%d\n", ProcessId, CreateInfo->ParentProcessId, PsGetCurrentProcessId());
-            
-            if (!Process_NotifyProcess_Create(ProcessId, CreateInfo->ParentProcessId, PsGetCurrentProcessId(), Name, NameLength, NULL)) {
+            //DbgPrint("Process_NotifyProcess_Create pid=%d parent=%d caller=%d\n", ProcessId, CreateInfo->ParentProcessId, CreateInfo->CreatingThreadId.UniqueProcess);
+
+            if (!Process_NotifyProcess_Create(ProcessId, CreateInfo->ParentProcessId, CreateInfo->CreatingThreadId.UniqueProcess, Name, NameLength, NULL)) {
 
                 CreateInfo->CreationStatus = STATUS_ACCESS_DENIED;
             }
@@ -1238,8 +1244,8 @@ _FX BOOLEAN Process_NotifyProcess_Create(
             // to create a new process N, but let process B create the
             // new thread.  then we are invoked here in the context of
             // process B, but we really need information from process A,
-            // which can terminate itself unexpectedly, and will thus
-            // cause us to crash.
+            // which can terminate itself unexpectedly while we still
+            // need a stable snapshot of its sandbox state.
             //
             // to work around this, we have Process_Find return with the
             // process list still locked, so process A can't die, and
@@ -1810,4 +1816,3 @@ _FX NTSTATUS Process_CreateUserProcess(
 
     return status;
 }
-

@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "IPC_DCOMLAUNCH_SERVER_LIVENESS_WAIT",
+  "title": "IPC DcomLaunch server liveness wait",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/ipc_start.c",
+  "stage": "data -> schema -> topology -> logic -> action -> verify",
+  "source_functions": [
+    "Ipc_StartServer"
+  ],
+  "contracts": [
+    "Ipc_StartServer owns the RpcSs to DcomLaunch second-stage wait topology",
+    "WaitForMultipleObjects owns the event-or-process wait result when hServerProcess is available",
+    "GetExitCodeProcess probes are legal only when hServerProcess is non-null",
+    "RpcSs process termination before DcomLaunch event signal must fail the second-stage wait",
+    "SREV-010 owns the unrelated UAC helper timeout boundary"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitformultipleobjects",
+    "https://learn.microsoft.com/en-us/windows/win32/procthread/terminating-a-process",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getexitcodeprocess",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/ns-processthreadsapi-process_information",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw"
+  ],
+  "local_edges": [
+    "RpcSs event signaled -> DcomLaunch event discovery",
+    "DcomLaunch event handle + hServerProcess -> WaitForMultipleObjects",
+    "DcomLaunch event signal -> success",
+    "RpcSs process signal -> log -4 and fail",
+    "no hServerProcess -> existing WaitForSingleObject event fallback"
+  ],
+  "runtime_gate": "Windows RpcSs/DcomLaunch startup matrix with server-exit timing windows and pre-existing-event negative control",
+  "status": "patched-source-level-dcomlaunch-liveness-wait-needs-windows-runtime-proof"
+}

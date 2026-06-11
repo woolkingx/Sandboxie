@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-106-low-inject-arm64ec-syscall-entrypoint.schema.json",
+  "title": "SREV-106 low inject ARM64EC syscall entrypoint",
+  "id": "LOW_INJECT_ARM64EC_SYSCALL_ENTRYPOINT",
+  "owner": "Sandboxie/core/low/inject.c",
+  "type": "object",
+  "properties": {
+    "arm64ec_abi_shape": {
+      "type": "string",
+      "description": "Official Arm64EC interoperability, call-checker, thunk, and FFS shape"
+    },
+    "native_service_shape": {
+      "type": "string",
+      "description": "Official Nt/Zw native system service access shape"
+    },
+    "local_syscall_wrapper_shape": {
+      "type": "string",
+      "description": "SbieLow syscall wrapper and EC entrypoint topology"
+    },
+    "source_change": {
+      "type": "string",
+      "description": "Comment-only clarification preserving injection-time entrypoint selection"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows on Arm injection runtime proof"
+    }
+  },
+  "required": [
+    "arm64ec_abi_shape",
+    "native_service_shape",
+    "local_syscall_wrapper_shape",
+    "source_change",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "ARM64EC allows x64 and Arm64EC code to interoperate in one process",
+    "ARM64EC indirect calls use call checkers and exit thunks for architecture routing",
+    "fast-forward sequences are small x64 functions that transfer execution to the real Arm64EC function",
+    "ordinary ARM64EC exports may be FFS-resolved to native EC targets",
+    "native system services use Nt and Zw entrypoints and user-mode applications reach them through system calls",
+    "Nt* syscall exports in SbieLow are routed through local syscall-wrapper state rather than ordinary FFS-only export resolution",
+    "WOW64 injection resolves 32-bit ntdll Nt* exports from ntdll_wow64_base",
+    "native and ARM64EC injection use pre-captured native or EC entrypoints from SBIELOW_DATA",
+    "NtDeviceIoControlFile may point to the EC wrapper installed by PrepSyscalls",
+    "this SREV must not change injection pointer assignments or detour patch behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/arm/arm64ec",
+    "https://learn.microsoft.com/en-us/windows/arm/arm64ec-abi",
+    "https://learn.microsoft.com/en-us/cpp/cpp/hybrid-patchable?view=msvc-170",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-nt-and-zw-versions-of-the-native-system-services-routines",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_kernel/"
+  ]
+}

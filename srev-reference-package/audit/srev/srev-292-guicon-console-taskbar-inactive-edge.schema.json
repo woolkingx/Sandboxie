@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "GUICON_CONSOLE_TASKBAR_INACTIVE_EDGE",
+  "title": "GuiCon console taskbar inactive edge",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/guicon.c",
+  "stage": "schema -> boundary -> topology -> verify",
+  "source_function": "Gui_ConsoleThread",
+  "contracts": [
+    "Gui_ConsoleThread owns helper-window message pumping and parent-thread wait behavior",
+    "the Gui_ConsoleHwnd Taskbar_SetWindowAppUserModelId branch remains inactive",
+    "taskbar.c owns Shell AppUserModelID and window property-store rewriting",
+    "SREV-004 owns process AppUserModelID process-parameter workaround gates",
+    "SREV-076 owns console helper thread handoff and cleanup",
+    "SREV-241 owns taskbar caller topology",
+    "branch revival requires Windows console git taskbar runtime proof",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/shell/appids",
+    "https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shgetpropertystoreforwindow",
+    "https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-setcurrentprocessexplicitappusermodelid"
+  ],
+  "local_edges": [
+    "Gui_InitConsole2 -> SREV-076 helper thread handoff",
+    "Gui_ConsoleThread -> helper window message pump",
+    "inactive Gui_ConsoleHwnd branch -> Taskbar_SetWindowAppUserModelId",
+    "Taskbar_SetWindowAppUserModelId -> taskbar.c SHGetPropertyStoreForWindow owner",
+    "normal visible windows -> gui.c guidlg.c taskbar callers"
+  ],
+  "runtime_gate": "Windows console helper smoke git-for-Windows console launch smoke taskbar grouping Jump List observation and SREV-004 SREV-241 taskbar gates before any branch revival",
+  "status": "patched-comment-topology-after-official-appusermodelid-window-property-store-review-no-behavior-change"
+}

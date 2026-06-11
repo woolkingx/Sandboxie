@@ -97,10 +97,10 @@ static DWORD AdvApi_GetSecurityInfo(
     HANDLE handle,
     SE_OBJECT_TYPE ObjectType,
     SECURITY_INFORMATION SecurityInfo,
-    PSID psidOwner,
-    PSID psidGroup,
-    PACL pDacl,
-    PACL pSacl,
+    PSID *ppsidOwner,
+    PSID *ppsidGroup,
+    PACL *ppDacl,
+    PACL *ppSacl,
     PSECURITY_DESCRIPTOR *ppSecurityDescriptor);
 
 //---------------------------------------------------------------------------
@@ -374,6 +374,8 @@ _FX ULONG AdvApi_CreateRestrictedToken(
     BOOL    bResult;
     PLUID_AND_ATTRIBUTES pModifiedPrivilegesToDelete = NULL;
     DWORD   dwModifiedDeletePrivilegeCount = DeletePrivilegeCount;
+    PLUID_AND_ATTRIBUTES privilegesToDeleteForCall = PrivilegesToDelete;
+    DWORD   deletePrivilegeCountForCall = DeletePrivilegeCount;
     PSID_AND_ATTRIBUTES pModifiedDisableSids = NULL;
     DWORD dwModifiedDisableSidCount = DisableSidCount;
     PSID_AND_ATTRIBUTES pModifiedRestrictedSids = NULL;
@@ -451,28 +453,36 @@ _FX ULONG AdvApi_CreateRestrictedToken(
     }
 #endif
 
-    // This is a HACK to get Chrome 37 to work with dropped rights.  A work in progress.
-    // filter out the SE_CHANGE_NOTIFY_NAME if it is in the list
+    // Chrome's dropped-rights token still needs traverse checking bypass
+    // semantics, so keep SeChangeNotifyPrivilege out of the delete list.
+    if (DeletePrivilegeCount && PrivilegesToDelete
+            && __sys_LookupPrivilegeValueW(NULL, SE_CHANGE_NOTIFY_NAME, &luidChangeNotify)) {
 
-    //OutputDebugStringW(L"Privileges\n");
-    __sys_LookupPrivilegeValueW(NULL, SE_CHANGE_NOTIFY_NAME, &luidChangeNotify);
-    pModifiedPrivilegesToDelete = GlobalAlloc(GMEM_FIXED, sizeof(LUID_AND_ATTRIBUTES) * DeletePrivilegeCount);
+        //OutputDebugStringW(L"Privileges\n");
+        pModifiedPrivilegesToDelete = GlobalAlloc(GMEM_FIXED, sizeof(LUID_AND_ATTRIBUTES) * DeletePrivilegeCount);
 
-    for (i = 0; i < DeletePrivilegeCount; i++)
-    {
-        //wchar_t   buf[80];
-        //DWORD len;
-        //len = 80;
-        //LookupPrivilegeNameW(NULL, &PrivilegesToDelete[i], &buf, &len);
-        //OutputDebugStringW(buf);
-        //OutputDebugStringW(L"\n");
+        if (pModifiedPrivilegesToDelete) {
+            for (i = 0, n = 0; i < DeletePrivilegeCount; i++)
+            {
+                //wchar_t   buf[80];
+                //DWORD len;
+                //len = 80;
+                //LookupPrivilegeNameW(NULL, &PrivilegesToDelete[i], &buf, &len);
+                //OutputDebugStringW(buf);
+                //OutputDebugStringW(L"\n");
 
-        for (i = 0, n = 0; i < DeletePrivilegeCount; i++)
-        {
-            if ((PrivilegesToDelete[i].Luid.HighPart == luidChangeNotify.HighPart) && (PrivilegesToDelete[i].Luid.LowPart == luidChangeNotify.LowPart))
-                --dwModifiedDeletePrivilegeCount;
-            else
-                pModifiedPrivilegesToDelete[n++] = PrivilegesToDelete[i];
+                if ((PrivilegesToDelete[i].Luid.HighPart == luidChangeNotify.HighPart) && (PrivilegesToDelete[i].Luid.LowPart == luidChangeNotify.LowPart)) {
+                    bChangeNotifyFound = TRUE;
+                    --dwModifiedDeletePrivilegeCount;
+                }
+                else
+                    pModifiedPrivilegesToDelete[n++] = PrivilegesToDelete[i];
+            }
+
+            if (bChangeNotifyFound) {
+                deletePrivilegeCountForCall = dwModifiedDeletePrivilegeCount;
+                privilegesToDeleteForCall = pModifiedPrivilegesToDelete;
+            }
         }
     }
 
@@ -480,7 +490,7 @@ _FX ULONG AdvApi_CreateRestrictedToken(
         DisableSidCount, SidsToDisable,
         //dwModifiedDisableSidCount, pModifiedDisableSids,
         //DeletePrivilegeCount, PrivilegesToDelete,
-        dwModifiedDeletePrivilegeCount, pModifiedPrivilegesToDelete,
+        deletePrivilegeCountForCall, privilegesToDeleteForCall,
         RestrictedSidCount, SidsToRestrict,
         //dwModifiedRestrictedSidCount, pModifiedRestrictedSids,
         NewTokenHandle);
@@ -509,18 +519,18 @@ _FX DWORD AdvApi_GetSecurityInfo(
     HANDLE handle,
     SE_OBJECT_TYPE ObjectType,
     SECURITY_INFORMATION SecurityInfo,
-    PSID psidOwner,
-    PSID psidGroup,
-    PACL pDacl,
-    PACL pSacl,
+    PSID *ppsidOwner,
+    PSID *ppsidGroup,
+    PACL *ppDacl,
+    PACL *ppSacl,
     PSECURITY_DESCRIPTOR *ppSecurityDescriptor)
 {
     DWORD rc = 0;
-    rc = __sys_GetSecurityInfo(handle, ObjectType, SecurityInfo, psidOwner, psidGroup, pDacl, pSacl, ppSecurityDescriptor);
+    rc = __sys_GetSecurityInfo(handle, ObjectType, SecurityInfo, ppsidOwner, ppsidGroup, ppDacl, ppSacl, ppSecurityDescriptor);
 
     extern HWINSTA Gui_Dummy_WinSta;
     if (rc && ObjectType == SE_WINDOW_OBJECT && SecurityInfo == DACL_SECURITY_INFORMATION && Gui_Dummy_WinSta) 
-        rc = __sys_GetSecurityInfo(Gui_Dummy_WinSta, ObjectType, SecurityInfo, psidOwner, psidGroup, pDacl, pSacl, ppSecurityDescriptor);
+        rc = __sys_GetSecurityInfo(Gui_Dummy_WinSta, ObjectType, SecurityInfo, ppsidOwner, ppsidGroup, ppDacl, ppSacl, ppSecurityDescriptor);
 
     return rc;
 }
@@ -539,7 +549,8 @@ _FX DWORD AdvApi_SetSecurityInfo(
     PACL pDacl,
     PACL pSacl)
 {
-    // this is a HACK to get Chrome 38 to work
+    // Chrome 38 can probe a null window-station/desktop security handle here;
+    // keep the compatibility bypass local to Chrome SE_WINDOW_OBJECT calls.
     if ((Dll_ImageType == DLL_IMAGE_GOOGLE_CHROME) && (ObjectType == SE_WINDOW_OBJECT) && (handle == NULL))
         return 0;
 
@@ -565,7 +576,13 @@ _FX BOOL AdvApi_AccessCheckByType(
     LPDWORD GrantedAccess,
     LPBOOL AccessStatus)
 {
-    *GrantedAccess = 0xFFFFFFFF;
+    DWORD granted_access = DesiredAccess;
+
+    if ((DesiredAccess & MAXIMUM_ALLOWED) && GenericMapping)
+        granted_access = GenericMapping->GenericAll
+                       | (DesiredAccess & ~MAXIMUM_ALLOWED);
+
+    *GrantedAccess = granted_access;
     *AccessStatus = TRUE;
     SetLastError(0);
     return TRUE;
@@ -662,10 +679,10 @@ DWORD Ntmarta_GetSecurityInfo(
     HANDLE handle,
     SE_OBJECT_TYPE ObjectType,
     SECURITY_INFORMATION SecurityInfo,
-    PSID psidOwner,
-    PSID psidGroup,
-    PACL pDacl,
-    PACL pSacl,
+    PSID *ppsidOwner,
+    PSID *ppsidGroup,
+    PACL *ppDacl,
+    PACL *ppSacl,
     PSECURITY_DESCRIPTOR *ppSecurityDescriptor);
 
 
@@ -690,15 +707,15 @@ _FX BOOLEAN Ntmarta_Init(HMODULE module)
         GetSecurityInfo = __sys_Ntmarta_GetSecurityInfo;
         if (GetSecurityInfo)
         {
-            // this hook conflicts with the AdvApi32 hook and causes infinite callbacks if delay loading.
+            // SREV-316: publish ntmarta GetSecurityInfo for the
+            // SREV-116/SREV-126 dummy window-station DACL fallback.
+            // Direct ntmarta hooking can recurse with the Advapi32 hook
+            // during delay loading, so keep hook installation narrow.
 #ifndef _WIN64
             if (Dll_ImageType == DLL_IMAGE_ACROBAT_READER) {
-                //This hook is need for Adobe Acrobat version 2019.010.x to allow
-                //the creation of a desktop with the sandboxie restricted token.
-                //See Gui_CreateDesktopW in guienum.c
-
-                //Due to the risk of the stack overflow issue limited this hook for
-                //Acrobat Reader in 32 bit only
+                // Acrobat 2019 32-bit CreateDesktopW can require the
+                // ntmarta hook to drop the sandboxie restricted-token
+                // security context. See Gui_CreateDesktopW in guienum.c.
                 SBIEDLL_HOOK2(Ntmarta_, GetSecurityInfo);
             }
 #endif
@@ -708,13 +725,14 @@ _FX BOOLEAN Ntmarta_Init(HMODULE module)
 #ifdef _WIN64
     GETPROC2(SetSecurityInfo, );
 
-    // only need to hook if Advapi32!SetSecurityInfo can't be resolved
+    // SREV-316: only publish ntmarta SetSecurityInfo as the Chrome
+    // SREV-252 fallback when Advapi32 did not resolve the API.
     if (Dll_ImageType == DLL_IMAGE_GOOGLE_CHROME) {
 
         SetSecurityInfo = __sys_Ntmarta_SetSecurityInfo;
         if (SetSecurityInfo)
         {
-            // this hook conflicts with the AdvApi32 hook and causes infinite callbacks if delay loading.
+            // Direct hook installation can recurse through Advapi32 delay loading.
             //SBIEDLL_HOOK2(Ntmarta_,SetSecurityInfo);
             __sys_SetSecurityInfo = SetSecurityInfo;
         }
@@ -734,18 +752,18 @@ _FX DWORD Ntmarta_GetSecurityInfo(
     HANDLE handle,
     SE_OBJECT_TYPE ObjectType,
     SECURITY_INFORMATION SecurityInfo,
-    PSID psidOwner,
-    PSID psidGroup,
-    PACL pDacl,
-    PACL pSacl,
+    PSID *ppsidOwner,
+    PSID *ppsidGroup,
+    PACL *ppDacl,
+    PACL *ppSacl,
     PSECURITY_DESCRIPTOR *ppSecurityDescriptor)
 {
     DWORD rc = 0;
-    rc = __sys_Ntmarta_GetSecurityInfo(handle, ObjectType, SecurityInfo, psidOwner, psidGroup, pDacl, pSacl, ppSecurityDescriptor);
+    rc = __sys_Ntmarta_GetSecurityInfo(handle, ObjectType, SecurityInfo, ppsidOwner, ppsidGroup, ppDacl, ppSacl, ppSecurityDescriptor);
 
     extern HWINSTA Gui_Dummy_WinSta;
     if (rc && ObjectType == SE_WINDOW_OBJECT && SecurityInfo == DACL_SECURITY_INFORMATION && Gui_Dummy_WinSta)
-        rc = __sys_Ntmarta_GetSecurityInfo(Gui_Dummy_WinSta, ObjectType, SecurityInfo, psidOwner, psidGroup, pDacl, pSacl, ppSecurityDescriptor);
+        rc = __sys_Ntmarta_GetSecurityInfo(Gui_Dummy_WinSta, ObjectType, SecurityInfo, ppsidOwner, ppsidGroup, ppDacl, ppSacl, ppSecurityDescriptor);
     
     return rc;
 }
@@ -761,7 +779,7 @@ _FX DWORD Ntmarta_SetSecurityInfo(
     PACL pDacl,
     PACL pSacl)
 {
-    // this is a HACK to get Chrome 38 to work.
+    // Same Chrome null window-object security bypass as AdvApi_SetSecurityInfo.
     if ((Dll_ImageType == DLL_IMAGE_GOOGLE_CHROME) && (ObjectType == SE_WINDOW_OBJECT) && (handle == NULL))
         return 0;
 

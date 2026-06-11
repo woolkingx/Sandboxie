@@ -31,6 +31,23 @@
 
 
 //---------------------------------------------------------------------------
+// Helpers
+//---------------------------------------------------------------------------
+
+
+static BOOLEAN NetApiServer_IsDriveLetter(WCHAR ch)
+{
+    return ((ch >= L'A' && ch <= L'Z') || (ch >= L'a' && ch <= L'z'));
+}
+
+
+static BOOLEAN NetApiServer_IsUseCommandTerminator(WCHAR ch)
+{
+    return (ch == L'\0' || ch == L' ' || ch == L'\t' || ch == L'"');
+}
+
+
+//---------------------------------------------------------------------------
 // Constructor
 //---------------------------------------------------------------------------
 
@@ -192,6 +209,9 @@ MSG_HEADER *NetApiServer::UseAdd(MSG_HEADER *msg)
         }
     }
 
+    if (error_code)
+        goto finish;
+
     if (parm_index) {
         error_code = ERROR_INVALID_PARAMETER;
         goto finish;
@@ -239,7 +259,8 @@ void NetApiServer::LaunchSlave(ULONG len, const WCHAR *drive)
     // the sandbox on the same desktop as our calling process
     //
 
-    if (len != 2 || drive[1] != L':')
+    if (len != 2 || drive[1] != L':' ||
+            ! NetApiServer_IsDriveLetter(drive[0]))
         return;
 
     STARTUPINFO si;
@@ -281,7 +302,7 @@ void NetApiServer::LaunchSlave(ULONG len, const WCHAR *drive)
         CloseHandle(hOldToken);
     }
     if (ExePath)
-        HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, ExePath);
+        HeapFree(GetProcessHeap(), 0, ExePath);
 }
 
 
@@ -295,11 +316,16 @@ void NetApiServer::RunSlave(const WCHAR *cmdline)
     cmdline = wcschr(cmdline, L':');
     if (cmdline && wmemcmp(cmdline, L":Use=", 5) == 0) {
 
+        WCHAR drive = towupper(cmdline[5]);
         WCHAR device[8];
-        device[0] = towupper(cmdline[5]);
-        device[1] = L':';
-        device[2] = L'\0';
-        DefineDosDevice(DDD_LUID_BROADCAST_DRIVE, device, NULL);
+        if (NetApiServer_IsDriveLetter(drive) &&
+                NetApiServer_IsUseCommandTerminator(cmdline[6])) {
+
+            device[0] = drive;
+            device[1] = L':';
+            device[2] = L'\0';
+            DefineDosDevice(DDD_LUID_BROADCAST_DRIVE, device, NULL);
+        }
     }
 
     ExitProcess(0);

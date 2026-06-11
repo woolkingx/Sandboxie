@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "NET_PARAM_DEVICE_CONTROL_COMPARTMENT_BOUNDARY",
+  "title": "Net parameter device-control compartment boundary",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/file_init.c",
+  "stage": "schema -> boundary -> verify",
+  "source_function": "File_Init",
+  "contracts": [
+    "File_Init owns NtDeviceIoControlFile hook registration for BlockNetParam",
+    "Device-control calls send IOCTL codes to a device driver",
+    "IoControlCode determines the operation and buffer shape",
+    "private IOCTLs can be device-specific and must be classified locally",
+    "BlockNetParam registers the TCP/NSI deny hook only for non-compartment boxes",
+    "File_NtDeviceIoControlFile owns the TCP and NSI network-parameter IOCTL deny logic",
+    "compartment mode keeps the native device-control route for ICMP/IP helper behavior",
+    "IpHlp_Init skips ICMP helper hooks in compartment mode",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-zwdeviceiocontrolfile",
+    "https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-deviceiocontrol",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/introduction-to-i-o-control-codes",
+    "https://learn.microsoft.com/en-us/windows/win32/api/icmpapi/nf-icmpapi-icmpcreatefile",
+    "https://learn.microsoft.com/en-us/windows/win32/api/icmpapi/nf-icmpapi-icmpsendecho"
+  ],
+  "local_edges": [
+    "SetCompartmentMode or SBIE_FLAG_APP_COMPARTMENT -> Dll_CompartmentMode",
+    "Dll_CompartmentMode true -> skip NtDeviceIoControlFile hook registration",
+    "BlockNetParam true + non-compartment -> register File_NtDeviceIoControlFile hook",
+    "File_NtDeviceIoControlFile -> TCP IOCTL 0x00128004 on \\Device\\TCP -> STATUS_ACCESS_DENIED",
+    "File_NtDeviceIoControlFile -> NSI IOCTL 0x00120013 on \\Device\\NSI -> STATUS_ACCESS_DENIED",
+    "IpHlp_Init compartment mode -> skip ICMP helper hooks"
+  ],
+  "runtime_gate": "Windows network matrix covering BlockNetParam TCP/NSI denial, compartment-mode ICMP echo, native pass-through controls, and deny logging",
+  "status": "patched-comment-topology-after-official-device-control-icmp-review-no-behavior-change"
+}

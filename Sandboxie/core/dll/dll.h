@@ -175,6 +175,7 @@ typedef struct _THREAD_DATA {
     BOOLEAN file_NtCreateFile_lock;
     BOOLEAN file_NtClose_lock;
     BOOLEAN file_GetCurDir_lock;
+    BOOLEAN file_NtQueryVolumeInformation_lock;
 
     BOOLEAN ipc_KnownDlls_lock;
 
@@ -254,7 +255,7 @@ extern HMODULE Dll_Ntdll;
 extern HMODULE Dll_Kernel32;
 extern HMODULE Dll_KernelBase;
 extern HMODULE Dll_Win32u;
-// $Workaround$ - 3rd party fix
+// Digital Guardian module-presence compatibility flag.
 extern HMODULE Dll_DigitalGuardian;
 
 extern const WCHAR *Dll_BoxName;

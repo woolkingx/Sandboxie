@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "HNET_FIREWALL_DYNAMIC_PORT_SHIM",
+  "owner": "Sandboxie/core/dll/netapi.c",
+  "stage": "data -> schema -> topology -> logic -> action -> verify",
+  "contracts": [
+    "HNet_IcfOpenDynamicFwPort owns only a private hnetcfg compatibility shim",
+    "host Windows Firewall policy mutation belongs to Windows Firewall COM policy owners, not a sandboxed process",
+    "the shim reports S_OK success without calling the native IcfOpenDynamicFwPort export",
+    "HNet_Init may hook IcfOpenDynamicFwPort only when hnetcfg.dll exports it",
+    "SREV-313 changes comments and HRESULT spelling only, not firewall policy behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/netfw/nn-netfw-inetfwopenport",
+    "https://learn.microsoft.com/en-us/windows/win32/api/netfw/nn-netfw-inetfwpolicy2",
+    "https://learn.microsoft.com/en-us/windows/win32/seccrypto/common-hresult-values"
+  ],
+  "runtime_gate": "Windows bind/firewall smoke proving sandboxed bind compatibility and no host firewall open-port policy mutation"
+}

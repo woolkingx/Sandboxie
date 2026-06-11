@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-156-dump-dbghelp-entry-and-client-pointers.schema.json",
+  "title": "SREV-156 dump DbgHelp entry and client pointers",
+  "id": "DUMP_DBGHELP_ENTRY_AND_CLIENT_POINTERS",
+  "owner": "Sandboxie/core/dll/dump.c",
+  "type": "object",
+  "properties": {
+    "loader_shape": {
+      "type": "string",
+      "description": "GetProcAddress result is checked before use"
+    },
+    "exception_pointer_shape": {
+      "type": "string",
+      "description": "in-process exception pointers use ClientPointers FALSE"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows minidump runtime proof"
+    }
+  },
+  "required": [
+    "loader_shape",
+    "exception_pointer_shape",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "GetProcAddress returns NULL on failure and MiniDumpWriteDump must not be called through a NULL function pointer",
+    "Dump_Init must not install Dump_CrashHandlerExceptionFilter unless MiniDumpWriteDump is resolved",
+    "failed MiniDumpWriteDump resolution frees Dump_DbgHelpMod clears the module handle and returns 0",
+    "Dump_CrashHandlerExceptionFilter must guard the function-pointer call before MiniDumpWriteDump",
+    "MINIDUMP_EXCEPTION_INFORMATION.ClientPointers is FALSE for local exception pointers in the calling process",
+    "this SREV does not change MiniDumpFlags dump file path SetUnhandledExceptionFilter blocking policy or in-process dump architecture",
+    "the Linux source gate is not Windows runtime proof"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getprocaddress",
+    "https://learn.microsoft.com/en-us/windows/win32/api/minidumpapiset/nf-minidumpapiset-minidumpwritedump",
+    "https://learn.microsoft.com/en-us/windows/win32/api/minidumpapiset/ns-minidumpapiset-minidump_exception_information",
+    "https://learn.microsoft.com/en-us/windows/win32/api/errhandlingapi/nf-errhandlingapi-setunhandledexceptionfilter"
+  ]
+}

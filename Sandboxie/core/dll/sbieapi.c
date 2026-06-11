@@ -103,9 +103,11 @@ _FX NTSTATUS SbieApi_Ioctl(ULONG64 *parms)
     IO_STATUS_BLOCK MyIoStatusBlock;
 
     if (parms == NULL) { // close request as used by kmdutil
+        status = STATUS_SUCCESS;
         if(SbieApi_DeviceHandle != INVALID_HANDLE_VALUE)
-            NtClose(SbieApi_DeviceHandle);
+            status = NtClose(SbieApi_DeviceHandle);
         SbieApi_DeviceHandle = INVALID_HANDLE_VALUE;
+        return status;
     }
 
     if (Dll_SbieTrace && parms[0] != API_MONITOR_PUT2) {
@@ -1006,7 +1008,7 @@ _FX LONG SbieApi_GetFileName(
     HANDLE FileHandle,
     WCHAR *NameBuf,
     ULONG *NameLen,
-    ULONG *ObjType)
+    ULONG *ObjTypeReserved)
 {
     NTSTATUS status;
     __declspec(align(8)) ULONG64 parms[API_NUM_ARGS];
@@ -1017,7 +1019,7 @@ _FX LONG SbieApi_GetFileName(
     args->handle.val64            = (ULONG64)(ULONG_PTR)FileHandle;
     args->name_len.val64          = (ULONG64)(ULONG_PTR)NameLen;
     args->name_buf.val64          = (ULONG64)(ULONG_PTR)NameBuf;
-    args->type_buf.val64          = (ULONG64)(ULONG_PTR)ObjType;
+    args->type_buf.val64          = (ULONG64)(ULONG_PTR)ObjTypeReserved;
     status = SbieApi_Ioctl(parms);
 
     if (! NT_SUCCESS(status)) {

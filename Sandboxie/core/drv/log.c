@@ -47,10 +47,42 @@ static void Log_Event_Msg(
     const WCHAR *string1,
     const WCHAR *string2);
 
+static BOOLEAN Log_GetEventStringBytes(
+    const WCHAR *string,
+    SIZE_T max_bytes,
+    SIZE_T *string_bytes);
+
 
 //---------------------------------------------------------------------------
 // Log_Event_Msg
 //---------------------------------------------------------------------------
+
+
+_FX BOOLEAN Log_GetEventStringBytes(
+    const WCHAR *string,
+    SIZE_T max_bytes,
+    SIZE_T *string_bytes)
+{
+    NTSTATUS status;
+    SIZE_T length;
+
+    *string_bytes = 0;
+    if (! string)
+        return TRUE;
+
+    if (max_bytes < sizeof(WCHAR))
+        return FALSE;
+
+    status = RtlStringCbLengthW(string, max_bytes, &length);
+    if (! NT_SUCCESS(status))
+        return FALSE;
+
+    if (length > max_bytes - sizeof(WCHAR))
+        return FALSE;
+
+    *string_bytes = length + sizeof(WCHAR);
+    return TRUE;
+}
 
 
 _FX void Log_Event_Msg(
@@ -58,16 +90,22 @@ _FX void Log_Event_Msg(
     const WCHAR *string1,
     const WCHAR *string2)
 {
-    int entry_size;
-    int string1_len = 0;
-    int string2_len = 0;
+    SIZE_T entry_size;
+    SIZE_T max_strings_len;
+    SIZE_T string1_len;
+    SIZE_T string2_len;
 
-    if (string1)
-        string1_len = (wcslen(string1) + 1) * sizeof(WCHAR);
-    if (string2)
-        string2_len = (wcslen(string2) + 1) * sizeof(WCHAR);
+    if (sizeof(IO_ERROR_LOG_PACKET) >= ERROR_LOG_MAXIMUM_SIZE)
+        return;
+
+    max_strings_len = (ERROR_LOG_MAXIMUM_SIZE - 1) - sizeof(IO_ERROR_LOG_PACKET);
+    if (! Log_GetEventStringBytes(string1, max_strings_len, &string1_len))
+        return;
+    if (! Log_GetEventStringBytes(string2, max_strings_len - string1_len, &string2_len))
+        return;
+
     entry_size = sizeof(IO_ERROR_LOG_PACKET) + string1_len + string2_len;
-    if (entry_size <= ERROR_LOG_MAXIMUM_SIZE) {
+    if (entry_size < ERROR_LOG_MAXIMUM_SIZE) {
 
         IO_ERROR_LOG_PACKET *entry =
             (IO_ERROR_LOG_PACKET *)IoAllocateErrorLogEntry(

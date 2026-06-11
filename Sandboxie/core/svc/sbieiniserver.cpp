@@ -48,6 +48,74 @@ extern "C" {
 SbieIniServer* SbieIniServer::m_instance = NULL;
 
 
+static bool SbieIni_HasTerminator(const WCHAR *text, ULONG count)
+{
+    for (ULONG i = 0; i < count; i++) {
+        if (text[i] == L'\0')
+            return true;
+    }
+
+    return false;
+}
+
+
+static ULONG SbieIni_CheckSettingStrings(SBIE_INI_SETTING_REQ *req)
+{
+    if (! SbieIni_HasTerminator(req->password, ARRAYSIZE(req->password)))
+        return STATUS_INVALID_PARAMETER;
+    if (! SbieIni_HasTerminator(req->section, ARRAYSIZE(req->section)))
+        return STATUS_INVALID_PARAMETER;
+    if (! SbieIni_HasTerminator(req->setting, ARRAYSIZE(req->setting)))
+        return STATUS_INVALID_PARAMETER;
+
+    return STATUS_SUCCESS;
+}
+
+
+static ULONG SbieIni_CheckSettingValue(SBIE_INI_SETTING_REQ *req)
+{
+    ULONG offset = FIELD_OFFSET(SBIE_INI_SETTING_REQ, value);
+    if (offset > req->h.length)
+        return STATUS_INVALID_PARAMETER;
+
+    ULONG available = req->h.length - offset;
+    if (available < sizeof(WCHAR))
+        return STATUS_INVALID_PARAMETER;
+    if (req->value_len > (PIPE_MAX_DATA_LEN / sizeof(WCHAR)))
+        return STATUS_INVALID_PARAMETER;
+
+    ULONG value_len = req->value_len * sizeof(WCHAR);
+    if (value_len > available - sizeof(WCHAR))
+        return STATUS_INVALID_PARAMETER;
+    if (req->value[req->value_len])
+        return STATUS_INVALID_PARAMETER;
+
+    return STATUS_SUCCESS;
+}
+
+
+static ULONG SbieIni_CheckTemplateValue(SBIE_INI_TEMPLATE_REQ *req)
+{
+    ULONG offset = FIELD_OFFSET(SBIE_INI_TEMPLATE_REQ, value);
+    if (offset > req->h.length)
+        return STATUS_INVALID_PARAMETER;
+
+    ULONG available = req->h.length - offset;
+    if (available < sizeof(WCHAR))
+        return STATUS_INVALID_PARAMETER;
+    if (req->value_len > (PIPE_MAX_DATA_LEN / sizeof(WCHAR)))
+        return STATUS_INVALID_PARAMETER;
+
+    ULONG value_len = req->value_len * sizeof(WCHAR);
+    if (value_len > available - sizeof(WCHAR))
+        return STATUS_INVALID_PARAMETER;
+    if (req->value[req->value_len])
+        return STATUS_INVALID_PARAMETER;
+
+    return STATUS_SUCCESS;
+}
+
+
 //---------------------------------------------------------------------------
 // Constructor
 //---------------------------------------------------------------------------
@@ -147,6 +215,10 @@ MSG_HEADER *SbieIniServer::Handler2(MSG_HEADER *msg)
 
         return SetDatFile(msg, idProcess);
     }
+    // SREV-352: MSGID_SBIE_INI_GET_DAT is a reserved wire id. Keep it
+    // unrouted until a read reply schema, length cap, file-size gate, and
+    // authorization model are defined for Sandboxie home-directory *.dat
+    // reads.
     //if (msg->msgid == MSGID_SBIE_INI_GET_DAT) {
     //
     //    return GetDatFile(msg, idProcess);
@@ -448,14 +520,13 @@ ULONG SbieIniServer::CheckRequest(MSG_HEADER *msg)
     if (req->h.length < sizeof(SBIE_INI_SETTING_REQ))
         return STATUS_INVALID_PARAMETER;
 
-    ULONG value_len = req->value_len * sizeof(WCHAR);
-    if (value_len > PIPE_MAX_DATA_LEN)
-        return STATUS_INVALID_PARAMETER;
-    ULONG offset = FIELD_OFFSET(SBIE_INI_SETTING_REQ, value);
-    if (offset + value_len > req->h.length)
-        return STATUS_INVALID_PARAMETER;
-    if (req->value[req->value_len])
-        return STATUS_INVALID_PARAMETER;
+    ULONG status = SbieIni_CheckSettingStrings(req);
+    if (status != 0)
+        return status;
+
+    status = SbieIni_CheckSettingValue(req);
+    if (status != 0)
+        return status;
 
     if (! req->section[0])
         wcscpy(req->section, L"GlobalSettings");
@@ -476,7 +547,7 @@ ULONG SbieIniServer::CheckRequest(MSG_HEADER *msg)
 
     } else {
 
-        ULONG status = IsCallerAuthorized(hToken, req->password, req->section);
+        status = IsCallerAuthorized(hToken, req->password, req->section);
         if (status != 0)
             return status;
     }
@@ -593,8 +664,28 @@ bool SbieIniServer::TokenIsAdmin(HANDLE hToken, bool OnlyFull)
                 0, 0, 0, 0, 0, 0,
                 &AdministratorsGroup);
     if (b) {
-        if (! CheckTokenMembership(NULL, AdministratorsGroup, &b))
+        HANDLE hMembershipToken = hToken;
+        HANDLE hDuplicateToken = NULL;
+        TOKEN_TYPE tokenType;
+        ULONG len;
+
+        if (! GetTokenInformation(
+                hToken, TokenType, &tokenType, sizeof(tokenType), &len))
+            hMembershipToken = NULL;
+        else if (tokenType == TokenPrimary) {
+            if (DuplicateToken(hToken, SecurityIdentification, &hDuplicateToken))
+                hMembershipToken = hDuplicateToken;
+            else
+                hMembershipToken = NULL;
+        }
+
+        if (! hMembershipToken ||
+                ! CheckTokenMembership(hMembershipToken, AdministratorsGroup, &b))
             b = FALSE;
+
+        if (hDuplicateToken)
+            CloseHandle(hDuplicateToken);
+
         FreeSid(AdministratorsGroup);
 
         //
@@ -625,7 +716,7 @@ bool SbieIniServer::TokenIsAdmin(HANDLE hToken, bool OnlyFull)
 //---------------------------------------------------------------------------
 
 
-bool SbieIniServer::HashPassword(const WCHAR *Password, WCHAR *Hash41)
+bool SbieIniServer::HashPassword(const WCHAR *Password, WCHAR *Hash41, bool LegacyBug)
 {
     HCRYPTPROV hCryptProv;
     HCRYPTHASH hCryptHash;
@@ -680,7 +771,7 @@ bool SbieIniServer::HashPassword(const WCHAR *Password, WCHAR *Hash41)
 
     for (i = 0; i < 20; ++i) {
 
-        UCHAR NibbleH = (data[i] & 0xF0) >> 8; // bug bug should be >> 4
+        UCHAR NibbleH = (data[i] & 0xF0) >> (LegacyBug ? 8 : 4);
         UCHAR NibbleL = (data[i] & 0x0F);
 
         if (NibbleH >= 10)
@@ -877,6 +968,11 @@ ULONG SbieIniServer::IsCallerAuthorized(HANDLE hToken, const WCHAR *Password, co
             if (wmemcmp(buf, buf2, 40) == 0)
                 access_granted = true;
 
+        if (! access_granted)
+            if (HashPassword(Password, buf2, false))
+                if (wmemcmp(buf, buf2, 40) == 0)
+                    access_granted = true;
+
     } else if (len == 64) {
 
         UCHAR combined[48];
@@ -995,6 +1091,11 @@ finish:
 MSG_HEADER *SbieIniServer::GetSetting(MSG_HEADER *msg)
 {
     SBIE_INI_SETTING_REQ *req = (SBIE_INI_SETTING_REQ *)msg;
+    if (req->h.length < sizeof(SBIE_INI_SETTING_REQ))
+        return SHORT_REPLY(STATUS_INVALID_PARAMETER);
+    if (! SbieIni_HasTerminator(req->section, ARRAYSIZE(req->section)) ||
+        ! SbieIni_HasTerminator(req->setting, ARRAYSIZE(req->setting)))
+        return SHORT_REPLY(STATUS_INVALID_PARAMETER);
 
     RevertToSelf();
 
@@ -1110,13 +1211,14 @@ ULONG SbieIniServer::SetTemplate(MSG_HEADER *msg)
     if (req->h.length < sizeof(SBIE_INI_TEMPLATE_REQ))
         return STATUS_INVALID_PARAMETER;
 
-    ULONG value_len = req->value_len * sizeof(WCHAR);
-    if (value_len > PIPE_MAX_DATA_LEN)
+    if (! SbieIni_HasTerminator(req->varname, ARRAYSIZE(req->varname)))
         return STATUS_INVALID_PARAMETER;
-    ULONG offset = FIELD_OFFSET(SBIE_INI_TEMPLATE_REQ, value);
-    if (offset + value_len > req->h.length)
+    if (! req->user &&
+            ! SbieIni_HasTerminator(req->password, ARRAYSIZE(req->password)))
         return STATUS_INVALID_PARAMETER;
-    if (req->value[req->value_len])
+
+    ULONG check_status = SbieIni_CheckTemplateValue(req);
+    if (check_status != 0)
         return STATUS_INVALID_PARAMETER;
 
     HANDLE hToken;
@@ -1139,9 +1241,9 @@ ULONG SbieIniServer::SetTemplate(MSG_HEADER *msg)
 
     } else {
 
-        ULONG status = IsCallerAuthorized(hToken, req->password);
-        if (status != 0)
-            return status;
+        check_status = IsCallerAuthorized(hToken, req->password);
+        if (check_status != 0)
+            return check_status;
     }
 
     CloseHandle(hToken);
@@ -1153,6 +1255,7 @@ ULONG SbieIniServer::SetTemplate(MSG_HEADER *msg)
     //
 
     NTSTATUS status;
+    ULONG value_len = req->value_len * sizeof(WCHAR);
     ULONG req2_len = sizeof(SBIE_INI_SETTING_REQ)
                    + value_len * sizeof(WCHAR);
     SBIE_INI_SETTING_REQ *req2 =
@@ -1194,6 +1297,11 @@ ULONG SbieIniServer::SetOrTestPassword(MSG_HEADER *msg)
 {
     SBIE_INI_PASSWORD_REQ *req = (SBIE_INI_PASSWORD_REQ *)msg;
     if (req->h.length < sizeof(SBIE_INI_PASSWORD_REQ))
+        return STATUS_INVALID_PARAMETER;
+    if (! SbieIni_HasTerminator(req->old_password, ARRAYSIZE(req->old_password)))
+        return STATUS_INVALID_PARAMETER;
+    if (msg->msgid == MSGID_SBIE_INI_SET_PASSWORD &&
+            ! SbieIni_HasTerminator(req->new_password, ARRAYSIZE(req->new_password)))
         return STATUS_INVALID_PARAMETER;
 
     HANDLE hToken;
@@ -1412,7 +1520,7 @@ bool SbieIniServer::GetIniPath(WCHAR **IniPath, BOOLEAN *IsHomePath)
         if (SbieDll_RunFromHome(_ini, NULL, &si, NULL)) {
             WCHAR *path2 = (WCHAR *)si.lpReserved;
             wcscpy(path, path2);
-            HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, path2);
+            HeapFree(GetProcessHeap(), 0, path2);
 
             if (IsHomePath)
                 *IsHomePath = TRUE;
@@ -1666,7 +1774,7 @@ NTSTATUS SbieIniServer::RunSbieCtrl(HANDLE hToken, const WCHAR* DeskName, const 
             if (Environ)
                 DestroyEnvironmentBlock(Environ);
 
-            HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, CmdLine);
+            HeapFree(GetProcessHeap(), 0, CmdLine);
 
             if (ok) {
 
@@ -1696,6 +1804,12 @@ MSG_HEADER *SbieIniServer::SetDatFile(MSG_HEADER *msg, HANDLE idProcess)
 
     SBIE_INI_SETTING_REQ *req = (SBIE_INI_SETTING_REQ *)msg;
     if (req->h.length < sizeof(SBIE_INI_SETTING_REQ))
+        return SHORT_REPLY(STATUS_INVALID_PARAMETER);
+    if (! SbieIni_HasTerminator(req->setting, ARRAYSIZE(req->setting)))
+        return SHORT_REPLY(STATUS_INVALID_PARAMETER);
+
+    ULONG offset = FIELD_OFFSET(SBIE_INI_SETTING_REQ, value);
+    if (offset > req->h.length || req->value_len > req->h.length - offset)
         return SHORT_REPLY(STATUS_INVALID_PARAMETER);
 
     wchar_t* ext = wcsrchr(req->setting, L'.');
@@ -1737,14 +1851,11 @@ MSG_HEADER *SbieIniServer::SetDatFile(MSG_HEADER *msg, HANDLE idProcess)
 
 
 //---------------------------------------------------------------------------
-// GetDatFile
+// Reserved GetDatFile wire surface
 //---------------------------------------------------------------------------
 
-//
-//MSG_HEADER *SbieIniServer::GetDatFile(MSG_HEADER *msg, HANDLE idProcess)
-//{
-//    // ToDo
-//}
+// SREV-352: SET_DAT has a session-leader write/delete owner. GET_DAT remains
+// reserved because a read path needs its own reply schema and file-size gate.
 
 
 //---------------------------------------------------------------------------

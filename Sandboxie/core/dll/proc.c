@@ -22,6 +22,7 @@
 
 #include "dll.h"
 
+#include <limits.h>
 #include <windows.h>
 #include <stdio.h>
 #include "dll.h"
@@ -905,7 +906,7 @@ _FX BOOL Proc_CreateProcessInternalW(
     if (!Dll_CompartmentMode && !SbieApi_QueryConfBool(NULL, L"OriginalToken", FALSE))
     // OriginalToken END
     {
-        // $Workaround$ - 3rd party fix
+        // SREV-250: Electron/Chromium process handling stays observation-only here.
         
         if (Dll_ImageType == DLL_IMAGE_UNSPECIFIED/* || Dll_ImageType == DLL_IMAGE_ELECTRON*/)
         {
@@ -921,12 +922,12 @@ _FX BOOL Proc_CreateProcessInternalW(
 
 
                 //
-                // Electron based applications which work like Chrome seem to fail with HW acceleration, even when 
+                // Electron based applications which work like Chrome seem to fail with HW acceleration, even when
                 // they get the same treatment as Chrome and Chromium derivatives.
-                // Hack: by adding a parameter to the gpu renderer process, we can fix the issue.
+                // SREV-250: inactive Electron GPU command-line fallback.
+                // Runtime matrix proof is required before reviving mutation.
                 //
 
-                // $Workaround$ - 3rd party fix
                 //if (Dll_ElectronWorkaround)
                 //{
                 //    if ((name && _wcsicmp(name + 1, Dll_ImageName) == 0)
@@ -947,8 +948,8 @@ _FX BOOL Proc_CreateProcessInternalW(
         if (Config_GetSettingsForImageName_bool(L"DeprecatedTokenHacks", FALSE)) // with drop container token, etc this should be obsolete
         {
             //
-            // MSEdge Compatibility hack
-            // workers of type cdm can't open SbieSvc's ALPC port
+            // SREV-320: legacy Edge CDM service child token gate.
+            // Existing predicate only clears hToken for service-sandbox-type.
             //
 
             if (Dll_ImageType == DLL_IMAGE_GOOGLE_CHROME && lpCommandLine
@@ -957,8 +958,8 @@ _FX BOOL Proc_CreateProcessInternalW(
         }
 
         //
-        // Compatibility hack for Firefox 106.x, processes with the "-sandboxingKind" flag
-        // fail to load DLLs and their token has the users group disabled
+        // SREV-320: Firefox sandboxingKind child token gate.
+        // Existing predicate only clears hToken for this launch marker.
         //
 
         if (Dll_ImageType == DLL_IMAGE_MOZILLA_FIREFOX && lpCommandLine
@@ -968,8 +969,8 @@ _FX BOOL Proc_CreateProcessInternalW(
     }
 
     //
-    // hack:  recent versions of Flash Player use the Chrome sandbox
-    // architecture which conflicts with our restricted process model
+    // SREV-320: plugin sandbox child token gate.
+    // Existing image/config predicates clear hToken for this legacy path.
     //
 
     if (Config_GetSettingsForImageName_bool(L"DropChildProcessToken", FALSE) ||
@@ -1272,52 +1273,62 @@ _FX BOOL Proc_CreateProcessInternalW(
                         //
 
                         WCHAR* temp = Dll_Alloc(sizeof(WCHAR) * 8192);
+                        if (temp) {
 
-                        for (const WCHAR* ptr = lpArguments; *ptr != L'\0';) {
-                            WCHAR* end = (WCHAR*)SbieDll_FindArgumentEnd(ptr);
-                            ULONG len = (ULONG)(end - ptr);
-                            if (len > 0) {
-                                WCHAR savechar = *end;
-                                *end = L'\0';
+                            for (const WCHAR* ptr = lpArguments; *ptr != L'\0';) {
+                                WCHAR* end = (WCHAR*)SbieDll_FindArgumentEnd(ptr);
+                                ULONG len = (ULONG)(end - ptr);
+                                if (len > 0) {
+                                    WCHAR savechar = *end;
+                                    *end = L'\0';
 
-                                const WCHAR* tmp = ptr;
-                                if (ptr[0] == L'\"') tmp++;
-                                if (((tmp[0] >= L'A' && tmp[0] <= L'Z') || (tmp[0] >= L'a' && tmp[0] <= L'z')) && tmp[1] == L':') {
+                                    const WCHAR* tmp = ptr;
+                                    ULONG tmp_len = len;
+                                    if (ptr[0] == L'\"') {
+                                        tmp++;
+                                        tmp_len = (len >= 2) ? len - 2 : 0;
+                                    }
+                                    if (tmp_len >= 2
+                                            && (((tmp[0] >= L'A' && tmp[0] <= L'Z') || (tmp[0] >= L'a' && tmp[0] <= L'z')) && tmp[1] == L':')
+                                            && tmp_len < 8192) {
 
-                                    wcscpy(temp, tmp);
-                                    if (ptr[0] == L'\"') temp[len - 2] = L'\0';
-          
-                                    HANDLE hFile = CreateFileW(temp, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+                                        wmemcpy(temp, tmp, tmp_len);
+                                        temp[tmp_len] = L'\0';
 
-                                    if (hFile != INVALID_HANDLE_VALUE) {
+                                        HANDLE hFile = CreateFileW(temp, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
 
-                                        BOOLEAN is_copy;
-                                        LONG status = SbieDll_GetHandlePath(hFile, temp, &is_copy);
-                                        if (status == 0 && is_copy) {
+                                        if (hFile != INVALID_HANDLE_VALUE) {
 
-                                            SbieDll_TranslateNtToDosPath(temp);
-                                            ptr = temp;
-                                            len = wcslen(ptr);
-                                        } 
+                                            BOOLEAN is_copy;
+                                            LONG status = SbieDll_GetHandlePath(hFile, temp, &is_copy);
+                                            if (status == 0 && is_copy) {
 
-                                        CloseHandle(hFile);
+                                                SbieDll_TranslateNtToDosPath(temp);
+                                                ptr = temp;
+                                                len = wcslen(ptr);
+                                            }
+
+                                            CloseHandle(hFile);
+                                        }
+
                                     }
 
+                                    wmemcpy(mybuff2, ptr, len);
+                                    mybuff2 += len;
+
+                                    *end = savechar;
                                 }
-
-                                wmemcpy(mybuff2, ptr, len);
-                                mybuff2 += len;
-
-                                *end = savechar;
+                                *mybuff2++ = *end;
+                                if (*end != L'\0') end++;
+                                ptr = end;
                             }
-                            *mybuff2++ = *end;
-                            if (*end != L'\0') end++;
-                            ptr = end;
+
+                            Dll_Free(temp);
+
+                            *mybuff2 = L'\0';
+                        } else {
+                            wcscat(mybuf, lpArguments);
                         }
-
-                        Dll_Free(temp);
-
-                        *mybuff2 = L'\0';
                     }
 
                     if (! lpCurrentDirectory) { // lpCurrentDirectory must not be NULL
@@ -1397,7 +1408,8 @@ _FX BOOL Proc_CreateProcessInternalW(
         extern BOOLEAN Scm_MsiServer_Systemless;
         if (Dll_ImageType == DLL_IMAGE_MSI_INSTALLER && Scm_MsiServer_Systemless 
             && !SbieApi_QueryConfBool(NULL, L"RunServicesAsSystem", FALSE) && !SbieApi_QueryConfBool(NULL, L"MsiInstallerExemptions", FALSE)) {
-            // this is a simple workaround for the MSI installer to work properly
+            // SREV-321: systemless MSI server child process creation gate.
+            // Existing predicate clears token and process security attributes only here.
             hToken = NULL;
 		    lpProcessAttributes = NULL;
         }
@@ -1599,23 +1611,27 @@ _FX BOOL Proc_CreateProcessInternalW(
 
             if (resume_thread)
             {
-                // WerFault has some design flaws.  If we want crash DMPs we have to make adjustments
+                // SREV-322: WerFault duplicate-dump suppression boundary.
+                // First WerFault is resumed for WER/LocalDumps capture; later
+                // ones are terminated only after the exact duplicate gate.
                 if (lpApplicationName && (wcsistr(lpApplicationName, L"WerFault.exe")))
                 {
-                    // Windows will start WerFault 3 times.  So to prevent duplicate DMPs, filter them out here.
+                    // This duplicate suppression preserves the first dump path
+                    // while avoiding repeated WerFault dump writers. Keep the
+                    // PROCESS_INFORMATION handles caller-owned on the success
+                    // path; the process handle is returned signaled after wait.
                     if (g_boolWasWerFaultLastProcess == TRUE)
                     {
                         TerminateProcess(lpProcessInformation->hProcess, 1);
                         WaitForSingleObject(lpProcessInformation->hProcess, 30000);
-                        CloseHandle(lpProcessInformation->hProcess);
-                        CloseHandle(lpProcessInformation->hThread);
                     }
                     else
                     {
                         ResumeThread(lpProcessInformation->hThread);
                         SbieApi_Log(2224, L"%S [%S]", Dll_ImageName, Dll_BoxName);
                         g_boolWasWerFaultLastProcess = TRUE;
-                        // let WerFault run for a while to create its DMP before we let the crashing process exit.
+                        // Let WerFault run long enough for WER/LocalDumps to
+                        // collect before the crashing process is allowed to exit.
                         WaitForSingleObject(lpProcessInformation->hProcess, 30000);
                     }
                 }
@@ -3143,6 +3159,8 @@ _FX NTSTATUS Proc_NtCreateProcessEx(
 
 _FX void Proc_RestartProcessOutOfPcaJob(void)
 {
+    const WCHAR *CurrentCommandLine;
+    SIZE_T CommandLineLen;
     WCHAR *CommandLine;
     WCHAR *Directory;
     HANDLE FileHandle;
@@ -3165,11 +3183,16 @@ _FX void Proc_RestartProcessOutOfPcaJob(void)
     // the PCA job, and therefore can be put into the sandbox job.
     //
 
+    CurrentCommandLine = GetCommandLine();
+    CommandLineLen = wcslen(CurrentCommandLine) + 1;
+    if (CommandLineLen > ULONG_MAX / sizeof(WCHAR))
+        return;
+
     if (! Proc_ImpersonateSelf(TRUE))
         return;
 
-    CommandLine = Dll_AllocTemp(sizeof(WCHAR) * 8192);
-    wcscpy(CommandLine, GetCommandLine());
+    CommandLine = Dll_AllocTemp((ULONG)(CommandLineLen * sizeof(WCHAR)));
+    memcpy(CommandLine, CurrentCommandLine, CommandLineLen * sizeof(WCHAR));
 
     Directory = Dll_AllocTemp(sizeof(WCHAR) * 8192);
     Directory[0] = L'\0';

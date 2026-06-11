@@ -61,8 +61,16 @@ _FX HRESULT Pst_PStoreCreateInstance(
     void *pReserved,
     DWORD dwFlags)
 {
+    if (! ppProvider)
+        return E_POINTER;
+
+    *ppProvider = NULL;
+
     if (! __sys_CoTaskMemAlloc) {
         HMODULE ole32 = GetModuleHandle(DllName_ole32_or_combase);
+        if (! ole32)
+            return E_FAIL;
+
         __sys_CoTaskMemAlloc = GetProcAddress(ole32, "CoTaskMemAlloc");
         if (! __sys_CoTaskMemAlloc)
             return E_FAIL;

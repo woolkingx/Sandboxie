@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-095-arm64-api-instrumentation-abi.schema.json",
+  "title": "SREV-095 ARM64 API instrumentation ABI",
+  "id": "ARM64_API_INSTRUMENTATION_ABI",
+  "owner": "Sandboxie/core/dll/util_arm.asm",
+  "type": "object",
+  "properties": {
+    "trace_entry": {
+      "type": "string",
+      "description": "Dll_ApiTrace trace entry emitted by dllhook.c"
+    },
+    "argument_frame": {
+      "type": "string",
+      "description": "Saved x0-x7 argument register frame"
+    },
+    "scratch_registers": {
+      "type": "string",
+      "description": "Saved x16/x17 trampoline scratch state"
+    },
+    "instrumentation_call": {
+      "type": "string",
+      "description": "ApiInstrumentation(pName, pArgs) ABI handoff"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows ARM64 ApiTrace runtime proof"
+    }
+  },
+  "required": [
+    "trace_entry",
+    "argument_frame",
+    "scratch_registers",
+    "instrumentation_call",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "dllhook.c emits ARM64 trace detours with x17 pointing at the trace entry header",
+    "ApiInstrumentationAsm preserves x0-x7 before calling ApiInstrumentation",
+    "ApiInstrumentationAsm passes pName in x0 and the saved argument frame in x1",
+    "the saved argument frame begins at the saved x0/x1 pair",
+    "pArgs[-1] is the saved LR consumed by ApiInstrumentation as ReturnAddress",
+    "ApiInstrumentationAsm preserves x16/x17 across the call before branching to the detour target",
+    "ApiInstrumentationAsm keeps SP 16-byte aligned across all stack accesses and the C call",
+    "this SREV does not change ApiTrace runtime behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/cpp/build/arm64-windows-abi-conventions",
+    "https://learn.microsoft.com/en-us/cpp/build/arm64-exception-handling",
+    "https://learn.microsoft.com/en-us/windows/arm/arm64ec-abi"
+  ]
+}

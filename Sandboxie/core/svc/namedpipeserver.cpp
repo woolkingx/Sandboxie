@@ -56,6 +56,7 @@ typedef struct _PROXY_PIPE {
 
     HANDLE hPipe;
     HANDLE hEvent;
+    CRITICAL_SECTION *pIoLock;
 
 } PROXY_PIPE;
 
@@ -88,10 +89,36 @@ NamedPipeServer::NamedPipeServer(PipeServer *pipeServer)
 void NamedPipeServer::CloseCallback(void *context, void *data)
 {
     PROXY_PIPE *ProxyPipe = (PROXY_PIPE *)data;
+    if (ProxyPipe->pIoLock) {
+        DeleteCriticalSection(ProxyPipe->pIoLock);
+        HeapFree(GetProcessHeap(), 0, ProxyPipe->pIoLock);
+    }
     if (ProxyPipe->hEvent)
         NtClose(ProxyPipe->hEvent);
     if (ProxyPipe->hPipe)
         NtClose(ProxyPipe->hPipe);
+}
+
+
+//---------------------------------------------------------------------------
+// NamedPipeServer_WaitForPendingIo
+//---------------------------------------------------------------------------
+
+
+static ULONG NamedPipeServer_WaitForPendingIo(
+    PROXY_PIPE *ProxyPipe, IO_STATUS_BLOCK *IoStatusBlock, ULONG TimeoutMs)
+{
+    ULONG WaitStatus = WaitForSingleObject(ProxyPipe->hEvent, TimeoutMs);
+    if (WaitStatus == WAIT_OBJECT_0)
+        return IoStatusBlock->Status;
+
+    CancelIo(ProxyPipe->hPipe);
+
+    WaitForSingleObject(ProxyPipe->hEvent, INFINITE);
+
+    IoStatusBlock->Status = STATUS_CANCELLED;
+    IoStatusBlock->Information = 0;
+    return STATUS_CANCELLED;
 }
 
 
@@ -223,16 +250,36 @@ MSG_HEADER *NamedPipeServer::OpenHandler(MSG_HEADER *msg, HANDLE idProcess)
 
         if (NT_SUCCESS(rpl->h.status)) {
 
+            ProxyPipe.pIoLock = NULL;
             ProxyPipe.hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
             if (! ProxyPipe.hEvent) {
                 NtClose(ProxyPipe.hPipe);
                 rpl->h.status = STATUS_INSUFFICIENT_RESOURCES;
             } else {
 
-                rpl->handle = m_ProxyHandle->Create(idProcess, &ProxyPipe);
-                if (! rpl->handle) {
-                    // CloseCallback was already invoked
+                ProxyPipe.pIoLock = (CRITICAL_SECTION *)HeapAlloc(
+                    GetProcessHeap(), 0, sizeof(CRITICAL_SECTION));
+                if (! ProxyPipe.pIoLock) {
+                    NtClose(ProxyPipe.hEvent);
+                    NtClose(ProxyPipe.hPipe);
                     rpl->h.status = STATUS_INSUFFICIENT_RESOURCES;
+                } else {
+
+                    if (! InitializeCriticalSectionAndSpinCount(
+                            ProxyPipe.pIoLock, 1000)) {
+                        HeapFree(GetProcessHeap(), 0, ProxyPipe.pIoLock);
+                        NtClose(ProxyPipe.hEvent);
+                        NtClose(ProxyPipe.hPipe);
+                        rpl->h.status = STATUS_INSUFFICIENT_RESOURCES;
+                    } else {
+
+                        rpl->handle =
+                            m_ProxyHandle->Create(idProcess, &ProxyPipe);
+                        if (! rpl->handle) {
+                            // CloseCallback was already invoked
+                            rpl->h.status = STATUS_INSUFFICIENT_RESOURCES;
+                        }
+                    }
                 }
             }
         }
@@ -290,6 +337,10 @@ MSG_HEADER *NamedPipeServer::SetHandler(MSG_HEADER *msg, HANDLE idProcess)
         (PROXY_PIPE *)m_ProxyHandle->Find(idProcess, req->handle);
     if (! ProxyPipe)
         return SHORT_REPLY(STATUS_INVALID_HANDLE);
+    if (! ProxyPipe->pIoLock) {
+        m_ProxyHandle->Release(ProxyPipe);
+        return SHORT_REPLY(STATUS_INVALID_HANDLE);
+    }
 
     const ULONG rpl_len = sizeof(NAMED_PIPE_SET_RPL);
     NAMED_PIPE_SET_RPL *rpl = (NAMED_PIPE_SET_RPL *)LONG_REPLY(rpl_len);
@@ -298,9 +349,13 @@ MSG_HEADER *NamedPipeServer::SetHandler(MSG_HEADER *msg, HANDLE idProcess)
 
         IO_STATUS_BLOCK IoStatusBlock;
 
+        EnterCriticalSection(ProxyPipe->pIoLock);
+
         rpl->h.status = NtSetInformationFile(
             ProxyPipe->hPipe, &IoStatusBlock,
             req->data, req->data_len, FilePipeInformation);
+
+        LeaveCriticalSection(ProxyPipe->pIoLock);
 
         rpl->iosb.status = IoStatusBlock.Status;
         rpl->iosb.information = IoStatusBlock.Information;
@@ -328,34 +383,51 @@ MSG_HEADER *NamedPipeServer::ReadHandler(MSG_HEADER *msg, HANDLE idProcess)
         (PROXY_PIPE *)m_ProxyHandle->Find(idProcess, req->handle);
     if (! ProxyPipe)
         return SHORT_REPLY(STATUS_INVALID_HANDLE);
+    if (! ProxyPipe->pIoLock) {
+        m_ProxyHandle->Release(ProxyPipe);
+        return SHORT_REPLY(STATUS_INVALID_HANDLE);
+    }
 
     if (! RestrictToken()) {
         m_ProxyHandle->Release(ProxyPipe);
         return SHORT_REPLY(STATUS_ACCESS_DENIED);
     }
 
-    const ULONG rpl_len = sizeof(NAMED_PIPE_READ_RPL) + req->read_len;
+    const ULONG rpl_len = FIELD_OFFSET(NAMED_PIPE_READ_RPL, data) + req->read_len;
     NAMED_PIPE_READ_RPL *rpl = (NAMED_PIPE_READ_RPL *)LONG_REPLY(rpl_len);
 
     if (rpl) {
 
         IO_STATUS_BLOCK IoStatusBlock;
         LARGE_INTEGER li;
+        memzero(&IoStatusBlock, sizeof(IoStatusBlock));
         li.QuadPart = 0;
 
-        rpl->data_len = req->read_len;
+        rpl->data_len = 0;
+
+        EnterCriticalSection(ProxyPipe->pIoLock);
+        ResetEvent(ProxyPipe->hEvent);
 
         rpl->h.status = NtReadFile(
             ProxyPipe->hPipe, ProxyPipe->hEvent, NULL, NULL, &IoStatusBlock,
-            rpl->data, rpl->data_len, &li, NULL);
+            rpl->data, req->read_len, &li, NULL);
+
+        if (rpl->h.status != STATUS_PENDING)
+            IoStatusBlock.Status = rpl->h.status;
 
         if (rpl->h.status == STATUS_PENDING) {
-            ULONG WaitStatus = WaitForSingleObject(ProxyPipe->hEvent, 10000);
-            if (WaitStatus != WAIT_OBJECT_0) {
-                CancelIo(ProxyPipe->hPipe);
-                rpl->h.status = STATUS_CANCELLED;
-            } else
-                rpl->h.status = IoStatusBlock.Status;
+            rpl->h.status = NamedPipeServer_WaitForPendingIo(
+                ProxyPipe, &IoStatusBlock, 10000);
+        }
+
+        LeaveCriticalSection(ProxyPipe->pIoLock);
+
+        if (IoStatusBlock.Information <= req->read_len) {
+            rpl->data_len = (ULONG)IoStatusBlock.Information;
+        } else {
+            rpl->h.status = STATUS_INVALID_PARAMETER;
+            IoStatusBlock.Status = STATUS_INVALID_PARAMETER;
+            IoStatusBlock.Information = 0;
         }
 
         rpl->iosb.status = IoStatusBlock.Status;
@@ -387,6 +459,10 @@ MSG_HEADER *NamedPipeServer::WriteHandler(MSG_HEADER *msg, HANDLE idProcess)
         (PROXY_PIPE *)m_ProxyHandle->Find(idProcess, req->handle);
     if (! ProxyPipe)
         return SHORT_REPLY(STATUS_INVALID_HANDLE);
+    if (! ProxyPipe->pIoLock) {
+        m_ProxyHandle->Release(ProxyPipe);
+        return SHORT_REPLY(STATUS_INVALID_HANDLE);
+    }
 
     const ULONG rpl_len = sizeof(NAMED_PIPE_WRITE_RPL);
     NAMED_PIPE_WRITE_RPL *rpl = (NAMED_PIPE_WRITE_RPL *)LONG_REPLY(rpl_len);
@@ -395,7 +471,11 @@ MSG_HEADER *NamedPipeServer::WriteHandler(MSG_HEADER *msg, HANDLE idProcess)
 
         IO_STATUS_BLOCK IoStatusBlock;
         LARGE_INTEGER li;
+        memzero(&IoStatusBlock, sizeof(IoStatusBlock));
         li.QuadPart = 0;
+
+        EnterCriticalSection(ProxyPipe->pIoLock);
+        ResetEvent(ProxyPipe->hEvent);
 
         if (RestrictToken()) {
 
@@ -409,14 +489,15 @@ MSG_HEADER *NamedPipeServer::WriteHandler(MSG_HEADER *msg, HANDLE idProcess)
             memzero(&IoStatusBlock, sizeof(IoStatusBlock));
         }
 
+        if (rpl->h.status != STATUS_PENDING)
+            IoStatusBlock.Status = rpl->h.status;
+
         if (rpl->h.status == STATUS_PENDING) {
-            ULONG WaitStatus = WaitForSingleObject(ProxyPipe->hEvent, 10000);
-            if (WaitStatus != WAIT_OBJECT_0) {
-                CancelIo(ProxyPipe->hPipe);
-                rpl->h.status = STATUS_CANCELLED;
-            } else
-                rpl->h.status = IoStatusBlock.Status;
+            rpl->h.status = NamedPipeServer_WaitForPendingIo(
+                ProxyPipe, &IoStatusBlock, 10000);
         }
+
+        LeaveCriticalSection(ProxyPipe->pIoLock);
 
         rpl->iosb.status = IoStatusBlock.Status;
         rpl->iosb.information = IoStatusBlock.Information;
@@ -446,6 +527,7 @@ MSG_HEADER *NamedPipeServer::LpcConnectHandler(
     NAMED_PIPE_LPC_CONNECT_REQ *req = (NAMED_PIPE_LPC_CONNECT_REQ *)msg;
     if (req->h.length < sizeof(NAMED_PIPE_LPC_CONNECT_REQ))
         goto finish;
+    req->name[ARRAYSIZE(req->name) - 1] = L'\0';
 
     WCHAR port_name[96];
     port_name[0] = L'\0';
@@ -498,7 +580,7 @@ MSG_HEADER *NamedPipeServer::LpcConnectHandler(
             ALPC_PORT_ATTRIBUTES alpc;
 
             memzero(&alpc, sizeof(ALPC_PORT_ATTRIBUTES));
-            alpc.Flags = 0x10000;       // can-impersonate flag??
+            alpc.Flags = PORT_INFO_CANIMPERSONATE;
             memcpy(&alpc.SecurityQos, &qos, sizeof(qos));
             alpc.MaxMessageLength = req->max_msg_len;
             alpc.MaxPoolUsage = (ULONG_PTR)(ULONG)-1;
@@ -513,7 +595,7 @@ MSG_HEADER *NamedPipeServer::LpcConnectHandler(
 
                 status = ((P_NtAlpcConnectPort)m_pNtAlpcConnectPort)(
                     &hPort, &objname, &objattrs, &alpc,
-                    0x20000,            // sync-connection flag??
+                    ALPC_SYNC_CONNECTION,
                     NULL, NULL, NULL, NULL, NULL, NULL);
 
             } else
@@ -541,6 +623,7 @@ MSG_HEADER *NamedPipeServer::LpcConnectHandler(
         PROXY_PIPE ProxyPipe;
         ProxyPipe.hPipe = hPort;
         ProxyPipe.hEvent = NULL;
+        ProxyPipe.pIoLock = NULL;
 
         rpl->handle = m_ProxyHandle->Create(idProcess, &ProxyPipe);
         if (! rpl->handle)
@@ -728,7 +811,10 @@ MSG_HEADER *NamedPipeServer::AlpcRequestHandler(
     view.ReceiveFlags = req->view[1];
 
     if ((view.SendFlags & 0x9FFFFFFF) || (view.ReceiveFlags & 0x9FFFFFFF)) {
-        // we only accept 0x20000000 or 0x40000000 or 0x60000000
+        // SREV-015: keep the locally observed ALPC view flag mask. These are
+        // private ALPC message-view bits, so broadening this mask requires
+        // Windows capture and SREV-138 mirror-header proof rather than
+        // numeric guesswork.
         goto finish;
     }
 
@@ -761,7 +847,7 @@ MSG_HEADER *NamedPipeServer::AlpcRequestHandler(
         msg_len = req->msg_len;
 
         status = pNtAlpcSendWaitReceivePort(ProxyPipe->hPipe,
-            0x20000,            // sync-connection flag??
+            ALPC_SYNC_CONNECTION,
             snd_msg, &view, rcv_msg, &msg_len, &view, NULL);
 
         if (NT_SUCCESS(status) && (
@@ -781,11 +867,11 @@ MSG_HEADER *NamedPipeServer::AlpcRequestHandler(
         UCHAR *ViewBase = NULL;
         ULONG  ViewSize = 0;
 
-        if ((view.ReceiveFlags & 0x40000000)
+        if ((view.ReceiveFlags & ALPC_MESSAGE_FLAG_VIEW)
                             && view.u.s2.ViewBase && view.u.s2.ViewSize) {
 
             //
-            // if the reply message view buffer has bit 30 (0x40000000)
+            // if the reply message view buffer has ALPC_MESSAGE_FLAG_VIEW
             // set then a section view has been mapped into the process
             // and this section view contains most of the reply data.
             //

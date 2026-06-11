@@ -301,7 +301,7 @@ _FX BOOLEAN Syscall_Init_List32(void)
         if (name[0] != 'N' || name[1] != 't')
             break;
         name += 2;                  // skip Nt prefix
-        for (name_len = 0; (name_len < 64) && name[name_len]; ++name_len)
+        for (name_len = 0; (name_len < SYSCALL_NAME_MAX_CHARS) && name[name_len]; ++name_len)
             ;
         
         //DbgPrint("    Found SysCall32 %s\n", name);
@@ -613,16 +613,6 @@ _FX NTSTATUS Syscall_Api_Invoke32(PROCESS* proc, ULONG64* parms)
 
 
     //
-    // on first win32k.sys call we must convert this thread to a GUI thread
-    //
-
-    // todo: call KiConvertToGuiThread() or PsConvertToGuiThread()
-
-    // note: once this is implemented the below check with MmIsAddressValid will be obsolete
-
-
-
-    //
     // if we have a handler for this service, invoke it
     //
 
@@ -671,12 +661,14 @@ _FX NTSTATUS Syscall_Api_Invoke32(PROCESS* proc, ULONG64* parms)
         } else {
 
             //
-            // we must validate the address as an application without being switched to
-            // gui mode could still issue a syscall to a win32k and cause a BSOD otherwise
+            // Direct win32k invocation bypasses the kernel system-service entry
+            // path that can convert the calling thread to a GUI thread.
+            // PsConvertToGuiThread / KiConvertToGuiThread are private entry
+            // points, so this path must not call them directly. Require the
+            // current thread to already have Win32 thread state before dispatch.
             //
 
-            //if (MmIsAddressValid(entry->ntos_func)) {
-            if (PsGetProcessWin32Process(PsGetCurrentProcess())) { // HasWin32kInitialized
+            if (PsGetThreadWin32Thread(PsGetCurrentThread())) { // HasWin32Thread
 
                 //DbgPrint("   SysCall32 %d -> %p\r\n", syscall_index, entry->ntos_func);
                 status = Syscall_Invoke32(proc, entry, user_args);
@@ -758,7 +750,7 @@ _FX NTSTATUS Syscall_Api_Query32(PROCESS *proc, ULONG64 *parms)
     //
 
     buf_len = sizeof(ULONG)         // size of buffer
-            + List_Count(&Syscall_List32) * ((sizeof(ULONG) * 2) + (add_names ? 64 : 0))
+            + List_Count(&Syscall_List32) * ((sizeof(ULONG) * 2) + (add_names ? SYSCALL_NAME_SLOT_BYTES : 0))
             + sizeof(ULONG) * 2     // final terminator entry
             ;
 
@@ -798,7 +790,7 @@ _FX NTSTATUS Syscall_Api_Query32(PROCESS *proc, ULONG64 *parms)
         if (add_names) {
             memcpy(ptr, entry->name, entry->name_len);
             ((char*)ptr)[entry->name_len] = 0;
-            ptr += 16; // 16 * sizeog(ULONG) = 64
+            ptr += SYSCALL_NAME_SLOT_ULONGS;
         }
 
         entry = List_Next(entry);

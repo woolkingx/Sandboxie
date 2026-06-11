@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-179-config-ansi-list-exact-match.schema.json",
+  "title": "SREV-179 Config ANSI list exact match",
+  "id": "CONFIG_ANSI_LIST_EXACT_MATCH",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "SbieDll_CheckStringInListA config-list membership helper"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 7
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 1
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "SbieDll_CheckStringInListA config-list membership helper",
+  "contracts": [
+    "SbieDll_CheckStringInListA owns ANSI caller-string membership checks against wide config-list entries",
+    "A match is legal only when every compared byte character is equal and both strings reach their terminator at the same position",
+    "A shorter wide config entry is not a match for a longer ANSI caller string",
+    "A shorter ANSI caller string is not a match for a longer wide config entry",
+    "The helper preserves the existing case-sensitive comparison behavior",
+    "The helper preserves SbieApi_QueryConfAsIs iteration and STATUS_BUFFER_TOO_SMALL skip behavior",
+    "This SREV does not change wide SbieDll_CheckStringInList config query flags trace hook installation or the meaning of ApiSkipTrace entries"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/strcmp-wcscmp-mbscmp?view=msvc-170"
+  ],
+  "runtime_gate": "Windows DLL build plus ApiSkipTrace exact match and prefix false-positive smoke"
+}

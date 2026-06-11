@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-103-win32k-current-thread-gui-state.schema.json",
+  "title": "SREV-103 win32k current thread GUI state",
+  "id": "WIN32K_CURRENT_THREAD_GUI_STATE",
+  "owner": "Sandboxie/core/drv/syscall_win32.c",
+  "type": "object",
+  "properties": {
+    "public_gui_surface": {
+      "type": "string",
+      "description": "Public Windows GUI-thread conversion and desktop connection shape"
+    },
+    "private_kernel_surface": {
+      "type": "string",
+      "description": "Private kernel conversion names that must not become direct driver calls"
+    },
+    "dispatch_guard": {
+      "type": "string",
+      "description": "Current-thread Win32 state required before direct win32k dispatch"
+    },
+    "source_change": {
+      "type": "string",
+      "description": "Minimal source change preserving win32k syscall dispatch topology"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows GUI-thread and win32k dispatch runtime proof"
+    }
+  },
+  "required": [
+    "public_gui_surface",
+    "private_kernel_surface",
+    "dispatch_guard",
+    "source_change",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "IsGUIThread documents GUI state and optional conversion for the calling thread",
+    "Thread Connection to a Desktop assigns a desktop to the thread making the connection",
+    "PsGetCurrentThread returns the executive thread object for the current thread",
+    "PsConvertToGuiThread and KiConvertToGuiThread are not documented WDK DDIs and must not be called directly from this driver path",
+    "Syscall_Api_Invoke32 direct win32k dispatch must use a current-thread Win32 state guard, not a process-level Win32 state guard",
+    "the source change keeps Thread_SetThreadToken, handler dispatch, Sbie_InvokeSyscall_asm, trap-frame restoration, and STATUS_INVALID_ADDRESS failure behavior intact",
+    "this SREV does not implement private GUI-thread conversion and does not change syscall table discovery"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-isguithread",
+    "https://learn.microsoft.com/en-us/windows/win32/winstation/thread-connection-to-a-desktop",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-psgetcurrentthread",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_kernel/"
+  ]
+}

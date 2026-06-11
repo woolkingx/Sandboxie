@@ -19,6 +19,7 @@
 // Key Utilities
 //---------------------------------------------------------------------------
 
+#include <limits.h>
 
 //---------------------------------------------------------------------------
 // Key_OpenIfBoxed
@@ -29,33 +30,19 @@ _FX NTSTATUS Key_OpenIfBoxed(
     HANDLE *out_handle, ACCESS_MASK access, OBJECT_ATTRIBUTES *objattrs)
 {
     NTSTATUS status;
-    KEY_NAME_INFORMATION *info;
-    WCHAR *name;
+    WCHAR *TruePath;
+    WCHAR *CopyPath;
 
-    if (objattrs->RootDirectory) {
+    if (! objattrs)
+        return STATUS_INVALID_PARAMETER;
 
-        ULONG len = PAGE_SIZE;
-        info = Dll_Alloc(len);
-        status = NtQueryKey(
-            objattrs->RootDirectory, KeyNameInformation, info, len, &len);
-        if (NT_SUCCESS(status)) {
-            WCHAR *name2 = info->Name + info->NameLength / sizeof(WCHAR);
-            *name2 = L'\\';
-            wcscpy(name2 + 1, objattrs->ObjectName->Buffer);
-            name = info->Name;
-        }
-
-    } else {
-
-        info = NULL;
-        name = objattrs->ObjectName->Buffer;
-        status = STATUS_SUCCESS;
-    }
+    status = Key_GetName(
+        objattrs->RootDirectory, objattrs->ObjectName,
+        &TruePath, &CopyPath, NULL);
 
     if (NT_SUCCESS(status)) {
 
-        ULONG mp_flags = SbieDll_MatchPath(L'k', name);
-
+        ULONG mp_flags = SbieDll_MatchPath(L'k', TruePath);
         if ((mp_flags & ~PATH_WRITE_FLAG) != 0)
             status = STATUS_BAD_INITIAL_PC;
         else
@@ -78,7 +65,7 @@ _FX NTSTATUS Key_OpenOrCreateIfBoxed(
 
     if (status == STATUS_OBJECT_NAME_NOT_FOUND) {
 
-        PSECURITY_DESCRIPTOR *SaveSD = objattrs->SecurityDescriptor;
+        PSECURITY_DESCRIPTOR SaveSD = objattrs->SecurityDescriptor;
         objattrs->SecurityDescriptor = Secure_EveryoneSD;
 
         status = NtCreateKey(
@@ -100,11 +87,12 @@ _FX void Key_DeleteValueFromCLSID(
     const WCHAR *Xxxid, const WCHAR *Guid, const WCHAR *ValueName)
 {
     static const WCHAR *_HKLM_Classes =
-        L"";
+        L"\\registry\\machine\\software\\classes\\";
     NTSTATUS status;
     OBJECT_ATTRIBUTES objattrs;
     UNICODE_STRING objname;
     ULONG DesiredAccess;
+    SIZE_T path_len;
     WCHAR *path;
     HANDLE handle;
 
@@ -114,13 +102,15 @@ _FX void Key_DeleteValueFromCLSID(
         DesiredAccess |= KEY_WOW64_64KEY;
 #endif
 
-    path = Dll_AllocTemp(128 * sizeof(WCHAR));
+    path_len = wcslen(_HKLM_Classes) + wcslen(Xxxid) + wcslen(Guid) + 4;
+    if (path_len > ULONG_MAX / sizeof(WCHAR))
+        return;
 
-    wcscpy(path, L"\\registry\\machine\\software\\classes\\");
-    wcscat(path, Xxxid);
-    wcscat(path, L"\\{");
-    wcscat(path, Guid);
-    wcscat(path, L"}");
+    path = Dll_AllocTemp((ULONG)(path_len * sizeof(WCHAR)));
+    if (! path)
+        return;
+
+    Sbie_snwprintf(path, path_len, L"%s%s\\{%s}", _HKLM_Classes, Xxxid, Guid);
     RtlInitUnicodeString(&objname, path);
 
     InitializeObjectAttributes(
@@ -134,4 +124,6 @@ _FX void Key_DeleteValueFromCLSID(
 
         NtClose(handle);
     }
+
+    Dll_Free(path);
 }

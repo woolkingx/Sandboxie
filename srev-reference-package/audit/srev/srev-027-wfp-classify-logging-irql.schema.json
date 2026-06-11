@@ -1,0 +1,156 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-027-wfp-classify-logging-irql.schema.json",
+  "title": "SREV-027 WFP classify logging IRQL contract",
+  "id": "WFP_CLASSIFY_LOGGING_IRQL_CONTRACT",
+  "owner": "Sandboxie/core/drv/wfp.c",
+  "type": "object",
+  "properties": {
+    "classify_irql_shape": {
+      "type": "string",
+      "description": "WFP classifyFn may run at IRQL <= DISPATCH_LEVEL"
+    },
+    "rtl_stringcb_shape": {
+      "type": "string",
+      "description": "RtlStringCbPrintfA/W may run at any IRQL only when all manipulated strings are always resident; otherwise caller must be at PASSIVE_LEVEL"
+    },
+    "lock_irql_shapes": {
+      "type": "string",
+      "description": "KeAcquireSpinLockRaiseToDpc raises to the spin-lock/DPC path; ExAcquireResourceExclusiveLite requires IRQL <= APC_LEVEL; paged-pool memory cannot be touched at DISPATCH_LEVEL"
+    },
+    "forbidden_edge": {
+      "type": "string",
+      "description": "DISPATCH-level WFP_classify -> Session_MonitorPutEx -> ERESOURCE + PagedPool monitor buffer is forbidden"
+    },
+    "deferred_logger_requirement": {
+      "type": "string",
+      "description": "NetFwTrace logging needs a different executor: nonpaged queue/ring consumed later at PASSIVE_LEVEL, or a monitor subsystem whose full write path is legal at DISPATCH_LEVEL"
+    },
+    "source_change": {
+      "type": "string",
+      "description": "Inactive inline logging implementation removed from WFP_classify; WFP_classify now enqueues fixed nonpaged trace records through WFP_TraceEnqueueFromClassify when NetFwTrace is enabled; WFP_TraceThreadProc drains the bounded queue and formats monitor strings outside classify before calling Session_MonitorPut"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "If NetFwTrace is later implemented, run Driver Verifier IRQL/DDI checking with sustained IPv4/IPv6 TCP/UDP loopback/non-loopback blocked/permitted traffic, NetFwTrace on/off, rule refresh, process churn, monitor-log readback, and negative controls proving no inline Session_MonitorPut or RtlStringCbPrintf calls"
+    },
+    "shared_runtime_capture_schema": {
+      "type": "string",
+      "description": "Runtime evidence records use docs/plan/srev-022-027-kernel-runtime-capture.schema.json with feature_path wfp-deferred-logger"
+    }
+  },
+  "required": [
+    "classify_irql_shape",
+    "rtl_stringcb_shape",
+    "lock_irql_shapes",
+    "forbidden_edge",
+    "deferred_logger_requirement",
+    "source_change",
+    "runtime_matrix",
+    "shared_runtime_capture_schema"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "WFP_classify must not call Session_MonitorPut or Session_MonitorPutEx",
+    "WFP_classify must not call RtlStringCbPrintfA or RtlStringCbPrintfW",
+    "Source must provide an executable deferred logger path before NetFwTrace records are written",
+    "Runtime matrix must require Driver Verifier IRQL/DDI checking, traffic stress, monitor readback, negative controls, and logging-disabled regression",
+    "Deferred logger design must separate DISPATCH_LEVEL nonpaged classify-side capture from PASSIVE_LEVEL monitor formatting and writeback",
+    "Ledger records source-level deferred logger path and remaining Windows runtime proof gate",
+    "shared kernel runtime capture records must use feature_path wfp-deferred-logger"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/fwpsk/nc-fwpsk-fwps_callout_classify_fn0",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntstrsafe/nf-ntstrsafe-rtlstringcbprintfa",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-keacquirespinlockraisetodpc",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-keinitializeevent",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-kesetevent",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-kewaitforsingleobject",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-pscreatesystemthread",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-zwwaitforsingleobject",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-exacquireresourceexclusivelite",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-exallocatepool2",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/network/data-logging"
+  ],
+  "runtime_capture_matrix": {
+    "verifier": [
+      "Driver Verifier IRQL checking",
+      "DDI compliance checking",
+      "Special Pool for logger tag",
+      "pool tracking",
+      "forced allocation failure"
+    ],
+    "traffic": [
+      "IPv4 TCP outbound",
+      "IPv6 TCP outbound",
+      "IPv4 UDP outbound",
+      "IPv6 UDP outbound",
+      "loopback traffic",
+      "non-loopback traffic",
+      "blocked traffic",
+      "permitted traffic",
+      "high-rate sustained traffic"
+    ],
+    "settings": [
+      "NetFwTrace enabled",
+      "NetFwTrace disabled",
+      "BlockInternet",
+      "BlockLoopback",
+      "rule-based block",
+      "rule-based permit",
+      "rule refresh while traffic is active"
+    ],
+    "classify_side_capture": [
+      "process id",
+      "direction",
+      "layer id",
+      "protocol",
+      "remote address",
+      "remote port",
+      "action",
+      "NetFwTrace enabled bit",
+      "rule match result",
+      "timestamp source"
+    ],
+    "memory_owner": [
+      "nonpaged fixed-size record",
+      "bounded queue or ring capacity",
+      "allocation-failure policy",
+      "overflow or drop counter",
+      "pool tag"
+    ],
+    "synchronization_owner": [
+      "DISPATCH-safe producer lock or lock-free queue",
+      "no ERESOURCE in WFP_classify",
+      "no pageable buffer in WFP_classify",
+      "no blocking wait in WFP_classify",
+      "no pageable function in WFP_classify"
+    ],
+    "deferred_executor": [
+      "PASSIVE_LEVEL worker",
+      "formats monitor strings outside classify",
+      "calls Session_MonitorPut or Session_MonitorPutEx outside classify",
+      "drains or cancels on WFP unload",
+      "handles monitor consumer attach detach"
+    ],
+    "monitor_record": [
+      "process id",
+      "remote address",
+      "remote port",
+      "protocol",
+      "direction",
+      "block or permit action",
+      "rule id or no-rule marker",
+      "drop or overflow diagnostic"
+    ],
+    "negative_controls": [
+      "no direct Session_MonitorPut from WFP_classify",
+      "no direct Session_MonitorPutEx from WFP_classify",
+      "no direct RtlStringCbPrintfA from WFP_classify",
+      "no direct RtlStringCbPrintfW from WFP_classify",
+      "no session->monitor_log touch from WFP_classify",
+      "no pageable allocation at DISPATCH_LEVEL",
+      "logging disabled path preserves block permit decisions"
+    ]
+  }
+}

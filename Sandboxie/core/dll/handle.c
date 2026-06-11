@@ -41,7 +41,7 @@ typedef struct _HANDLE_HANDLER
 	P_HandlerFunc	Close;
 	void*			Param;
 
-	BOOL			bPropagate; // incompatible with Param, todo: add duplicate handler
+	BOOL			bPropagate; // SREV-298: duplicate propagation is legal only with NULL Param.
 
 } HANDLE_HANDLER;
 
@@ -243,6 +243,9 @@ _FX BOOLEAN Handle_RegisterHandler(HANDLE FileHandle, P_HandlerFunc CloseHandler
     if (!FileHandle || FileHandle == (HANDLE)-1)
         return FALSE;
 
+    if (bPropagate && Params)
+        return FALSE;
+
     EnterCriticalSection(&Handle_StatusData_CritSec);
 
     HANDLE_STATE* state = map_get(&Handle_StatusData, FileHandle);
@@ -261,6 +264,10 @@ _FX BOOLEAN Handle_RegisterHandler(HANDLE FileHandle, P_HandlerFunc CloseHandler
     if (handler == NULL) 
     {
         HANDLE_HANDLER* newNandler = Dll_Alloc(sizeof(HANDLE_HANDLER));
+        if (!newNandler) {
+            LeaveCriticalSection(&Handle_StatusData_CritSec);
+            return FALSE;
+        }
         memzero(&newNandler->list_elem, sizeof(LIST_ELEM));
 
         newNandler->Close = CloseHandler;
@@ -273,7 +280,7 @@ _FX BOOLEAN Handle_RegisterHandler(HANDLE FileHandle, P_HandlerFunc CloseHandler
     LeaveCriticalSection(&Handle_StatusData_CritSec);
 
     if (handler != NULL) {
-        //SbieApi_Log(2301, L"CloseHandlers already registered"); // todo
+        // A matching close handler is already registered for this handle.
         return FALSE;
     }
 
@@ -298,8 +305,9 @@ _FX VOID Handle_UnRegisterHandler(HANDLE FileHandle, P_HandlerFunc CloseHandler,
         {
             if (handler->Close == CloseHandler)
             {
-                if (pParams) pParams = handler->Param;
+                if (pParams) *pParams = handler->Param;
                 List_Remove(&state->CloseHandlers, handler);
+                Dll_Free(handler);
                 break;
             }
             handler = List_Next(handler);

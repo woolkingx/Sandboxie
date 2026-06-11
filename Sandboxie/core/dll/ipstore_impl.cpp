@@ -76,7 +76,7 @@ IPStoreImpl::IPStoreImpl(void *ptrCoTaskMemAlloc)
     if (section) {
         global_timestamp = (__int64 *)
             MapViewOfFile(section, FILE_MAP_ALL_ACCESS, 0, 0, 8);
-        if (section_created)
+        if (global_timestamp && section_created)
             *global_timestamp = local_timestamp + 1;
     }
 
@@ -88,6 +88,8 @@ IPStoreImpl::~IPStoreImpl()
 {
     if (heap)
         HeapDestroy(heap);
+    if (global_timestamp)
+        UnmapViewOfFile(global_timestamp);
     if (section)
         CloseHandle(section);
     if (mutex)
@@ -103,7 +105,7 @@ void *IPStoreImpl::operator new(size_t n)
 
 void IPStoreImpl::operator delete(void *p)
 {
-    HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, p);
+    HeapFree(GetProcessHeap(), 0, p);
 }
 
 
@@ -928,7 +930,7 @@ HRESULT IPStoreImpl::WriteItem(
         if (dwFlags & PST_NO_OVERWRITE)
             return PST_E_ITEM_EXISTS;
         if (item->value) {
-            HeapFree(heap, HEAP_GENERATE_EXCEPTIONS, item->value);
+            HeapFree(heap, 0, item->value);
             item->value = NULL;
             item->value_len = 0;
         }

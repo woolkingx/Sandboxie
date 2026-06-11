@@ -264,9 +264,8 @@ _FX BOOLEAN Win32_Init(HMODULE hmodule)
     BOOLEAN UseByDefault = (Dll_ImageType == DLL_IMAGE_GOOGLE_CHROME);
     if (SbieDll_GetSettingsForName_bool(NULL, Dll_ImageName, L"UseWin32kHooks", UseByDefault)) {
 
-        // disable Electron Workaround when we are ready to hook the required win32k syscalls
-        //extern BOOL Dll_ElectronWorkaround;
-        //Dll_ElectronWorkaround = FALSE; 
+        // Electron GPU command-line handling stays inactive until a Windows
+        // runtime matrix proves win32k syscall hook coverage.
 
 #ifndef _WIN64
         if (Dll_IsWow64) 

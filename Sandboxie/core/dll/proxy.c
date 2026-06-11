@@ -56,6 +56,7 @@
 #define SOCKS_RESPONSE_MAX_SIZE     512
 #define SOCKS_REQUEST_MAX_SIZE      264
 #define SOCKS_AUTH_MAX_SIZE         255
+#define SOCKS_AUTH_TEXT_SIZE        (SOCKS_AUTH_MAX_SIZE + 1)
 
 #define HOST_NAME_MAX               256
 #define INET_ADDRSTRLEN             16
@@ -77,12 +78,47 @@ extern P_closesocket __sys_closesocket;
 extern HASH_MAP     DNS_LookupMap;
 #endif
 
+static BOOLEAN socks5_auth_field_to_bytes(
+    const WCHAR *text,
+    char bytes[SOCKS_AUTH_MAX_SIZE],
+    size_t *bytes_len);
+
+static BOOLEAN socks5_request_add_domain(
+    char **ptr,
+    const char *domain);
+
 //---------------------------------------------------------------------------
 // socks5_handshake
 //---------------------------------------------------------------------------
 
 
-_FX BOOLEAN socks5_handshake(SOCKET s, BOOLEAN auth, WCHAR login[SOCKS_AUTH_MAX_SIZE], WCHAR pass[SOCKS_AUTH_MAX_SIZE])
+_FX BOOLEAN socks5_auth_field_to_bytes(
+    const WCHAR *text,
+    char bytes[SOCKS_AUTH_MAX_SIZE],
+    size_t *bytes_len)
+{
+    size_t required_len;
+    size_t converted_len;
+
+    if (! text)
+        return FALSE;
+
+    required_len = wcstombs(NULL, text, 0);
+    if (required_len == (size_t)-1 ||
+            required_len == 0 ||
+            required_len > SOCKS_AUTH_MAX_SIZE)
+        return FALSE;
+
+    converted_len = wcstombs(bytes, text, required_len);
+    if (converted_len != required_len)
+        return FALSE;
+
+    *bytes_len = converted_len;
+    return TRUE;
+}
+
+
+_FX BOOLEAN socks5_handshake(SOCKET s, BOOLEAN auth, WCHAR login[SOCKS_AUTH_TEXT_SIZE], WCHAR pass[SOCKS_AUTH_TEXT_SIZE])
 {
     char req[4] = { SOCKS_VERSION, 1 + auth, SOCKS_NO_AUTHENTICATION, 0 };
 
@@ -111,8 +147,13 @@ _FX BOOLEAN socks5_handshake(SOCKET s, BOOLEAN auth, WCHAR login[SOCKS_AUTH_MAX_
         }
         char l[SOCKS_AUTH_MAX_SIZE];
         char p[SOCKS_AUTH_MAX_SIZE];
-        size_t login_len = wcstombs(l, login, SOCKS_AUTH_MAX_SIZE);
-        size_t pass_len = wcstombs(p, pass, SOCKS_AUTH_MAX_SIZE);
+        size_t login_len;
+        size_t pass_len;
+        if (! socks5_auth_field_to_bytes(login, l, &login_len) ||
+                ! socks5_auth_field_to_bytes(pass, p, &pass_len)) {
+            SbieApi_Log(2360, L"invalid SOCKS authentication field");
+            goto on_error;
+        }
 
         size_t auth_buf_len = 1 + 1 + login_len + 1 + pass_len;
         char* auth_buf = Dll_AllocTemp(auth_buf_len);
@@ -255,6 +296,23 @@ _FX void socks5_report_error(int code, const char* buf)
 // socks5_request
 //---------------------------------------------------------------------------
 
+_FX BOOLEAN socks5_request_add_domain(
+    char **ptr,
+    const char *domain)
+{
+    size_t domain_len = strlen(domain);
+
+    if (domain_len == 0 || domain_len > 255)
+        return FALSE;
+
+    *(*ptr)++ = SOCKS_DOMAINNAME;
+    *(*ptr)++ = (char)domain_len;
+    memcpy(*ptr, domain, domain_len);
+    *ptr += domain_len;
+    return TRUE;
+}
+
+
 _FX char socks5_request(SOCKET s, const SOCKADDR* addr)
 {
     char req[SOCKS_REQUEST_MAX_SIZE] = { SOCKS_VERSION, SOCKS_CONNECT, 0 };
@@ -265,10 +323,8 @@ _FX char socks5_request(SOCKET s, const SOCKADDR* addr)
 #ifdef PROXY_RESOLVE_HOST_NAMES
         char* domain = (char*)map_get(&DNS_LookupMap, (void*)v4->sin_addr.s_addr);
         if (domain) {
-            *ptr++ = SOCKS_DOMAINNAME;
-            *ptr++ = strlen(domain);
-            memcpy(ptr, domain, strlen(domain));
-            ptr += strlen(domain);
+            if (! socks5_request_add_domain(&ptr, domain))
+                return SOCKS_GENERAL_FAILURE;
             *((USHORT*)ptr) = v4->sin_port;
             ptr += sizeof(USHORT);
         } 
@@ -287,10 +343,8 @@ _FX char socks5_request(SOCKET s, const SOCKADDR* addr)
 #ifdef PROXY_RESOLVE_HOST_NAMES
         char* domain = (char*)map_get(&DNS_LookupMap, (void*)&v6->sin6_addr.s6_addr);
         if (domain) {
-            *ptr++ = SOCKS_DOMAINNAME;
-            *ptr++ = strlen(domain);
-            memcpy(ptr, domain, strlen(domain));
-            ptr += strlen(domain);
+            if (! socks5_request_add_domain(&ptr, domain))
+                return SOCKS_GENERAL_FAILURE;
             *((USHORT*)ptr) = v6->sin6_port;
             ptr += sizeof(USHORT);
         }
@@ -331,8 +385,8 @@ typedef struct {
         SOCKADDR_IN6_LH proxy6;
     };
     BOOLEAN auth;
-    WCHAR login[SOCKS_AUTH_MAX_SIZE];
-    WCHAR pass[SOCKS_AUTH_MAX_SIZE];
+    WCHAR login[SOCKS_AUTH_TEXT_SIZE];
+    WCHAR pass[SOCKS_AUTH_TEXT_SIZE];
 } RELAY_CONFIG,* PRELAY_CONFIG;
 
 
@@ -453,7 +507,7 @@ DWORD WINAPI proxy_handle_relay(LPVOID param)
 // start_socks5_relay
 //---------------------------------------------------------------------------
 
-USHORT start_socks5_relay(const SOCKADDR* addr, const SOCKADDR* proxy, BOOLEAN auth, WCHAR login[SOCKS_AUTH_MAX_SIZE], WCHAR pass[SOCKS_AUTH_MAX_SIZE])
+USHORT start_socks5_relay(const SOCKADDR* addr, const SOCKADDR* proxy, BOOLEAN auth, WCHAR login[SOCKS_AUTH_TEXT_SIZE], WCHAR pass[SOCKS_AUTH_TEXT_SIZE])
 {
     PRELAY_CONFIG relay_config = Dll_Alloc(sizeof(RELAY_CONFIG));
     if (!relay_config)
@@ -475,8 +529,11 @@ USHORT start_socks5_relay(const SOCKADDR* addr, const SOCKADDR* proxy, BOOLEAN a
 
     relay_config->auth = auth;
     if (auth) {
-        wcscpy_s(relay_config->login, SOCKS_AUTH_MAX_SIZE, login);
-        wcscpy_s(relay_config->pass, SOCKS_AUTH_MAX_SIZE, pass);
+        if (! login || ! pass)
+            goto fail;
+        if (wcscpy_s(relay_config->login, SOCKS_AUTH_TEXT_SIZE, login) != 0 ||
+                wcscpy_s(relay_config->pass, SOCKS_AUTH_TEXT_SIZE, pass) != 0)
+            goto fail;
     }
 
     relay_config->listen_sock = __sys_socket(addr->sa_family, SOCK_STREAM, IPPROTO_TCP);

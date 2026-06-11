@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "SESSION_MONITOR_GET2_BUFFER_FLOOR",
+  "owner": "Sandboxie/core/drv/session.h",
+  "implementation": "Sandboxie/core/drv/session.c",
+  "status": "patched-source-level-after-official-probeforwrite-and-local-log-buffer-wire-review-needs-windows-runtime-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-probeforwrite"
+  ],
+  "contracts": [
+    "session.h declares the session monitor API surface and session.c owns the implementation and monitor log state",
+    "API_MONITOR_GET2 output is a sequence of size-prefixed entries terminated by one zero LOG_BUFFER_SIZE_T",
+    "The user output buffer must have at least sizeof(LOG_BUFFER_SIZE_T) bytes before the driver can write the terminator",
+    "args->buffer_len is an in/out user ULONG pointer cleared to zero before any data copy and later receives total bytes written on success or partial success",
+    "The loop reserves one trailing LOG_BUFFER_SIZE_T slot before copying an entry",
+    "Linux source proof cannot replace Windows monitor runtime proof"
+  ],
+  "runtime_gate": "Windows driver build plus monitor bulk readback with buffer_len values 0, 1, sizeof(LOG_BUFFER_SIZE_T)-1, sizeof(LOG_BUFFER_SIZE_T), exact one-entry fit, and truncated multi-entry buffers. Short buffers must fail without writing past the user buffer, and valid buffers must remain zero-terminated."
+}

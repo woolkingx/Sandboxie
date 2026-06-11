@@ -136,9 +136,10 @@ static LONG __stdcall Dump_CrashHandlerExceptionFilter(EXCEPTION_POINTERS* pEx)
         MINIDUMP_EXCEPTION_INFORMATION stMDEI;
         stMDEI.ThreadId = GetCurrentThreadId();
         stMDEI.ExceptionPointers = pEx;
-        stMDEI.ClientPointers = TRUE;
+        stMDEI.ClientPointers = FALSE;
         // try to create an miniDump:
-        if (__sys_MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), hFile, Dump_Flags, &stMDEI, NULL, NULL))
+        if (__sys_MiniDumpWriteDump &&
+                __sys_MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), hFile, Dump_Flags, &stMDEI, NULL, NULL))
         {
             bSuccess = TRUE;
         }
@@ -226,6 +227,11 @@ _FX int Dump_Init(void)
     }*/
 
     __sys_MiniDumpWriteDump = (P_MiniDumpWriteDump)GetProcAddress(Dump_DbgHelpMod, "MiniDumpWriteDump");
+    if (! __sys_MiniDumpWriteDump) {
+        FreeLibrary(Dump_DbgHelpMod);
+        Dump_DbgHelpMod = NULL;
+        return 0;
+    }
 
     // get the default preset
     WCHAR str[32];

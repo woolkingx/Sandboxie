@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "PROCESS_FINDSANDBOXED_LOCK_RELEASE",
+  "title": "Process_FindSandboxed lock and IRQL release",
+  "type": "object",
+  "required": [
+    "owner",
+    "severity",
+    "contracts",
+    "official_references",
+    "runtime_gates"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/drv/process.h"
+    },
+    "severity": {
+      "const": "major"
+    },
+    "contracts": {
+      "type": "array",
+      "minItems": 8,
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "Process_Find owns the Process_ListLock and raised-IRQL transfer contract when out_irql is non-null"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "string",
+        "format": "uri"
+      }
+    },
+    "runtime_gates": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "contracts": [
+    "Process_Find owns the Process_ListLock and raised-IRQL transfer contract when out_irql is non-null",
+    "Process_Find raises to APC_LEVEL and acquires Process_ListLock before returning a protected PROCESS pointer",
+    "Process_Find without out_irql releases Process_ListLock and lowers IRQL before return",
+    "Process_Find with out_irql stores the old IRQL for the caller and leaves Process_ListLock held",
+    "Process_FindSandboxed may filter a found PROCESS when bHostInject is set",
+    "Process_FindSandboxed returning NULL after bHostInject filtering releases Process_ListLock when out_irql is non-null",
+    "Process_FindSandboxed returning NULL after bHostInject filtering lowers IRQL using the old IRQL from out_irql",
+    "Process_FindSandboxed does not release Process_ListLock for NULL returned directly by Process_Find",
+    "Process_FindSandboxed preserves PROCESS_TERMINATED sentinel behavior",
+    "Process_FindSandboxed leaves successful sandboxed PROCESS ownership and caller-release topology unchanged"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-exacquireresourcesharedlite",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-exreleaseresourcelite",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-keraiseirql",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-kelowerirql"
+  ],
+  "runtime_gates": [
+    "Windows driver build with XP_SUPPORT enabled for process.c",
+    "kernel smoke where Process_FindSandboxed finds a normal sandboxed process with out_irql and caller releases Process_ListLock and lowers IRQL",
+    "kernel smoke where Process_FindSandboxed filters a bHostInject process with out_irql and returns NULL without leaving Process_ListLock held",
+    "kernel smoke where Process_FindSandboxed receives PROCESS_TERMINATED and preserves the sentinel plus caller-owned release contract",
+    "Driver Verifier or debugger observation proving no leaked ERESOURCE ownership or raised IRQL on the bHostInject filtered path"
+  ]
+}

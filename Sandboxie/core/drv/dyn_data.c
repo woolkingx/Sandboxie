@@ -58,14 +58,45 @@ const wchar_t Parameters[] = L"\\Parameters";
 BOOLEAN Dyndata_Active = FALSE;
 SBIE_DYNCONFIG Dyndata_Config = { 0,0 };
 
+static BOOLEAN Dyndata_IsValidData(PSBIE_DYNDATA Dyndata, ULONG DyndataSize)
+{
+    ULONG HeaderSize = FIELD_OFFSET(SBIE_DYNDATA, Configs);
+    ULONG ConfigsEnd;
+
+    if (!Dyndata || DyndataSize < HeaderSize)
+        return FALSE;
+    if (!Dyndata->Count || Dyndata->Size < sizeof(SBIE_DYNCONFIG))
+        return FALSE;
+
+    ConfigsEnd = HeaderSize + (ULONG)Dyndata->Count * sizeof(USHORT);
+    if (ConfigsEnd > DyndataSize)
+        return FALSE;
+
+    for (USHORT Index = 0; Index < Dyndata->Count; Index++) {
+        ULONG Offset = Dyndata->Configs[Index];
+        ULONG EntryEnd;
+
+        if (!Offset)
+            break;
+        if (Offset < ConfigsEnd)
+            return FALSE;
+
+        EntryEnd = Offset + Dyndata->Size;
+        if (EntryEnd < Offset || EntryEnd > DyndataSize)
+            return FALSE;
+    }
+
+    return TRUE;
+}
+
 
 #define INIT_DATA(arch, count) \
     const size_t DataCount = count; \
     DefaultSize = FIELD_OFFSET(SBIE_DYNDATA, Configs) + ((sizeof(USHORT) + sizeof(SBIE_DYNCONFIG)) * DataCount) + sizeof(USHORT); \
     Default = (PSBIE_DYNDATA)Pool_Alloc(Driver_Pool, DefaultSize); \
-    memset(Default, 0x00, DefaultSize); \
     if(!Default) \
         return STATUS_INSUFFICIENT_RESOURCES; \
+    memset(Default, 0x00, DefaultSize); \
     Default->Format = DYNDATA_FORMAT; \
     Default->Version = DYNDATA_VERSION; \
     Default->Signature = DYNDATA_SIGN; \
@@ -938,7 +969,10 @@ _FX NTSTATUS Dyndata_LoadData()
         // Check if the provided dyn data matches our system architecture
         //
 
-        if (Custom->Format != DYNDATA_FORMAT || Custom->Signature != DYNDATA_SIGN) {
+        if (!Dyndata_IsValidData(Custom, CustomSize)) {
+            status = STATUS_INVALID_IMAGE_FORMAT;
+        }
+        else if (Custom->Format != DYNDATA_FORMAT || Custom->Signature != DYNDATA_SIGN) {
             status = STATUS_INVALID_IMAGE_FORMAT;
         }
 #ifdef _M_ARM64
@@ -1018,81 +1052,86 @@ _FX NTSTATUS Dyndata_LoadData()
 
     if (NT_SUCCESS(status))
     {
-        status = STATUS_INCOMPATIBLE_FILE_MAP;
-
-        PSBIE_DYNCONFIG DataMatch = NULL;
-        PSBIE_DYNCONFIG DataExp = NULL;
-
-        for (USHORT Index = 0; Index < Dyndata->Count; Index++)
+        if (!Dyndata_IsValidData(Dyndata, DyndataSize)) {
+            status = STATUS_INVALID_IMAGE_FORMAT;
+        }
+        else
         {
-            USHORT Offset = Dyndata->Configs[Index];
-            if (!Offset) break;
-            PSBIE_DYNCONFIG Data = (PSBIE_DYNCONFIG)((UCHAR*)Dyndata + Offset);
-            if ((UCHAR*)Data > (UCHAR*)Dyndata + DyndataSize) continue;
+            status = STATUS_INCOMPATIBLE_FILE_MAP;
+
+            PSBIE_DYNCONFIG DataMatch = NULL;
+            PSBIE_DYNCONFIG DataExp = NULL;
+
+            for (USHORT Index = 0; Index < Dyndata->Count; Index++)
+            {
+                USHORT Offset = Dyndata->Configs[Index];
+                if (!Offset) break;
+                PSBIE_DYNCONFIG Data = (PSBIE_DYNCONFIG)((UCHAR*)Dyndata + Offset);
 
 #ifdef DYN_DEBUG
-                DbgPrint("Sbie testing DYNDATA %d <= %d <= %d\r\n", Data->OsBuild_min, Driver_OsBuild, Data->OsBuild_max);
+                    DbgPrint("Sbie testing DYNDATA %d <= %d <= %d\r\n", Data->OsBuild_min, Driver_OsBuild, Data->OsBuild_max);
 #endif
 
-            //
-            // Find an exact match for the current Windows build
-            //
+                //
+                // Find an exact match for the current Windows build
+                //
 
-            if (Driver_OsBuild >= Data->OsBuild_min && Driver_OsBuild <= Data->OsBuild_max)
-            {
+                if (Driver_OsBuild >= Data->OsBuild_min && Driver_OsBuild <= Data->OsBuild_max)
+                {
 //#ifdef DYN_DEBUG
-                DbgPrint("Sbie found DYNDATA %d <= %d <= %d\r\n", Data->OsBuild_min, Driver_OsBuild, Data->OsBuild_max);
+                    DbgPrint("Sbie found DYNDATA %d <= %d <= %d\r\n", Data->OsBuild_min, Driver_OsBuild, Data->OsBuild_max);
 //#endif
-                DataMatch = Data;
-                break;
+                    DataMatch = Data;
+                    break;
+                }
+
+                //
+                // Fallback: find the latest entry for which the current OS build is greater or equal to the minimal supported build of this entry
+                //
+
+                else if (Driver_OsBuild >= Data->OsBuild_min && DataExp == NULL)
+                    DataExp = Data;
             }
 
-            //
-            // Fallback: find the latest entry for which the current OS build is greater or equal to the minimal supported build of this entry
-            //
-
-            else if (Driver_OsBuild >= Data->OsBuild_min && DataExp == NULL)
-                DataExp = Data;
-        }
-
-        if (!DataMatch && DataExp)
-        {
-            //
-            // Try detecting insider build
-            //
-
-            if (GetRegDword(L"\\Registry\\Machine\\Software\\Microsoft\\WindowsSelfHost\\Applicability", L"EnablePreviewBuilds") != 0) 
+            if (!DataMatch && DataExp)
             {
-                DbgPrint("Sbie detected insider build %d\r\n", Driver_OsBuild);
+                //
+                // Try detecting insider build
+                //
 
-                DataMatch = DataExp;
+                if (GetRegDword(L"\\Registry\\Machine\\Software\\Microsoft\\WindowsSelfHost\\Applicability", L"EnablePreviewBuilds") != 0)
+                {
+                    DbgPrint("Sbie detected insider build %d\r\n", Driver_OsBuild);
+
+                    DataMatch = DataExp;
+                }
+
+                //
+                // Allow the last offsets to be used with not yet known to be compatible Windows builds
+                //
+                // L"\\REGISTRY\\MACHINE\\SYSTEM\\ControlSet001\\Services\\SbieDrv\\Parameters"
+                // L"AllowOutdatedOffsets"
+                //
+
+                else if(GetRegDword(path, L"AllowOutdatedOffsets") || Driver_OsTestSigning)
+                {
+                    DataMatch = DataExp;
+                }
             }
 
-            //
-            // Allow the last offsets to be used with not yet known to be compatible Windows builds
-            // 
-            // L"\\REGISTRY\\MACHINE\\SYSTEM\\ControlSet001\\Services\\SbieDrv\\Parameters"
-            // L"AllowOutdatedOffsets"
-            //
-
-            else if(GetRegDword(path, L"AllowOutdatedOffsets") || Driver_OsTestSigning)
+            if (DataMatch)
             {
-                DataMatch = DataExp;
+                USHORT Size = Dyndata->Size;
+                if (Size > sizeof(Dyndata_Config)) // if we have a bigger structure, ignore the new fields
+                    Size = sizeof(Dyndata_Config);
+                memcpy(&Dyndata_Config, DataMatch, Size);
+
+                if (DataMatch == DataExp) // set experimental flag if this DynData is not an exact match
+                    Dyndata_Config.Flags |= DYNDATA_FLAG_EXP;
+
+                Dyndata_Active = TRUE;
+                status = STATUS_SUCCESS;
             }
-        }
-
-        if (DataMatch)
-        {
-            USHORT Size = Dyndata->Size;
-            if (Size > sizeof(Dyndata_Config)) // if we have a bigger structure, ignore the new fields
-                Size = sizeof(Dyndata_Config);
-            memcpy(&Dyndata_Config, DataMatch, Size);
-
-            if (DataMatch == DataExp) // set experimental flag if this DynData is not an exact match
-                Dyndata_Config.Flags |= DYNDATA_FLAG_EXP;
-
-            Dyndata_Active = TRUE;
-            status = STATUS_SUCCESS;
         }
     }
 
@@ -1137,4 +1176,3 @@ _FX BOOLEAN Dyndata_Init()
 }
 
 #endif
-

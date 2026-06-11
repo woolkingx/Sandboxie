@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "GUIPROP_SETWINDOWLONG_STUB_OPCODE_COMMENT",
+  "title": "GuiProp SetWindowLong stub opcode comment",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/guiprop.c",
+  "stage": "schema -> boundary -> topology -> verify",
+  "source_functions": [
+    "Gui_Hook_SetWindowLong8",
+    "Gui_Hook_SetWindowLongPtr8"
+  ],
+  "contracts": [
+    "SREV-063 owns SetWindowLong8 and SetWindowLongPtr8 stub parser behavior",
+    "the source opcode comments use rel32 parser terms",
+    "SetWindowLong export executable bytes are a Sandboxie-local compatibility schema not a Microsoft API contract",
+    "unknown SetWindowLong stub layouts still fail initialization",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowlonga",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowlongw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowlongptra",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowlongptrw"
+  ],
+  "local_edges": [
+    "SetWindowLongA export address -> A prefix and E9 rel32 parser",
+    "SetWindowLongW export address -> W prefix and E9 rel32 parser",
+    "SetWindowLongPtrA export address -> A prefix and E9 rel32 parser",
+    "SetWindowLongPtrW export address -> W prefix and E9 rel32 parser",
+    "A derived target equals W derived target -> SetWindowLong8 or SetWindowLongPtr8 hook install",
+    "SREV-063 -> behavior owner",
+    "SREV-297 -> comment owner"
+  ],
+  "runtime_gate": "Inherited SREV-063 Windows x64 SetWindowLong* short-stub runtime proof",
+  "status": "patched-comment-topology-after-srev-063-stub-parser-review-no-behavior-change"
+}

@@ -1277,6 +1277,9 @@ _FX void Process_LogMessage(PROCESS *proc, ULONG msgid)
     BOX *box = proc->box;
     ULONG len = proc->image_name_len + box->name_len + 8 * sizeof(WCHAR);
     WCHAR *text = Mem_Alloc(proc->pool, len);
+    if (! text)
+        return;
+
     RtlStringCbPrintfW(text, len, L"%s [%s]", proc->image_name, box->name);
     if (proc->image_from_box)
         wcscat(text, L" *");
@@ -1613,6 +1616,9 @@ _FX BOOLEAN Process_ScheduleKill(PROCESS *proc, LONG delay_ms)
     HANDLE handle;
 
     PVOID *params = Mem_Alloc(Driver_Pool, sizeof(PVOID)*2);
+    if (! params)
+        return FALSE;
+
     params[0] = proc->pid;
     params[1] = (PVOID)delay_ms;
 
@@ -1644,5 +1650,6 @@ _FX BOOLEAN Process_ScheduleKill(PROCESS *proc, LONG delay_ms)
 
         return TRUE;
     }
+    Mem_Free(params, sizeof(PVOID)*2);
     return FALSE;
 }

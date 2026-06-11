@@ -612,14 +612,23 @@ _FX HRESULT XDataObject::GetData(
 
             void *ptrSrc = GlobalLock(m_hDrop);
             void *ptrDst = GlobalLock(hGlobal);
-            memcpy(ptrDst, ptrSrc, hDropLen);
-            GlobalUnlock(m_hDrop);
-            GlobalUnlock(hGlobal);
+            if (! ptrSrc || ! ptrDst) {
+                if (ptrSrc)
+                    GlobalUnlock(m_hDrop);
+                if (ptrDst)
+                    GlobalUnlock(hGlobal);
+                GlobalFree(hGlobal);
+                hr = STG_E_MEDIUMFULL;
+            } else {
+                memcpy(ptrDst, ptrSrc, hDropLen);
+                GlobalUnlock(m_hDrop);
+                GlobalUnlock(hGlobal);
 
-            pmedium->tymed = TYMED_HGLOBAL;
-            pmedium->hGlobal = hGlobal;
-            pmedium->pUnkForRelease = NULL;
-            hr = S_OK;
+                pmedium->tymed = TYMED_HGLOBAL;
+                pmedium->hGlobal = hGlobal;
+                pmedium->pUnkForRelease = NULL;
+                hr = S_OK;
+            }
         }
     }
 
@@ -870,8 +879,13 @@ _FX HGLOBAL XDataObject::InitFormatHDrop(HGLOBAL hData)
         hData = GlobalAlloc(GMEM_MOVEABLE, len);
         if (hData) {
             void *ptr = GlobalLock(hData);
-            memcpy(ptr, DropFiles, len);
-            GlobalUnlock(hData);
+            if (ptr) {
+                memcpy(ptr, DropFiles, len);
+                GlobalUnlock(hData);
+            } else {
+                GlobalFree(hData);
+                hData = NULL;
+            }
         }
     }
 
@@ -921,6 +935,8 @@ _FX HGLOBAL XDataObject::InitFormatFileNameA(HGLOBAL hData)
         //
 
         char *FileNameA = (char *)GlobalLock(hData);
+        if (! FileNameA)
+            return NULL;
 
         hFile = CreateFileA(FileNameA,
             GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
@@ -963,8 +979,13 @@ _FX HGLOBAL XDataObject::InitFormatFileNameA(HGLOBAL hData)
             if (hDataRet) {
 
                 ansi.Buffer = (UCHAR *)GlobalLock(hDataRet);
-                RtlUnicodeStringToAnsiString(&ansi, &uni, FALSE);
-                GlobalUnlock(hDataRet);
+                if (ansi.Buffer) {
+                    RtlUnicodeStringToAnsiString(&ansi, &uni, FALSE);
+                    GlobalUnlock(hDataRet);
+                } else {
+                    GlobalFree(hDataRet);
+                    hDataRet = NULL;
+                }
             }
         }
 
@@ -993,6 +1014,8 @@ _FX HGLOBAL XDataObject::InitFormatFileNameW(HGLOBAL hData)
         //
 
         WCHAR *FileNameW = (WCHAR *)GlobalLock(hData);
+        if (! FileNameW)
+            return NULL;
 
         hFile = CreateFileW(FileNameW,
             GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING,
@@ -1030,8 +1053,13 @@ _FX HGLOBAL XDataObject::InitFormatFileNameW(HGLOBAL hData)
             if (hDataRet) {
 
                 WCHAR *ptr = (WCHAR *)GlobalLock(hDataRet);
-                memcpy(ptr, name, len);
-                GlobalUnlock(hDataRet);
+                if (ptr) {
+                    memcpy(ptr, name, len);
+                    GlobalUnlock(hDataRet);
+                } else {
+                    GlobalFree(hDataRet);
+                    hDataRet = NULL;
+                }
             }
         }
 
@@ -1209,23 +1237,28 @@ _FX HGLOBAL XDataObject::InitFormatIdList(HGLOBAL hData)
     if (hDataRet) {
 
         UCHAR *ptr0 = (UCHAR *)GlobalLock(hDataRet);
-        ((CIDA *)ptr0)->cidl = pIdList->cidl;
-        UINT *offsets = ((CIDA *)ptr0)->aoffset;
+        if (ptr0) {
+            ((CIDA *)ptr0)->cidl = pIdList->cidl;
+            UINT *offsets = ((CIDA *)ptr0)->aoffset;
 
-        UCHAR *ptr = (UCHAR *)&offsets[pIdList->cidl + 1];
-        ULONG pidl_len = pILGetSize(pidl);
-        memcpy(ptr, pidl, pidl_len);
-        offsets[0] = (USHORT)(ULONG_PTR)(ptr - ptr0);
-        ptr += pidl_len;
-
-        for (count = 1; count <= pIdList->cidl; ++count) {
-            pidl_len = pILGetSize(GetPidl(count));
+            UCHAR *ptr = (UCHAR *)&offsets[pIdList->cidl + 1];
+            ULONG pidl_len = pILGetSize(pidl);
             memcpy(ptr, pidl, pidl_len);
-            offsets[count] = (USHORT)(ULONG_PTR)(ptr - ptr0);
+            offsets[0] = (USHORT)(ULONG_PTR)(ptr - ptr0);
             ptr += pidl_len;
-        }
 
-        GlobalUnlock(hDataRet);
+            for (count = 1; count <= pIdList->cidl; ++count) {
+                pidl_len = pILGetSize(GetPidl(count));
+                memcpy(ptr, GetPidl(count), pidl_len);
+                offsets[count] = (USHORT)(ULONG_PTR)(ptr - ptr0);
+                ptr += pidl_len;
+            }
+
+            GlobalUnlock(hDataRet);
+        } else {
+            GlobalFree(hDataRet);
+            hDataRet = NULL;
+        }
     }
 
     pSHFree(pidl);

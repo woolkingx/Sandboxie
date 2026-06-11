@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-029-crypt-wire.schema.json",
+  "title": "SREV-029 crypt wire",
+  "id": "COM_CRYPT_PROTECT_DATA",
+  "owner": "Sandboxie/core/svc/comwire.h",
+  "type": "object",
+  "properties": {
+    "audit_contract": {
+      "type": "string",
+      "description": "MSGID: MSGID_COM_CRYPT_PROTECT_DATA | request: {\"struct\": \"COM_CRYPT_PROTECT_DATA_REQ\", \"header\": \"MSG_HEADER h\", \"min_length\": \"sizeof(COM_CRYPT_PROTECT_DATA_REQ)\", \"payload_offset\": \"FIELD_OFFSET(COM_CRYPT_PROTECT_DATA_REQ, data)\", \"segments\": [{\"name\": \"data\", \"length_field\": \"data_len\", \"unit\": \"byte\", \"nullable\": false}, {\"name\": \"entropy\", \"length_field\": \"entropy_len\", \"unit\": \"byte\", \"nullable\": true}, {\"name\": \"descr\", \"length_field\": \"descr_len\", \"unit\": \"wchar\", \"nul_terminated\": true, \"mode\": \"P\"}]} | reply: {\"struct\": \"COM_CRYPT_PROTECT_DATA_RPL\", \"header\": \"MSG_HEADER h\", \"min_length\": \"sizeof(COM_CRYPT_PROTECT_DATA_RPL)\", \"payload_offset\": \"FIELD_OFFSET(COM_CRYPT_PROTECT_DATA_RPL, data)\", \"segments\": [{\"name\": \"data\", \"length_field\": \"data_len\", \"unit\": \"byte\", \"nullable\": false}, {\"name\": \"descr\", \"length_field\": \"descr_len\", \"unit\": \"wchar\", \"nul_terminated\": true, \"mode\": \"U\"}]}"
+    },
+    "validation_invariants": {
+      "type": "string",
+      "description": "All contracts listed in the contracts metadata must hold before any data is trusted past the validation boundary"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate proves contracts hold under normal and malformed inputs"
+    }
+  },
+  "required": [
+    "audit_contract",
+    "validation_invariants",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "build request length with checked ULONG addition",
+    "validate DATA_BLOB pointer when cbData is nonzero",
+    "validate reply h.length before reading flexible payload",
+    "validate service request segments by subtracting remaining length before comparing",
+    "build service reply length with checked ULONG addition",
+    "allocate LocalAlloc outputs only after reply payload validation"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptprotectdata",
+    "https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptunprotectdata",
+    "https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/ns-wincrypt-crypt_integer_blob",
+    "https://learn.microsoft.com/en-us/windows/desktop/api/WinBase/nf-winbase-localalloc"
+  ]
+}

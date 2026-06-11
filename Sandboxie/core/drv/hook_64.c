@@ -197,7 +197,10 @@ _FX ULONG Hook_Find_ZwRoutine(ULONG ServiceNum, void **out_routine)
 
         // DbgPrint("Address %X Byte %X\n", addr, *addr);
 
-        if (*(USHORT *)addr == 0xC033 && addr[2] == 0xC3) { // $Workaround$ - 3rd party fix
+        if (*(USHORT *)addr == 0xC033 && addr[2] == 0xC3) {
+            // HAL7600 pattern: 33 C0 C3 (xor eax,eax ; ret).
+            // This is a scanner skip over a third-party replacement stub, not
+            // a legal Zw redirector shape and not code-patching permission.
             // HAL7600 activation tool overwrites ZwLockProductActivationKeys
             // with 33 C0 C3 (xor eax,eax ; ret), but leaves the original
             // "xchg ax,ax" at the end of the original code, so we try to

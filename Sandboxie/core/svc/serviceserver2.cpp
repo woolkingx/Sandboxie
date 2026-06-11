@@ -39,6 +39,15 @@
 #include "misc.h"
 
 
+#define SBIE_UAC_PROMPT_TIMEOUT_MS (5 * 60 * 1000)
+
+
+static bool Service_UacIsMsiToken(const WCHAR *Value, ULONG ValueLen)
+{
+    return ValueLen == 5 && memcmp(Value, L"*MSI*", 5 * sizeof(WCHAR)) == 0;
+}
+
+
 //---------------------------------------------------------------------------
 // CanCallerDoElevation
 //---------------------------------------------------------------------------
@@ -246,7 +255,7 @@ WCHAR *ServiceServer::BuildPathForStartExe(
     if (OutPath && OutArgs)
         *OutArgs = wcsstr(OutPath, args);
 
-    HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, args);
+    HeapFree(GetProcessHeap(), 0, args);
 
     return OutPath;
 }
@@ -460,7 +469,7 @@ ULONG ServiceServer::RunHandler2(
     if (hOldToken)
         CloseHandle(hOldToken);
     if (ExePath)
-        HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, ExePath);
+        HeapFree(GetProcessHeap(), 0, ExePath);
 
     return error;
 }
@@ -565,7 +574,9 @@ ULONG ServiceServer::UacHandler2(
                             PROCESS_INFORMATION pi = { 0 };
                             if (CreateProcessAsUserW(hNewToken, NULL, ExePath, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
 
-                                if (WaitForSingleObject(pi.hProcess, INFINITE) == 0) {
+                                DWORD WaitStatus = WaitForSingleObject(
+                                    pi.hProcess, SBIE_UAC_PROMPT_TIMEOUT_MS);
+                                if (WaitStatus == WAIT_OBJECT_0) {
 
                                     DWORD Code = 0;
                                     if (GetExitCodeProcess(pi.hProcess, &Code)) {
@@ -578,13 +589,20 @@ ULONG ServiceServer::UacHandler2(
                                         else
                                             ok = FALSE;
                                     }
+                                } else {
+                                    if (WaitStatus == WAIT_TIMEOUT) {
+                                        TerminateProcess(pi.hProcess, ERROR_TIMEOUT);
+                                        WaitForSingleObject(pi.hProcess, 5000);
+                                        SetLastError(ERROR_TIMEOUT);
+                                    }
+                                    ok = FALSE;
                                 }
 
                                 CloseHandle(pi.hProcess);
                                 CloseHandle(pi.hThread);
                             }
 
-                            HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, ExePath);
+                            HeapFree(GetProcessHeap(), 0, ExePath);
                             ExePath = NULL;
                         }
                     }
@@ -684,7 +702,7 @@ ULONG ServiceServer::UacHandler2(
                     SANDBOXIE, (ULONG)(ULONG_PTR)idProcess,
                     pkt_addr_64.HighPart, pkt_addr_64.LowPart, pkt_len);
 
-                HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, si.lpReserved);
+                HeapFree(GetProcessHeap(), 0, si.lpReserved);
 
                 ExePath = BuildPathForStartExe(idProcess, devmap, NULL, cmdline, NULL);
             }
@@ -755,7 +773,7 @@ ULONG ServiceServer::UacHandler2(
     if (hThread)
         CloseHandle(hThread);
     if (ExePath)
-        HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, ExePath);
+        HeapFree(GetProcessHeap(), 0, ExePath);
 
     return error;
 }
@@ -870,7 +888,7 @@ void ServiceServer::RunUacSlave2(ULONG_PTR *ThreadArgs)
             WCHAR *quote = wcsrchr(AppName, L'\"');
             if (quote)
                 *quote = L'\0';
-        } else if (memcmp(AppName, L"*MSI*", 5 * sizeof(WCHAR)) == 0) // bug bug "*MSI*" is in app name but here we get the command line see *OutAppName = cmd; in RunUacSlave4
+        } else if (wcscmp(AppName, L"*MSI*") == 0)
             AppName = L"Windows Installer";
     } else
         AppName = L"?";
@@ -888,10 +906,15 @@ void ServiceServer::RunUacSlave2(ULONG_PTR *ThreadArgs)
 
     if (isAdmin) {
 
-        CreateThread(
-            NULL, 0, RunUacSlave2Thread1, (void *)ThreadArgs, 0, NULL); // fix-me: i'm leaking a thread
-        CreateThread(
-            NULL, 0, RunUacSlave2Thread2, (void *)ThreadArgs, 0, NULL); // fix-me: i'm leaking a thread
+        HANDLE hThread1 = CreateThread(
+            NULL, 0, RunUacSlave2Thread1, (void *)ThreadArgs, 0, NULL);
+        if (hThread1)
+            CloseHandle(hThread1);
+
+        HANDLE hThread2 = CreateThread(
+            NULL, 0, RunUacSlave2Thread2, (void *)ThreadArgs, 0, NULL);
+        if (hThread2)
+            CloseHandle(hThread2);
 
         while (1)
             SuspendThread(GetCurrentThread());
@@ -1009,10 +1032,16 @@ void ServiceServer::RunUacSlave2(ULONG_PTR *ThreadArgs)
         if (strings[2] == strings[0]) {
 
             strings[2] = strings[1];
-            CreateThread(
-                NULL, 0, RunUacSlave2Thread1, (void *)ThreadArgs, 0, NULL); // fix-me: i'm leaking a thread
-            CreateThread(
-                NULL, 0, RunUacSlave2Thread2, (void *)ThreadArgs, 0, NULL); // fix-me: i'm leaking a thread
+
+            HANDLE hThread1 = CreateThread(
+                NULL, 0, RunUacSlave2Thread1, (void *)ThreadArgs, 0, NULL);
+            if (hThread1)
+                CloseHandle(hThread1);
+
+            HANDLE hThread2 = CreateThread(
+                NULL, 0, RunUacSlave2Thread2, (void *)ThreadArgs, 0, NULL);
+            if (hThread2)
+                CloseHandle(hThread2);
         }
     }
 }
@@ -1472,7 +1501,13 @@ bool ServiceServer::RunUacSlave4(
     cmd[cmd_len] = L'\0';
 
     if (OutAppName) {
-        *OutAppName = cmd;
+        if (Service_UacIsMsiToken(app, app_len)) {
+            HeapFree(GetProcessHeap(), 0, cmd);
+            *OutAppName = app;
+        } else {
+            HeapFree(GetProcessHeap(), 0, app);
+            *OutAppName = cmd;
+        }
         return true;
     }
 
@@ -1487,9 +1522,9 @@ bool ServiceServer::RunUacSlave4(
     // elevation type 2:  when input is *MSI*, just return token handle
     //
 
-    if (memcmp(app, L"*MSI*", 5 * sizeof(WCHAR)) == 0 &&
-        memcmp(app, cmd,      5 * sizeof(WCHAR)) == 0 &&
-        memcmp(app, dir,      5 * sizeof(WCHAR)) == 0) {
+    if (Service_UacIsMsiToken(app, app_len) &&
+        Service_UacIsMsiToken(cmd, cmd_len) &&
+        Service_UacIsMsiToken(dir, dir_len)) {
 
         HANDLE hOldToken, hNewToken;
 

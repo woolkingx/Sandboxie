@@ -700,7 +700,10 @@ _FX WCHAR *Conf_Expand_2(CONF_EXPAND_ARGS *args, const WCHAR *model_value)
         if (wcslen(new_value) > 1024) {
             Log_Status_Ex(
                 MSG_CONF_EXPAND, 0, STATUS_UNSUCCESSFUL, L"(TooLong)");
-            return NULL;
+            if (new_value != model_value)
+                Mem_FreeString(new_value);
+            new_value = NULL;
+            break;
         }
 
         old_value = new_value;
@@ -721,7 +724,10 @@ _FX WCHAR *Conf_Expand_2(CONF_EXPAND_ARGS *args, const WCHAR *model_value)
         if (retries > 10) {
             Log_Status_Ex(
                 MSG_CONF_EXPAND, 0, STATUS_UNSUCCESSFUL, L"(Recursion)");
-            return NULL;
+            if (new_value != model_value)
+                Mem_FreeString(new_value);
+            new_value = NULL;
+            break;
         }
     }
 

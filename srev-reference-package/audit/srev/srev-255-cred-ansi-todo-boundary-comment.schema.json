@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-255-cred-ansi-todo-boundary-comment.schema.json",
+  "id": "CRED_ANSI_TODO_BOUNDARY_COMMENT",
+  "title": "Credential ANSI todo boundary comment",
+  "type": "object",
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/cred.c"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 4
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 3
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/dll/cred.c",
+  "contracts": [
+    "CredReadDomainCredentialsA and CredEnumerateA remain direct native passthroughs",
+    "Source comments point to SREV-245 as the owner of the unfinished ANSI credential-array virtualization boundary",
+    "A future behavior change requires a CredFree-compatible ANSI array conversion owner",
+    "This SREV does not change hook registration native passthrough calls credential conversion helpers PStore merge behavior or WinCred flags"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/wincred/nf-wincred-credenumeratea",
+    "https://learn.microsoft.com/en-us/windows/win32/api/wincred/nf-wincred-credreaddomaincredentialsa",
+    "https://learn.microsoft.com/en-us/windows/win32/api/wincred/nf-wincred-credfree"
+  ],
+  "runtime_gate": "Inherited from SREV-245: Windows credential smoke is needed before ANSI local credential visibility or returned-array ownership can be claimed fixed"
+}

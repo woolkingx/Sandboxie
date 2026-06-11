@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-035-file-api-rename-wire.schema.json",
+  "title": "SREV-035 file api rename wire",
+  "id": "FILE_API_RENAME_COUNTED_STRING",
+  "owner": "Sandboxie/core/drv/file.c",
+  "type": "object",
+  "properties": {
+    "audit_contract": {
+      "type": "string",
+      "description": "API: File_Api_Rename / API_RENAME_FILE | wire: {\"request\": \"API_RENAME_FILE_ARGS\", \"fields\": [{\"name\": \"file_handle\", \"type\": \"HANDLE\"}, {\"name\": \"target_dir\", \"type\": \"UNICODE_STRING64*\", \"unit\": \"bytes\", \"nul_terminated\": false}, {\"name\": \"target_name\", \"type\": \"UNICODE_STRING64*\", \"unit\": \"bytes\", \"nul_terminated\": false}, {\"name\": \"replace_if_exists\", \"type\": \"BOOLEAN\"}]}"
+    },
+    "validation_invariants": {
+      "type": "string",
+      "description": "All contracts listed in the contracts metadata must hold before any data is trusted past the validation boundary"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate proves contracts hold under normal and malformed inputs"
+    }
+  },
+  "required": [
+    "audit_contract",
+    "validation_invariants",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "UNICODE_STRING64.Length is a byte count and must be aligned to sizeof(WCHAR)",
+    "UNICODE_STRING64.Length must be nonzero, <= 32000, and <= MaximumLength",
+    "target_dir and target_name are counted strings; embedded NUL is invalid before C-string path APIs are used",
+    "target_name is copied into FILE_RENAME_INFORMATION as a simple relative file name and must not contain backslash",
+    "FILE_RENAME_INFORMATION.FileNameLength is a byte count",
+    "every malformed target path branch after path allocation frees the path buffer before returning"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/ntdef/ns-ntdef-_unicode_string",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-probeforread",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwsetinformationfile",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_rename_information"
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-153-spooler-counted-port-name.schema.json",
+  "title": "SREV-153 spooler counted port name",
+  "id": "IPC_SPOOLER_COUNTED_PORT_NAME",
+  "owner": "Sandboxie/core/drv/ipc_spl.c",
+  "type": "object",
+  "properties": {
+    "object_name_shape": {
+      "type": "string",
+      "description": "OBJECT_NAME_INFORMATION.Name is a counted UNICODE_STRING"
+    },
+    "source_change": {
+      "type": "string",
+      "description": "spooler endpoint names compare through counted UNICODE_STRING equality"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows driver and spooler endpoint matching proof"
+    }
+  },
+  "required": [
+    "object_name_shape",
+    "source_change",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "OBJECT_NAME_INFORMATION.Name is a counted UNICODE_STRING",
+    "UNICODE_STRING.Length is a byte count and does not authorize C-string scans over Name->Name.Buffer",
+    "Spooler endpoint matching must compare counted strings with RtlEqualUnicodeString using RtlInitUnicodeString only for the expected NUL-terminated literal or dynamic port name",
+    "The Windows 8.1 dynamic spooler port gate still accepts only the cached dynamic spooler port name",
+    "The Vista fallback still accepts only RPC Control spoolss",
+    "this SREV does not change KPATH-006 RPC payload capture spooler opnum filtering dynamic-port publication OpenPrintSpooler or AllowSpoolerPrintToFile behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-obquerynamestring",
+    "https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-wkst/edf6cfc6-80b6-4998-a1cf-43bc5dabc042",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtlequalunicodestring",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtlinitunicodestring",
+    "https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rprn/5ea67df3-c4e7-45ef-b425-40b8b066d276"
+  ]
+}

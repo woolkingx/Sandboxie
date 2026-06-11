@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-073-conf-publish-rollback.schema.json",
+  "title": "SREV-073 config publish rollback contract",
+  "id": "CONF_PUBLISH_ROLLBACK",
+  "api": "Conf_Add_Sections / Conf_Add_Setting",
+  "owner": "Sandboxie/core/drv/conf.c",
+  "type": "object",
+  "properties": {
+    "private_node": {
+      "type": "string",
+      "description": "Allocated CONF_SECTION or CONF_SETTING before publication"
+    },
+    "map_index": {
+      "type": "string",
+      "description": "sections_map or settings_map ownership index"
+    },
+    "ordered_list": {
+      "type": "string",
+      "description": "sections or settings ordered enumeration list"
+    },
+    "rollback": {
+      "type": "string",
+      "description": "Local cleanup when allocation or map insertion fails"
+    }
+  },
+  "required": [
+    "private_node",
+    "map_index",
+    "ordered_list",
+    "rollback"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "List_Insert_Before and List_Insert_After mutate the ordered list without a failure return",
+    "map_insert and map_append can fail and return NULL before a node is indexed",
+    "map insertion must succeed before the section or setting is inserted into the ordered list",
+    "failed string allocation releases already-owned local allocations before returning NULL",
+    "failed map insertion releases node-owned strings and node before returning NULL",
+    "Conf_Add_Sections or Conf_Add_Setting may return NULL only when no list-visible node was published"
+  ],
+  "local_references": [
+    "Sandboxie/core/drv/conf.c",
+    "Sandboxie/common/list.h",
+    "Sandboxie/common/list.c",
+    "Sandboxie/common/map.h",
+    "Sandboxie/common/map.c"
+  ]
+}

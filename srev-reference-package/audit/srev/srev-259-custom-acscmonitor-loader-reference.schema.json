@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-259-custom-acscmonitor-loader-reference.schema.json",
+  "id": "CUSTOM_ACSCMONITOR_LOADER_REFERENCE",
+  "title": "Custom Acscmonitor loader reference",
+  "type": "object",
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/custom.c"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 4
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 3
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/dll/custom.c",
+  "contracts": [
+    "Acscmonitor_LoadLibrary owns the extra loader reference for acscmonitor.dll",
+    "The local behavior depends on the official LoadLibraryW FreeLibrary per-process module reference-count model",
+    "CreateThread is only the deferral execution edge for taking the reference",
+    "This SREV does not change the loaded DLL name thread creation handle close module reference release policy or Firefox ActivClient compatibility behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-loadlibraryw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-freelibrary",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createthread"
+  ],
+  "runtime_gate": "Windows Firefox plus ActivClient acscmonitor.dll compatibility smoke remains required before behavior changes"
+}

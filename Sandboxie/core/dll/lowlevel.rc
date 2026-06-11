@@ -16,40 +16,14 @@
 //
 
 //---------------------------------------------------------------------------
-// Low Level DLL embedded into SbieSvc as a binary resource
+// Low Level DLL embedded into SbieDll as binary resources
 //---------------------------------------------------------------------------
 
 //
-// we want to make sure that we embed the latest of copy of LowLevel.dll
-// whenever LowLevel.dll is rebuilt.  the difficulties are:
-//
-// - the build utility does not recognize the RCDATA statement below as a
-// dependency of SbieSvc on LowLevel
-//
-// - DLLs files are linked during build pass 2, while resource files are
-// compiled during build step 1
-//
-// - the build utility does not guarantee the order in which it builds
-// directories on a multiprocessor system
-//
-// to address these difficulties:
-//
-// - this resource file essentially compiles to nothing during
-// build pass 1,  because BUILD_UTILITY_PASS2 is not defined.
-//
-// - the sources file names LowLevel.lib as a dependency, along with
-// a corresponding BUILD_CONSUMES statement, and for good measure, also
-// the SYNCHRONIZE_PASS2_DRAIN statement.  all this to make sure that
-// SbieSvc.exe is linked only after LowLevel.dll has been linked.
-//
-// - the sources files names LowLevel.res (the compiled output for this
-// resource file) as a dependency for linking in build pass 2, and the
-// makefile.inc file names LowLevel.dll as a dependency for LowLevel.res.
-//
-// the end result is that if LowLevel.dll is newer than SbieSvc.exe, then
-// this resource file gets recompiled during build pass 2 (linking) for
-// SbieSvc.exe, after which SbieSvc.exe is relinked, thus embedding the
-// most recent copy of LowLevel.dll.
+// SboxDll.vcxproj compiles this file into SbieDll.  lowlevel_inject.c reads
+// LOWLEVEL32 or LOWLEVEL64 from Dll_Instance with FindResource/LoadResource.
+// The resource paths must therefore describe the LowLevel.dll artifacts that
+// belong to the same platform build.
 //
 
 #ifdef BUILD_UTILITY_PASS2

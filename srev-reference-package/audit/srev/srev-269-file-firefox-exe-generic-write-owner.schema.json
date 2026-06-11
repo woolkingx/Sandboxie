@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-269-file-firefox-exe-generic-write-owner.schema.json",
+  "id": "FILE_FIREFOX_EXE_GENERIC_WRITE_OWNER",
+  "title": "File Firefox exe generic write owner",
+  "type": "object",
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/file.c"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 5
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 3
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/dll/file.c",
+  "contracts": [
+    "GENERIC_WRITE is a broad file write-access mapping not a narrow attribute probe",
+    "The compatibility narrowing is legal only inside the true-file fallback path where FileType exists and CreateDisposition is FILE_OPEN or FILE_OPEN_IF",
+    "The branch may strip GENERIC_WRITE only for DLL_IMAGE_MOZILLA_FIREFOX callers whose TruePath extension is exactly .exe",
+    "After narrowing the normal DesiredAccess and FILE_DENIED_ACCESS zero gate still owns the decision to use File_NtCreateTrueFile",
+    "This SREV changes comments and proof only; Firefox plugin compatibility still needs Windows runtime proof before behavior changes"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntcreatefile",
+    "https://learn.microsoft.com/windows/desktop/FileIO/file-access-rights-constants",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/opening-a-handle-to-a-file"
+  ],
+  "runtime_gate": "Windows Firefox 106+ plugin executable smoke where the target .exe exists outside the sandbox, Firefox's broad GENERIC_WRITE probe still opens through the true-file path after narrowing, non-Firefox callers keep their requested write access, and non-.exe paths do not receive this narrowing"
+}

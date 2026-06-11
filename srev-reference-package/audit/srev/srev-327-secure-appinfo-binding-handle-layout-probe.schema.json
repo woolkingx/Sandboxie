@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-327-secure-appinfo-binding-handle-layout-probe.schema.json",
+  "title": "SREV-327 Secure AppInfo binding handle layout probe",
+  "id": "SECURE_APPINFO_BINDING_HANDLE_LAYOUT_PROBE",
+  "owner": "Sandboxie/core/dll/secure.c",
+  "stage": "data -> schema -> topology -> logic -> action -> verify",
+  "contracts": [
+    "official RPC binding handles are opaque RPC runtime objects, not structures Sandboxie may parse by contract",
+    "RpcBindingInqObject is the supported first route for reading an object UUID from a binding handle",
+    "RPC_ASYNC_STATE owns only the documented async state and notification shape",
+    "Secure_CheckElevation uses RpcBindingInqObject first and the local observed AppInfo binding layout probe only as a compatibility fallback",
+    "fallback layout probe must keep the small-handle guard before any fixed-offset GUID read",
+    "OFFSET_OF_BINDING_GUID values are local evidence, not official Microsoft binding-handle ABI",
+    "runtime proof must classify BindingHandle and record whether the official object UUID query or fallback layout probe matched before changing offsets, guards, GUID comparison, or __try exception behavior",
+    "SREV-327 adds an official object UUID query path while preserving fallback UAC elevation detection behavior",
+    "SREV-326 and SREV-327 share docs/plan/srev-326-327-secure-runtime-capture.schema.json as the machine-readable Windows evidence shape"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/rpc/binding-handles",
+    "https://learn.microsoft.com/en-us/windows/win32/rpc/rpc-binding-handle",
+    "https://learn.microsoft.com/en-us/windows/win32/api/rpcdce/nf-rpcdce-rpcbindingfromstringbinding",
+    "https://learn.microsoft.com/en-us/windows/win32/api/rpcdce/nf-rpcdce-rpcbindinginqobject",
+    "https://learn.microsoft.com/en-us/windows/win32/api/rpcasync/ns-rpcasync-rpc_async_state",
+    "https://learn.microsoft.com/en-us/windows/win32/api/rpcasync/ne-rpcasync-rpc_notification_types"
+  ],
+  "runtime_capture_matrix": {
+    "builds": [
+      "supported Windows 10 releases",
+      "supported Windows 11 releases"
+    ],
+    "architectures": [
+      "x64 process",
+      "WOW64 process where supported"
+    ],
+    "appinfo_call_paths": [
+      "type-1 process elevation",
+      "type-2 token elevation"
+    ],
+    "async_state_fields": [
+      "RPC_ASYNC_STATE.Size",
+      "NotificationType",
+      "u.hEvent",
+      "RpcNotificationTypeEvent acceptance"
+    ],
+    "binding_value_classes": [
+      "null",
+      "small real-handle-like value",
+      "readable local pointer",
+      "unreadable pointer",
+      "official RPC handle-like value if observed"
+    ],
+    "probe_outputs": [
+      "RpcBindingInqObject status",
+      "object UUID returned by RpcBindingInqObject",
+      "official object UUID match or miss",
+      "OFFSET_OF_BINDING_GUID",
+      "fallback GUID match or miss",
+      "__try exception code",
+      "fallback guard fired before memcmp"
+    ],
+    "negative_controls": [
+      "non-AppInfo async RPC call",
+      "non-event NotificationType",
+      "missing u.hEvent",
+      "binding value below the small-handle guard",
+      "readable pointer with mismatched GUID",
+      "unreadable page at the binding pointer",
+      "ordinary non-elevation RPC path"
+    ]
+  },
+  "runtime_gate": "Capture AppInfo UAC elevation calls on supported Windows 10/11 builds and x64/WOW64 where supported, then prove BindingHandle value class, async-state fields, guard result, GUID probe result, __try exception path, elevation type, result handle slot, process image, AppInfo call identity, and negative controls before any behavior change",
+  "shared_capture_schema": "docs/plan/srev-326-327-secure-runtime-capture.schema.json"
+}

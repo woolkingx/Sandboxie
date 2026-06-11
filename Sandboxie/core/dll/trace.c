@@ -351,8 +351,13 @@ NTSTATUS InstallInstrumentationCallback()
     CallbackInfo.Version = (ULONG)CallbackInfo.Callback;
 #endif
 
-    // Windows 7-8.1 require SE_DEBUG_PRIVILEGE for this to work, even on the current process
-    if (Dll_OsBuild < 10041) // todo: use sbie drv or set privilege in compartment type boxes
+    //
+    // ProcessInstrumentationCallback is a private NtSetInformationProcess class.
+    // Pre-10041 builds have been observed to need SeDebugPrivilege even for
+    // NtCurrentProcess; keep this fail-closed until a runtime matrix proves a
+    // driver-mediated or temporary privilege-enable path for this private class.
+    //
+    if (Dll_OsBuild < 10041)
         return STATUS_PRIVILEGE_NOT_HELD;
 
 #if defined(_M_ARM64) || defined(_M_ARM64EC)
@@ -361,7 +366,8 @@ NTSTATUS InstallInstrumentationCallback()
         return STATUS_NOT_SUPPORTED;
 #ifdef _M_ARM64EC
     //__sys_RtlCaptureContext = Hook_GetFFSTarget(__sys_RtlCaptureContext);
-    // TODO
+    // ARM64EC uses a x64-compatible ABI with thunked interop; the native ARM64
+    // callback restore path is not a proven ARM64EC instrumentation ABI.
     return STATUS_NOT_SUPPORTED;
 #endif
 #endif

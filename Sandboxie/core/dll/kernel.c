@@ -360,10 +360,13 @@ _FX ULONGLONG Kernel_GetTickCount64()
 _FX BOOL Kernel_QueryUnbiasedInterruptTime(PULONGLONG UnbiasedTime)
 {
 	BOOL rtn = __sys_QueryUnbiasedInterruptTime(UnbiasedTime);
+	if (!rtn || !UnbiasedTime)
+		return rtn;
+
 	ULONG add = SbieApi_QueryConfNumber(NULL, L"AddTickSpeed", 1);
 	ULONG low = SbieApi_QueryConfNumber(NULL, L"LowTickSpeed", 1);
 	if (add != 0 && low != 0)
-		*UnbiasedTime *= add / low;
+		*UnbiasedTime = *UnbiasedTime * add / low;
 	else
 		*UnbiasedTime *= add;
 	return rtn;
@@ -393,6 +396,9 @@ _FX DWORD Kernel_SleepEx(DWORD dwMiSecond, BOOL bAlert)
 _FX BOOL Kernel_QueryPerformanceCounter(LARGE_INTEGER* lpPerformanceCount)
 {
 	BOOL rtn = __sys_QueryPerformanceCounter(lpPerformanceCount);
+	if (!rtn || !lpPerformanceCount)
+		return rtn;
+
 	ULONG add = SbieApi_QueryConfNumber(NULL, L"AddTickSpeed", 1);
 	ULONG low = SbieApi_QueryConfNumber(NULL, L"LowTickSpeed", 1);
 	if (add != 0 && low != 0)

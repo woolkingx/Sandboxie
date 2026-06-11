@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-189-core-heapfree-flag-contract.schema.json",
+  "title": "SREV-189 core HeapFree flag contract",
+  "id": "CORE_HEAPFREE_FLAG_CONTRACT",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "owner",
+    "contracts",
+    "files",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 7
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 12
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 2
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core",
+  "contracts": [
+    "HeapFree owns release of memory blocks allocated by HeapAlloc or HeapReAlloc",
+    "HeapFree dwFlags uses the heap-free option schema and this SREV allows only zero for these process-heap release call sites",
+    "HEAP_GENERATE_EXCEPTIONS is an allocation option documented for HeapAlloc and must not be passed to HeapFree",
+    "HEAP_NO_SERIALIZE remains disallowed for these process-heap release call sites",
+    "all HeapFree calls under Sandboxie/core must avoid HEAP_GENERATE_EXCEPTIONS",
+    "this SREV changes only the HeapFree flag argument and does not change allocation flags or buffer lifetime logic",
+    "Windows heap instrumentation runtime proof is required for full closure"
+  ],
+  "files": [
+    "Sandboxie/core/dll/ipstore_impl.cpp",
+    "Sandboxie/core/dll/scm_create.c",
+    "Sandboxie/core/dll/support.c",
+    "Sandboxie/core/dll/sysinfo.c",
+    "Sandboxie/core/svc/DriverAssist.cpp",
+    "Sandboxie/core/svc/GuiServer.cpp",
+    "Sandboxie/core/svc/ProcessServer.cpp",
+    "Sandboxie/core/svc/UserServer.cpp",
+    "Sandboxie/core/svc/netapiserver.cpp",
+    "Sandboxie/core/svc/sbieiniserver.cpp",
+    "Sandboxie/core/svc/serviceserver.cpp",
+    "Sandboxie/core/svc/serviceserver2.cpp"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heapfree",
+    "https://learn.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heapalloc"
+  ],
+  "runtime_gate": "Windows Application Verifier or heap instrumentation across service-list boxed-service GUI User NetAPI ProcessServer and DLL cleanup paths"
+}

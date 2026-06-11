@@ -1,0 +1,363 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-022-027-kernel-runtime-capture.schema.json",
+  "title": "SREV-022/SREV-027 kernel runtime capture evidence",
+  "id": "KERNEL_RUNTIME_CAPTURE_EVIDENCE",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "record_id",
+    "windows_build",
+    "architecture",
+    "sandboxie_commit",
+    "driver_build",
+    "box_name",
+    "process_image",
+    "capture_tool",
+    "timestamp_utc",
+    "feature_path",
+    "route_result",
+    "font_token",
+    "wfp_logger",
+    "negative_control",
+    "evidence"
+  ],
+  "properties": {
+    "record_id": {
+      "type": "string"
+    },
+    "windows_build": {
+      "type": "string"
+    },
+    "architecture": {
+      "type": "string",
+      "enum": ["x86", "x64", "wow64", "arm64"]
+    },
+    "sandboxie_commit": {
+      "type": "string"
+    },
+    "driver_build": {
+      "type": "string"
+    },
+    "box_name": {
+      "type": "string"
+    },
+    "process_image": {
+      "type": "string"
+    },
+    "capture_tool": {
+      "type": "string"
+    },
+    "timestamp_utc": {
+      "type": "string"
+    },
+    "feature_path": {
+      "type": "string",
+      "enum": ["font-token-subject-context", "wfp-deferred-logger", "combined"]
+    },
+    "route_result": {
+      "type": "string",
+      "enum": [
+        "font-token-substituted",
+        "font-token-not-applicable",
+        "wfp-classify-captured",
+        "wfp-deferred-written",
+        "wfp-logging-disabled",
+        "negative-control-passed",
+        "verifier-failure",
+        "combined"
+      ]
+    },
+    "font_token": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path_topology",
+        "requestor_shape",
+        "path_class",
+        "access_mask_class",
+        "subject_context_before",
+        "subject_context_after",
+        "primary_token_pointer",
+        "client_token_pointer",
+        "impersonation_level",
+        "reference_delta",
+        "downstream_release_observed",
+        "restore_observed",
+        "font_load_result",
+        "pool_delta",
+        "repeated_open_count",
+        "driver_unload_result",
+        "verifier_result",
+        "digital_guardian_regression",
+        "failure_control"
+      ],
+      "properties": {
+        "path_topology": {
+          "type": "string",
+          "enum": ["minifilter-irp-mj-create", "xp-parse-proc", "negative-control", "not_applicable"]
+        },
+        "requestor_shape": {
+          "type": "string",
+          "enum": ["kernel-win32k-delayed-font-open", "user-mode-file-open", "active-impersonation", "non-sandboxed-process", "not_applicable"]
+        },
+        "path_class": {
+          "type": "string",
+          "enum": ["real-fonts-path", "sandbox-boxed-font-path", "non-font-path", "missing-file", "reparse-or-symlinked-font-path", "not_applicable"]
+        },
+        "access_mask_class": {
+          "type": "string",
+          "enum": ["exact-font-read-execute", "denied-write-delete", "unrelated-read", "not_applicable"]
+        },
+        "subject_context_before": {
+          "type": "string"
+        },
+        "subject_context_after": {
+          "type": "string"
+        },
+        "primary_token_pointer": {
+          "type": "string"
+        },
+        "client_token_pointer": {
+          "type": "string"
+        },
+        "impersonation_level": {
+          "type": "string"
+        },
+        "reference_delta": {
+          "type": "integer"
+        },
+        "downstream_release_observed": {
+          "type": "boolean"
+        },
+        "restore_observed": {
+          "type": "boolean"
+        },
+        "font_load_result": {
+          "type": "string"
+        },
+        "pool_delta": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["paged_pool_bytes", "nonpaged_pool_bytes"],
+          "properties": {
+            "paged_pool_bytes": {"type": "integer"},
+            "nonpaged_pool_bytes": {"type": "integer"}
+          }
+        },
+        "repeated_open_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "driver_unload_result": {
+          "type": "string"
+        },
+        "verifier_result": {
+          "type": "string"
+        },
+        "digital_guardian_regression": {
+          "type": "string"
+        },
+        "failure_control": {
+          "type": "string",
+          "enum": [
+            "none",
+            "process-find-miss",
+            "missing-primary-token",
+            "parse-name-failure",
+            "boxed-path-allocation-failure",
+            "create-failure",
+            "not_applicable"
+          ]
+        }
+      }
+    },
+    "wfp_logger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "irql",
+        "layer_id",
+        "direction",
+        "protocol",
+        "remote_address",
+        "remote_port",
+        "action",
+        "rule_match",
+        "trace_enabled",
+        "logging_disabled_decision_unchanged",
+        "capture_allocation",
+        "producer_synchronization",
+        "passive_worker_observed",
+        "session_monitor_call_irql",
+        "inline_negative_control",
+        "drop_counter",
+        "monitor_readback",
+        "lifecycle_event",
+        "traffic_stress",
+        "verifier_result"
+      ],
+      "properties": {
+        "irql": {
+          "type": "string",
+          "enum": ["PASSIVE_LEVEL", "APC_LEVEL", "DISPATCH_LEVEL", "unknown", "not_applicable"]
+        },
+        "layer_id": {
+          "type": "string"
+        },
+        "direction": {
+          "type": "string",
+          "enum": ["send", "receive", "loopback", "not_applicable"]
+        },
+        "protocol": {
+          "type": "string",
+          "enum": ["tcp", "udp", "icmp", "other", "not_applicable"]
+        },
+        "remote_address": {
+          "type": "string"
+        },
+        "remote_port": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "action": {
+          "type": "string",
+          "enum": ["block", "permit", "not_applicable"]
+        },
+        "rule_match": {
+          "type": "string"
+        },
+        "trace_enabled": {
+          "type": "boolean"
+        },
+        "logging_disabled_decision_unchanged": {
+          "type": "boolean"
+        },
+        "capture_allocation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "pool_class",
+            "pool_tag",
+            "bounded_capacity",
+            "allocation_failure_policy",
+            "special_pool_enabled",
+            "pool_tracking_result"
+          ],
+          "properties": {
+            "pool_class": {
+              "type": "string",
+              "enum": ["nonpaged", "paged", "none", "not_applicable"]
+            },
+            "pool_tag": {
+              "type": "string"
+            },
+            "bounded_capacity": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "allocation_failure_policy": {
+              "type": "string"
+            },
+            "special_pool_enabled": {
+              "type": "boolean"
+            },
+            "pool_tracking_result": {
+              "type": "string"
+            }
+          }
+        },
+        "producer_synchronization": {
+          "type": "string",
+          "enum": ["dispatch-safe-lock", "lock-free", "none", "unsafe-eresource", "not_applicable"]
+        },
+        "passive_worker_observed": {
+          "type": "boolean"
+        },
+        "session_monitor_call_irql": {
+          "type": "string",
+          "enum": ["PASSIVE_LEVEL", "APC_LEVEL", "DISPATCH_LEVEL", "not_called", "not_applicable"]
+        },
+        "inline_negative_control": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "no_session_monitor_put",
+            "no_rtl_stringcb_printf",
+            "no_eresource",
+            "no_pageable_buffer",
+            "no_blocking_wait",
+            "no_session_monitor_log_touch"
+          ],
+          "properties": {
+            "no_session_monitor_put": {"type": "boolean"},
+            "no_rtl_stringcb_printf": {"type": "boolean"},
+            "no_eresource": {"type": "boolean"},
+            "no_pageable_buffer": {"type": "boolean"},
+            "no_blocking_wait": {"type": "boolean"},
+            "no_session_monitor_log_touch": {"type": "boolean"}
+          }
+        },
+        "drop_counter": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "monitor_readback": {
+          "type": "string"
+        },
+        "lifecycle_event": {
+          "type": "string",
+          "enum": ["process-exit", "sandbox-stop", "wfp-unload", "rule-refresh", "monitor-consumer-detach", "driver-unload", "steady-state", "not_applicable"]
+        },
+        "traffic_stress": {
+          "type": "string",
+          "enum": ["ipv4-tcp", "ipv6-tcp", "ipv4-udp", "ipv6-udp", "loopback", "non-loopback", "mixed-high-rate", "not_applicable"]
+        },
+        "verifier_result": {
+          "type": "string"
+        }
+      }
+    },
+    "negative_control": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "expected_result", "observed_result", "passed"],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "expected_result": {
+          "type": "string"
+        },
+        "observed_result": {
+          "type": "string"
+        },
+        "passed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "etw_trace",
+        "debugger_transcript",
+        "driver_verifier_log",
+        "pool_tracking_log",
+        "monitor_log_readback",
+        "json_record_path",
+        "notes"
+      ],
+      "properties": {
+        "etw_trace": {"type": "string"},
+        "debugger_transcript": {"type": "string"},
+        "driver_verifier_log": {"type": "string"},
+        "pool_tracking_log": {"type": "string"},
+        "monitor_log_readback": {"type": "string"},
+        "json_record_path": {"type": "string"},
+        "notes": {"type": "string"}
+      }
+    }
+  }
+}

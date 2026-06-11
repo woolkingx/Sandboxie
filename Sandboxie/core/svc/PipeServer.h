@@ -192,6 +192,12 @@ protected:
     void Thread(void);
 
     /*
+     * Shut down the server port and worker thread handles
+     */
+
+    void ShutdownPortAndThreads();
+
+    /*
      * Port Connect
      */
 
@@ -277,6 +283,7 @@ protected:
 
     volatile HANDLE m_hServerPort;
     HANDLE *m_Threads;
+    ULONG m_ThreadCount;
 
     static PipeServer *m_instance;
 };

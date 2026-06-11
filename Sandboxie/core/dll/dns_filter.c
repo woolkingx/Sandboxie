@@ -154,6 +154,7 @@ static_assert(sizeof(void*) == sizeof(uintptr_t) && sizeof(void*) == 4, "32-bit 
 
 // Align pointer up to specified boundary (must be power of 2)
 #define ALIGN_UP(ptr, align) (BYTE*)((((UINT_PTR)(ptr)) + ((align)-1)) & ~((UINT_PTR)((align)-1)))
+#define ALIGN_SIZE(size, align) ((((SIZE_T)(size)) + ((align)-1)) & ~((SIZE_T)((align)-1)))
 
 // Relative pointer helpers for HOSTENT blob
 // Windows BLOB format uses offsets (not absolute pointers) from the base address
@@ -168,16 +169,17 @@ static inline uintptr_t GET_REL_FROM_PTR(void* p) {
     return (uintptr_t)(p);
 }
 
-// Debug buffer bounds checking (only in debug builds)
-#ifdef _DEBUG
+// Buffer bounds checking for caller-provided WSALookupServiceNextW output.
 #define CHECK_BUFFER_SPACE(ptr, size, end) \
-    do { if ((BYTE*)(ptr) + (size) > (BYTE*)(end)) { \
+    do { \
+        BYTE* _ptr = (BYTE*)(ptr); \
+        BYTE* _end = (BYTE*)(end); \
+        SIZE_T _size = (SIZE_T)(size); \
+        if (_ptr > _end || _size > (SIZE_T)(_end - _ptr)) { \
         SetLastError(WSAEFAULT); \
         return FALSE; \
-    } } while(0)
-#else
-#define CHECK_BUFFER_SPACE(ptr, size, end) ((void)0)
-#endif
+        } \
+    } while(0)
 
 //---------------------------------------------------------------------------
 // WSA_FillResponseStructure
@@ -252,6 +254,8 @@ _FX BOOLEAN WSA_FillResponseStructure(
         return FALSE;
     }
 
+    // Align before CSADDR_INFO because it contains pointer-bearing SOCKET_ADDRESS members.
+    neededSize = ALIGN_SIZE(neededSize, sizeof(void*));
     SIZE_T csaddrSize = (SIZE_T)ipCount * sizeof(CSADDR_INFO);
     neededSize += csaddrSize;
 
@@ -303,10 +307,7 @@ _FX BOOLEAN WSA_FillResponseStructure(
 
     BYTE* currentPtr = (BYTE*)lpqsResults + sizeof(WSAQUERYSETW);
     
-#ifdef _DEBUG
-    // Debug: set buffer end for bounds checking
     BYTE* bufferEnd = (BYTE*)lpqsResults + *lpdwBufferLength;
-#endif
 
     // Copy ServiceInstanceName (wide string)
     CHECK_BUFFER_SPACE(currentPtr, domainNameLen, bufferEnd);
@@ -321,6 +322,7 @@ _FX BOOLEAN WSA_FillResponseStructure(
     currentPtr += domainNameLen;
 
     // CSADDR_INFO array
+    currentPtr = ALIGN_UP(currentPtr, sizeof(void*));
     CHECK_BUFFER_SPACE(currentPtr, csaddrSize, bufferEnd);
     lpqsResults->dwNumberOfCsAddrs = (DWORD)ipCount;  // Safe: already verified ipCount fits in buffer
     lpqsResults->lpcsaBuffer = (PCSADDR_INFO)currentPtr;
@@ -467,9 +469,9 @@ _FX BOOLEAN WSA_FillResponseStructure(
     }
     addrList[addrIdx] = 0;  // NULL terminator
 
-    // Final sanity check: ensure we didn't overrun the buffer (even in release builds)
-    // This is a lightweight failsafe in case size calculations were wrong
-    if ((BYTE*)currentPtr > ((BYTE*)lpqsResults + *lpdwBufferLength)) {
+    // SREV-050 owns this diagnostic end fence. Segment-level CHECK_BUFFER_SPACE
+    // gates are the release-mode overflow boundary before each write.
+    if ((BYTE*)currentPtr > bufferEnd) {
         SetLastError(WSAEFAULT);
         return FALSE;
     }
@@ -528,10 +530,15 @@ _FX BOOLEAN WSA_InitNetDnsFilter(HMODULE module)
                 ip_value = SbieDll_GetTagValue(ip_value, ip_end, &ip_str1, &ip_len1, L';');
 
                 IP_ENTRY* entry = (IP_ENTRY*)Dll_Alloc(sizeof(IP_ENTRY));
+                if (!entry)
+                    continue;
                 if (_inet_xton(ip_str1, ip_len1, &entry->IP, &entry->Type) == 1) {
                     if (entry->Type == AF_INET6)
                         HasV6 = TRUE;
                     List_Insert_After(entries, NULL, entry);
+                }
+                else {
+                    Dll_Free(entry);
                 }
             }
 
@@ -548,6 +555,8 @@ _FX BOOLEAN WSA_InitNetDnsFilter(HMODULE module)
                         continue;
 
                     IP_ENTRY* entry6 = (IP_ENTRY*)Dll_Alloc(sizeof(IP_ENTRY));
+                    if (!entry6)
+                        continue;
                     entry6->Type = AF_INET6;
 
                     // IPv4-mapped IPv6 address: first 80 bits zero, next 16 bits 0xFFFF, then IPv4 address
@@ -621,9 +630,13 @@ _FX int WSA_WSALookupServiceBeginW(
     DWORD           dwControlFlags,
     LPHANDLE        lphLookup)
 {
-    if (WSA_FilterEnabled && lpqsRestrictions && lpqsRestrictions->lpszServiceInstanceName) {
+    if (WSA_FilterEnabled && lpqsRestrictions && lpqsRestrictions->lpszServiceInstanceName && lphLookup) {
         ULONG path_len = wcslen(lpqsRestrictions->lpszServiceInstanceName);
         WCHAR* path_lwr = (WCHAR*)Dll_AllocTemp((path_len + 4) * sizeof(WCHAR));
+        if (!path_lwr) {
+            SetLastError(WSA_NOT_ENOUGH_MEMORY);
+            return SOCKET_ERROR;
+        }
         wmemcpy(path_lwr, lpqsRestrictions->lpszServiceInstanceName, path_len);
         path_lwr[path_len] = L'\0';
         _wcslwr(path_lwr);
@@ -633,42 +646,51 @@ _FX int WSA_WSALookupServiceBeginW(
             HANDLE fakeHandle = (HANDLE)Dll_Alloc(sizeof(ULONG_PTR));
             if (!fakeHandle) {
                 Dll_Free(path_lwr);
-                SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+                SetLastError(WSA_NOT_ENOUGH_MEMORY);
                 return SOCKET_ERROR;
             }
 
-            *lphLookup = fakeHandle;
-
             WSA_LOOKUP* pLookup = WSA_GetLookup(fakeHandle, TRUE);
-            if (pLookup) {
-                pLookup->Filtered = TRUE;
-
-                pLookup->DomainName = Dll_Alloc((path_len + 1) * sizeof(WCHAR));
-                if (pLookup->DomainName) {
-                    wcscpy_s(pLookup->DomainName, path_len + 1, lpqsRestrictions->lpszServiceInstanceName);
-                }
-                else {
-                    SbieApi_Log(2205, L"NetworkDnsFilter: Failed to allocate domain name");
-                }
-
-                pLookup->Namespace = lpqsRestrictions->dwNameSpace;
-
-                if (lpqsRestrictions->lpServiceClassId) {
-                    pLookup->ServiceClassId = Dll_Alloc(sizeof(GUID));
-                    if (pLookup->ServiceClassId) {
-                        memcpy(pLookup->ServiceClassId, lpqsRestrictions->lpServiceClassId, sizeof(GUID));
-                    }
-                    else {
-                        SbieApi_Log(2205, L"NetworkDnsFilter: Failed to allocate service class ID");
-                    }
-                }
-
-                PVOID* aux = Pattern_Aux(found);
-                if (*aux)
-                    pLookup->pEntries = (LIST*)*aux;
-                else
-                    pLookup->NoMore = TRUE;
+            if (!pLookup) {
+                Dll_Free(fakeHandle);
+                Dll_Free(path_lwr);
+                SetLastError(WSA_NOT_ENOUGH_MEMORY);
+                return SOCKET_ERROR;
             }
+
+            pLookup->Filtered = TRUE;
+            pLookup->Namespace = lpqsRestrictions->dwNameSpace;
+
+            pLookup->DomainName = Dll_Alloc((path_len + 1) * sizeof(WCHAR));
+            if (!pLookup->DomainName) {
+                map_remove(&WSA_LookupMap, fakeHandle);
+                Dll_Free(fakeHandle);
+                Dll_Free(path_lwr);
+                SetLastError(WSA_NOT_ENOUGH_MEMORY);
+                return SOCKET_ERROR;
+            }
+            wcscpy_s(pLookup->DomainName, path_len + 1, lpqsRestrictions->lpszServiceInstanceName);
+
+            if (lpqsRestrictions->lpServiceClassId) {
+                pLookup->ServiceClassId = Dll_Alloc(sizeof(GUID));
+                if (!pLookup->ServiceClassId) {
+                    Dll_Free(pLookup->DomainName);
+                    map_remove(&WSA_LookupMap, fakeHandle);
+                    Dll_Free(fakeHandle);
+                    Dll_Free(path_lwr);
+                    SetLastError(WSA_NOT_ENOUGH_MEMORY);
+                    return SOCKET_ERROR;
+                }
+                memcpy(pLookup->ServiceClassId, lpqsRestrictions->lpServiceClassId, sizeof(GUID));
+            }
+
+            PVOID* aux = Pattern_Aux(found);
+            if (*aux)
+                pLookup->pEntries = (LIST*)*aux;
+            else
+                pLookup->NoMore = TRUE;
+
+            *lphLookup = fakeHandle;
 
             if (WSA_DnsTraceFlag) {
                 WCHAR ClsId[64] = { 0 };

@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-001-directory-info-spec.schema.json",
+  "title": "SREV-001 directory information buffer shape",
+  "id": "DIRECTORY_INFO_BUFFER_SHAPE",
+  "owner": "Sandboxie/core/dll/file_dir.c",
+  "type": "object",
+  "properties": {
+    "record_shape": {
+      "type": "string",
+      "description": "Official FILE_ID_BOTH_DIR_INFORMATION variable-size record with NextEntryOffset, FileNameLength byte count, and variable FileName payload"
+    },
+    "alignment_shape": {
+      "type": "string",
+      "description": "MS-FSCC alignment: each non-final NextEntryOffset is 8-byte aligned and alignment bytes are zero"
+    },
+    "merge_dummy_capacity": {
+      "type": "string",
+      "description": "FIELD_OFFSET(FILE_ID_BOTH_DIR_INFORMATION, FileName) + FileNameLength must fit in remaining info_area bytes before any write"
+    },
+    "length_unit": {
+      "type": "string",
+      "description": "FileNameLength is a byte count, not a WCHAR index; no trailing NUL is required because cache conversion uses the byte length directly"
+    },
+    "fit_semantics": {
+      "type": "string",
+      "description": "If staging area cannot hold the next complete record, stop appending and return complete records already staged; no partial record is written"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows directory enumeration runtime proof under many matching open/readable path rules"
+    }
+  },
+  "required": [
+    "record_shape",
+    "alignment_shape",
+    "merge_dummy_capacity",
+    "length_unit",
+    "fit_semantics",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "FILE_ID_BOTH_DIR_INFORMATION is a variable-size record terminated by NextEntryOffset==0",
+    "FileNameLength is a length in bytes of the file name string",
+    "FileName[1] is the first character of a variable-length file name payload",
+    "Each non-final NextEntryOffset is aligned on an 8-byte boundary",
+    "Alignment bytes between records should be zero per MS-FSCC",
+    "File_MergeDummy must check remaining info_area capacity before appending a synthetic record",
+    "File_MergeDummy must treat FileNameLength as a byte count, not a WCHAR index",
+    "File_MergeDummy must not write a partial record when the staging area is full"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_id_both_dir_information",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntquerydirectoryfile",
+    "https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/1e144bff-c056-45aa-bd29-c13d214ee2ba"
+  ]
+}

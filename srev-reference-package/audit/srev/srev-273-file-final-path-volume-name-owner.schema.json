@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "FILE_FINAL_PATH_VOLUME_NAME_OWNER",
+  "title": "File final path volume-name owner",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/file.c",
+  "stage": "schema -> topology -> verify",
+  "source_function": "File_GetFinalPathNameByHandleW_2",
+  "contracts": [
+    "File_GetFinalPathNameByHandleW_2 owns caller-visible final-path presentation for the Sandboxie DLL hook",
+    "GetFinalPathNameByHandleW volume-name flags select the returned volume identity",
+    "VOLUME_NAME_DOS returns a drive-letter path when Sandboxie can map the path to a drive presentation",
+    "VOLUME_NAME_NT returns the NT device object path",
+    "VOLUME_NAME_NONE returns a path with no drive information",
+    "VOLUME_NAME_GUID output remains delegated to File_GetFinalPathNameByHandleW_3",
+    "mounted-folder permanent-link matches use the target device identity for NT/NONE output",
+    "mounted-folder permanent-link matches use the mounted-location drive identity plus mounted-folder suffix for DOS output",
+    "SREV-143 owns permanent-link and GUID metadata correctness",
+    "SREV-223 owns final-path returned-length handling in the service IsHostPath gate",
+    "SREV-271 owns FileNameInformation root-relative output, not GetFinalPathNameByHandleW final-path presentation",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfinalpathnamebyhandlew",
+    "https://learn.microsoft.com/en-us/windows/desktop/FileIO/volume-mount-points",
+    "https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-volume",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getvolumenameforvolumemountpointa"
+  ],
+  "local_edges": [
+    "TruePath -> File_FindPermLinksForMatchPath -> permanent-link branch",
+    "permanent-link branch -> File_FixPermLinksForMatchPath -> target device identity for NT/NONE",
+    "permanent-link branch -> File_GetDriveForPath(TruePath) or File_GetDriveForPath(file_link->src) -> DOS drive identity",
+    "file_link->dst_len -> suffix2 -> mounted-folder suffix append for DOS output"
+  ],
+  "runtime_gate": "Windows GetFinalPathNameByHandleW mounted-folder volume-name matrix for DOS, NT, NONE, and GUID outputs",
+  "status": "patched-comment-topology-after-official-final-path-volume-name-review-no-behavior-change"
+}

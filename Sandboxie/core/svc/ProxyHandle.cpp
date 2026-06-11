@@ -68,8 +68,24 @@ ProxyHandle::ProxyHandle(HANDLE heap, ULONG size_of_data,
 
 ProxyHandle::~ProxyHandle()
 {
-	// cleanup CS
-	DeleteCriticalSection(&m_lock);
+    EnterCriticalSection(&m_lock);
+
+    PROXY_HANDLE *proxy = (PROXY_HANDLE *)List_Head(&m_list);
+    while (proxy) {
+
+        PROXY_HANDLE *proxy_next = (PROXY_HANDLE *)List_Next(proxy);
+
+        m_close_callback(m_context_for_callback, &proxy->data);
+
+        List_Remove(&m_list, proxy);
+        HeapFree(m_heap, 0, proxy);
+
+        proxy = proxy_next;
+    }
+
+    LeaveCriticalSection(&m_lock);
+
+    DeleteCriticalSection(&m_lock);
 }
 
 

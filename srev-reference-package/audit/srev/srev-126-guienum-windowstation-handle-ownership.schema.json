@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-126-guienum-windowstation-handle-ownership.schema.json",
+  "title": "SREV-126 GUI enum window station handle ownership",
+  "id": "GUIENUM_WINDOWSTATION_HANDLE_OWNERSHIP",
+  "owner": "Sandboxie/core/dll/guienum.c",
+  "type": "object",
+  "properties": {
+    "dummy_source": {
+      "type": "string",
+      "description": "Gui_Dummy_WinSta is process-owned window-station state"
+    },
+    "create_contract": {
+      "type": "string",
+      "description": "CreateWindowStation fallback returns a caller-owned handle"
+    },
+    "duplicate_boundary": {
+      "type": "string",
+      "description": "Fallback duplicates Gui_Dummy_WinSta instead of returning it directly"
+    },
+    "inheritance": {
+      "type": "string",
+      "description": "Duplicate inheritability follows SECURITY_ATTRIBUTES when provided"
+    }
+  },
+  "required": [
+    "dummy_source",
+    "create_contract",
+    "duplicate_boundary",
+    "inheritance"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Gui_Dummy_WinSta is a process window-station handle captured from the process window-station topology",
+    "GetProcessWindowStation returned handles are process-owned and must not be closed by ordinary callers",
+    "CreateWindowStationW and CreateWindowStationA returned handles are caller-owned and releasable with CloseWindowStation",
+    "CreateWindowStation fallback must not return Gui_Dummy_WinSta directly",
+    "fallback returns a duplicate handle produced by DuplicateHandle in the current process with DUPLICATE_SAME_ACCESS",
+    "duplicate inheritability follows SECURITY_ATTRIBUTES bInheritHandle when lpsa is supplied",
+    "native CreateWindowStationW/A fallback policy predicates logging and failure return shape are unchanged"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getprocesswindowstation",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-createwindowstationw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-closewindowstation",
+    "https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-duplicatehandle"
+  ]
+}

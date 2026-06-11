@@ -460,14 +460,11 @@ _FX NTSTATUS File_CreateBoxedPath(const WCHAR *PathToCreate)
 //    ULONG *lpFileSystemFlags,
 //    WCHAR *lpFileSystemNameBuffer, ULONG nFileSystemNameSize)
 //{
-//    //
-//    // the flash plugin process of Google Chrome issues a special form
-//    // of GetVolumeInformationW with all-NULL parameters.  this fails
-//    // with an access denied error.  to work around this, we install
-//    // this hook, and automatically return TRUE in this special case.
-//    //
-//
-//    // $Workaround$ - 3rd party fix
+	//    //
+	//    // SREV-282: dormant Chrome Flash all-null probe path. Keep this body
+	//    // inactive unless Windows proof revives the matching registration in
+	//    // file_init.c and defines a current caller contract.
+	//    //
 //    if (Dll_ChromeSandbox &&
 //        lpVolumeNameBuffer == NULL && nVolumeNameSize == 0 &&
 //        lpVolumeSerialNumber == NULL && lpMaximumComponentLength == NULL &&
@@ -520,7 +517,9 @@ BOOL File_WriteProcessMemory(
 {
     if (!Dll_CompartmentMode) {
     
-        // $Workaround$ - 3rd party fix
+        // SREV-283: suppress only Firefox/Thunderbird writes to selected
+        // ntdll export addresses.  SREV-075 owns the fake-success output
+        // contract when this branch bypasses the real WriteProcessMemory owner.
         if ((Dll_ImageType == DLL_IMAGE_MOZILLA_FIREFOX || Dll_ImageType == DLL_IMAGE_MOZILLA_THUNDERBIRD) &&
             lpBaseAddress && (
                 lpBaseAddress == GetProcAddress(Dll_Ntdll, "NtSetInformationThread")
@@ -528,9 +527,13 @@ BOOL File_WriteProcessMemory(
             ))
         //if (RpcRt_TestCallingModule((ULONG_PTR)lpBaseAddress, (ULONG_PTR)Dll_Ntdll))
         {
-            if (lpNumberOfBytesWritten)
-            {
-                *lpNumberOfBytesWritten = nSize;
+            if (lpNumberOfBytesWritten) {
+                __try {
+                    *lpNumberOfBytesWritten = nSize;
+                } __except (EXCEPTION_EXECUTE_HANDLER) {
+                    SetLastError(ERROR_NOACCESS);
+                    return FALSE;
+                }
             }
             return TRUE; // ignore
         }

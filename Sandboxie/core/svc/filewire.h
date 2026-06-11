@@ -94,11 +94,13 @@ typedef struct tagFILE_SET_REPARSE_POINT_REQ FILE_SET_REPARSE_POINT_REQ;
 //---------------------------------------------------------------------------
 
 
+#define FILE_LOAD_KEY_PATH_CHARS 1024
+
 struct tagFILE_LOAD_KEY_REQ
 {
     MSG_HEADER h;
-    WCHAR KeyPath[128];
-    WCHAR FilePath[128];
+    WCHAR KeyPath[FILE_LOAD_KEY_PATH_CHARS];
+    WCHAR FilePath[FILE_LOAD_KEY_PATH_CHARS];
 };
 
 typedef struct tagFILE_LOAD_KEY_REQ FILE_LOAD_KEY_REQ;

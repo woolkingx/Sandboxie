@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "CORE_INCLUDE_AGGREGATOR_CONTRACT",
+  "owners": [
+    "Sandboxie/core/drv/includes.c",
+    "Sandboxie/core/dll/includes.c",
+    "Sandboxie/core/svc/includes.cpp"
+  ],
+  "status": "docs-only-source-topology-reviewed-needs-windows-build-proof",
+  "official_references": [],
+  "contracts": [
+    "Driver includes.c is a compile translation unit for shared common C modules under KERNEL_MODE and driver pool-tag or memory macro shape",
+    "DLL includes.c is a compile translation unit for shared common C modules under DLL headers and Win32 NT compatibility headers",
+    "Service includes.cpp is a compile translation unit for shared common C modules under service stdafx.h, extern C linkage, and service pool-tag shape",
+    "The aggregator files may set target-local macros before including common modules",
+    "Runtime defects in an included common module belong to the included module and target macro shape that changes it",
+    "A future aggregator change must prove target-specific macro, linkage, and included-module topology before behavior claims"
+  ],
+  "runtime_gate": "Windows build for SboxDrv, SboxDll, and SboxSvc continues to compile the aggregator translation units with the same included common modules. Linux source checks cannot prove MSVC or WDK compile behavior."
+}

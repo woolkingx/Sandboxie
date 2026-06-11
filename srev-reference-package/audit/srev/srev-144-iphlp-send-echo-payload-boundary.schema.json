@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-144-iphlp-send-echo-payload-boundary.schema.json",
+  "title": "SREV-144 IP Helper SendEcho payload boundary",
+  "id": "IPHLP_SEND_ECHO_PAYLOAD_BOUNDARY",
+  "owner": "Sandboxie/core/svc/iphlpserver.cpp",
+  "type": "object",
+  "properties": {
+    "wire_packet": {
+      "type": "string",
+      "description": "IPHLP_SEND_ECHO_REQ counted request_data payload"
+    },
+    "service_boundary": {
+      "type": "string",
+      "description": "Service-side h.length validation before ICMP API calls"
+    },
+    "icmp_api_shape": {
+      "type": "string",
+      "description": "Microsoft ICMP RequestData plus RequestSize contract"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows ICMP proxy and malformed packet runtime proof"
+    }
+  },
+  "required": [
+    "wire_packet",
+    "service_boundary",
+    "icmp_api_shape",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "iphlpserver.cpp owns service-side validation of the IP Helper ICMP echo pipe request before any Microsoft ICMP API receives caller-supplied bytes",
+    "IPHLP_SEND_ECHO_REQ.request_data is a counted variable payload owned by request_size, not by the fixed struct size alone",
+    "The service accepts a SendEcho request only when req->h.length is at least the fixed request size, request_size <= 0xFFFF, reply_size <= 0x0FFFFF, and FIELD_OFFSET(IPHLP_SEND_ECHO_REQ, request_data) + request_size <= req->h.length",
+    "RequestSize passed to IcmpSendEcho2, IcmpSendEcho2Ex, and Icmp6SendEcho2 remains a WORD derived from the already-bounded request_size",
+    "reply_size allocation and WOW64 reply widening stay unchanged",
+    "Proxy handle lookup, IP version matching, network access policy, and restricted-token ICMP handle creation stay unchanged"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/icmpapi/nf-icmpapi-icmpsendecho2",
+    "https://learn.microsoft.com/en-us/windows/win32/api/icmpapi/nf-icmpapi-icmpsendecho2ex",
+    "https://learn.microsoft.com/en-us/windows/win32/api/icmpapi/nf-icmpapi-icmp6sendecho2",
+    "https://learn.microsoft.com/en-us/windows/win32/api/icmpapi/nf-icmpapi-icmpcreatefile"
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-059-gui-raw-input-size-boundary.schema.json",
+  "title": "SREV-059 GUI raw input size boundary contract",
+  "id": "GUI_RAW_INPUT_SIZE_BOUNDARY",
+  "api": "GetRawInputDeviceInfoA/W proxy",
+  "owner": "Sandboxie/core/dll/guimisc.c and Sandboxie/core/svc/GuiServer.cpp",
+  "type": "object",
+  "properties": {
+    "caller_size_pointer": {
+      "type": "string",
+      "description": "Required caller-owned pcbSize pointer"
+    },
+    "wire_data_length": {
+      "type": "string",
+      "description": "Byte length sent through the GUI proxy request"
+    },
+    "service_reply_capacity": {
+      "type": "string",
+      "description": "Maximum data bytes available after the raw-input reply header"
+    }
+  },
+  "required": [
+    "caller_size_pointer",
+    "wire_data_length",
+    "service_reply_capacity"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "GetRawInputDeviceInfo pData is optional but pcbSize is required",
+    "RIDI_DEVICENAME pcbSize is a character count rather than a byte count",
+    "The DLL hook must reject null pcbSize before sending a GUI proxy request",
+    "The DLL hook must reject Unicode character-to-byte overflow before request allocation",
+    "The GUI service must gate RIDI_DEVICENAME Unicode character count against max_data divided by sizeof(WCHAR) before multiplying"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getrawinputdeviceinfoa"
+  ]
+}

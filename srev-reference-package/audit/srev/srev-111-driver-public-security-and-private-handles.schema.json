@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-111-driver-public-security-and-private-handles.schema.json",
+  "title": "SREV-111 driver public security and private handles",
+  "id": "DRIVER_PUBLIC_SECURITY_AND_PRIVATE_HANDLES",
+  "owner": "Sandboxie/core/drv/driver.c",
+  "type": "object",
+  "properties": {
+    "official_security_shape": {
+      "type": "string",
+      "description": "Official ACL, security descriptor, and mandatory integrity control shape"
+    },
+    "private_handle_shape": {
+      "type": "string",
+      "description": "Official private kernel handle and ObReferenceObjectByHandle shape"
+    },
+    "source_change": {
+      "type": "string",
+      "description": "Checked security construction status and OBJ_KERNEL_HANDLE hardening"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows driver-load, verifier, and low-integrity runtime proof"
+    }
+  },
+  "required": [
+    "official_security_shape",
+    "private_handle_shape",
+    "source_change",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Driver_InitPublicSecurity builds absolute security descriptors owned by the driver",
+    "ACL and security descriptor construction DDIs return NTSTATUS and must fail closed",
+    "Driver_PublicAcl grants the existing compatibility DACL to Authenticated Users and Everyone",
+    "Driver_LowLabelSd keeps the Vista and later low-integrity SACL plus restricted-code DACL path",
+    "Mandatory Integrity Control stores an integrity label in an object's SACL through SYSTEM_MANDATORY_LABEL_ACE",
+    "Driver_FindHomePath creates only private driver handles for the registry key and installation directory",
+    "private registry and file handles are created with OBJ_KERNEL_HANDLE",
+    "ObReferenceObjectByHandle with KernelMode is used only on the kernel-private file handle",
+    "this SREV must not change SID values access masks descriptor consumers or public object policy",
+    "runtime proof is required for driver-load failure injection Driver Verifier and low-integrity consumers"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/driversecurity/windows-security-model",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/sddl-for-device-objects",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-rtlcreateacl",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-rtladdaccessallowedaceex",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtlcreatesecuritydescriptor",
+    "https://learn.microsoft.com/en-us/windows/win32/devnotes/rtlsetsaclsecuritydescriptor",
+    "https://learn.microsoft.com/en-us/windows/win32/secauthz/mandatory-integrity-control",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/object-handles",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwopenkey",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwcreatefile",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-obreferenceobjectbyhandle"
+  ]
+}

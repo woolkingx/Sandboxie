@@ -1,0 +1,136 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-015-alpc-connect-flags.schema.json",
+  "title": "SREV-015 ALPC connect flags",
+  "id": "ALPC_CONNECT_FLAGS_POSTURE",
+  "owner": "Sandboxie/core/dll/ipc.c",
+  "type": "object",
+  "properties": {
+    "official_surface_caveat": {
+      "type": "string",
+      "description": "Microsoft Learn does not expose a public NtAlpcConnectPort or ALPC_PORT_ATTRIBUTES.Flags contract; winternl.h internal APIs may change between releases"
+    },
+    "local_constant_inventory": {
+      "type": "string",
+      "description": "Local headers define PORT_INFO_WOW64_PROCESS=0x40000000, PORT_INFO_CANIMPERSONATE=0x010000, ALPC_SYNC_CONNECTION=0x020000, ALPC_MESSAGE_FLAG_VIEW=0x40000000 citing an ALPC paper not Microsoft DDI"
+    },
+    "patch_scope": {
+      "type": "string",
+      "description": "Replace naked constants with existing local names where the behavior is identical; do not broaden accepted ALPC flags or change proxy policy without Windows capture evidence"
+    },
+    "source_comment_contract": {
+      "type": "string",
+      "description": "Source comments identify SREV-015 at the ALPC connection gate and message-view gates, naming them as locally observed private ALPC shapes that require Windows capture before behavior changes"
+    },
+    "naming_invariant": {
+      "type": "string",
+      "description": "Connect path does not use naked 0x20000, 0x10000, or 0x40000000 for already-named local ALPC meanings"
+    },
+    "capture_matrix": {
+      "type": "string",
+      "description": "Capture AlpcConnectRequest, AlpcConnectSuccess, and AlpcConnectFail for ntsvcs and plugplay, including connection flags, ALPC_PORT_ATTRIBUTES.Flags, message-view flags, status, process image, endpoint, and Windows build"
+    },
+    "open_runtime_gate": {
+      "type": "string",
+      "description": "Ledger keeps the issue open for Windows runtime capture rather than pretending the semantics are officially proven"
+    },
+    "shared_capture_playbook": {
+      "type": "string",
+      "description": "Shared SREV-015/SREV-138 ALPC runtime capture playbook and machine-readable evidence schema define the Windows capture record shape"
+    }
+  },
+  "required": [
+    "official_surface_caveat",
+    "local_constant_inventory",
+    "patch_scope",
+    "source_comment_contract",
+    "naming_invariant",
+    "capture_matrix",
+    "open_runtime_gate",
+    "shared_capture_playbook"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "ALPC flag semantics in this code are not officially specified by Microsoft Learn",
+    "Replace 0x020000 with ALPC_SYNC_CONNECTION and 0x010000 with PORT_INFO_CANIMPERSONATE where behavior is identical",
+    "Source comments name SREV-015 and classify ALPC accepted flags and view masks as locally observed private ALPC shapes",
+    "Do not invent new flag bits without Windows runtime capture",
+    "Proxy policy behavior is unchanged; only constant naming clarifies intent",
+    "SREV-138 mirror-header proof is required before interpreting captured ALPC_PORT_ATTRIBUTES or ALPC_MESSAGE_VIEW fields",
+    "SREV-015 and SREV-138 share docs/plan/srev-015-138-alpc-runtime-capture.schema.json as the machine-readable Windows evidence shape"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/devnotes/calling-internal-apis",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/-lpc",
+    "https://learn.microsoft.com/en-us/windows/win32/etw/alpc",
+    "https://learn.microsoft.com/en-us/windows-hardware/test/wpt/event",
+    "https://learn.microsoft.com/en-us/windows-hardware/test/wpt/stack-wpa",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-security_quality_of_service"
+  ],
+  "runtime_capture_matrix": {
+    "builds": [
+      "supported Windows 10 x86",
+      "supported Windows 10 x64",
+      "supported Windows 11 x64",
+      "supported Windows 11 ARM64 where built"
+    ],
+    "endpoint_paths": [
+      "\\RPC Control\\ntsvcs",
+      "\\RPC Control\\plugplay",
+      "non-proxied ALPC endpoint negative control",
+      "old-LPC max_msg_len == -1 control"
+    ],
+    "source_paths": [
+      "NtAlpcConnectPort",
+      "NtAlpcConnectPortEx",
+      "NtAlpcSendWaitReceivePort",
+      "SbieSvc AlpcRequestHandler",
+      "driver endpoint policy observation"
+    ],
+    "connect_capture": [
+      "connection flags before PORT_INFO_WOW64_PROCESS masking",
+      "connection flags after PORT_INFO_WOW64_PROCESS masking",
+      "ALPC_PORT_ATTRIBUTES.Flags",
+      "SecurityQos",
+      "MaxMessageLength",
+      "returned status",
+      "maximum message length",
+      "endpoint",
+      "process image",
+      "process architecture",
+      "Windows build"
+    ],
+    "message_view_capture": [
+      "SendFlags",
+      "ReceiveFlags",
+      "ViewAttrs",
+      "ViewBase",
+      "ViewSize",
+      "unmap special case",
+      "service-side view mask result",
+      "reply status"
+    ],
+    "etw_debugger_evidence": [
+      "ALPC ETW class enabled",
+      "stack capture where available",
+      "debugger !alpc readback",
+      "LPC fallback readback when needed"
+    ],
+    "srev138_dependency": [
+      "ALPC_PORT_ATTRIBUTES sizeof and FIELD_OFFSET proof",
+      "ALPC_MESSAGE_VIEW sizeof and FIELD_OFFSET proof",
+      "mirror-header proof matches capture build"
+    ],
+    "negative_controls": [
+      "connection flags other than ALPC_SYNC_CONNECTION after WOW64 masking",
+      "ALPC_PORT_ATTRIBUTES.Flags not equal to PORT_INFO_CANIMPERSONATE",
+      "non-null connection info on ALPC path",
+      "unknown ALPC_MESSAGE_VIEW bits outside accepted mask",
+      "missing SendView outside unmap special case",
+      "missing ReceiveView outside unmap special case",
+      "missing receive-size pointer outside unmap special case",
+      "message length mismatch with PORT_MESSAGE.TotalLength",
+      "non-ntsvcs non-plugplay endpoint preserves native behavior"
+    ]
+  }
+}

@@ -1,0 +1,137 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-138-alpc-local-header-contract.schema.json",
+  "title": "SREV-138 ALPC local header contract",
+  "id": "ALPC_LOCAL_HEADER_CONTRACT",
+  "owner": "Sandboxie/core/drv/alpc.h",
+  "type": "object",
+  "properties": {
+    "local_abi_header": {
+      "type": "string",
+      "description": "alpc.h projects native LPC/ALPC message and port ABI shapes into Sandboxie"
+    },
+    "mirror_header": {
+      "type": "string",
+      "description": "Sandboxie/common/win32_ntddk.h mirrors the same ALPC constants and structures"
+    },
+    "message_carrier": {
+      "type": "string",
+      "description": "PORT_MESSAGE is the local carrier header for LPC/ALPC request, reply, and endpoint-policy payloads"
+    },
+    "private_shape_gate": {
+      "type": "string",
+      "description": "ALPC attribute/view fields are private ABI projections and require Windows runtime capture before mutation"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows LPC/ALPC service, proxy, and endpoint-policy runtime proof"
+    },
+    "shared_capture_playbook": {
+      "type": "string",
+      "description": "Shared SREV-015/SREV-138 playbook and schema define runtime evidence records before ALPC ABI or flag mutation"
+    }
+  },
+  "required": [
+    "local_abi_header",
+    "mirror_header",
+    "message_carrier",
+    "private_shape_gate",
+    "runtime_matrix",
+    "shared_capture_playbook"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "alpc.h is a local ABI header and not the authoritative Windows ALPC schema",
+    "The ALPC attribute and message-view block is private-research-derived and must not be silently treated as an official Microsoft DDI",
+    "Sandboxie/core/drv/alpc.h and Sandboxie/common/win32_ntddk.h must keep shared ALPC constants and structure field names in sync",
+    "PORT_MESSAGE remains the local carrier header for Sandboxie LPC and ALPC message parsing",
+    "MAX_PORTMSG_LENGTH remains 328 because service driver and wire structs allocate fixed buffers around that value",
+    "Endpoint policy may read payload bytes only after validating the PORT_MESSAGE header and relevant DataLength TotalLength or offset range",
+    "Changes to ALPC_MESSAGE_VIEW or ALPC flags require Windows runtime capture because source-level checking cannot prove the private ABI shape",
+    "runtime capture must prove the local header mirror still matches private LPC/ALPC shapes across DLL service and driver boundaries before ABI mutation",
+    "SREV-015 and SREV-138 share docs/plan/srev-015-138-alpc-runtime-capture.schema.json as the machine-readable Windows evidence shape"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--500-999-",
+    "https://learn.microsoft.com/en-us/windows/win32/etw/alpc",
+    "https://learn.microsoft.com/en-us/windows-hardware/test/wpt/event",
+    "https://learn.microsoft.com/en-us/windows-hardware/test/wpt/stack-wpa",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/-lpc",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-security_quality_of_service"
+  ],
+  "runtime_capture_matrix": {
+    "builds": [
+      "supported Windows 10 x86",
+      "supported Windows 10 x64",
+      "supported Windows 11 x64",
+      "supported Windows 11 ARM64 where built"
+    ],
+    "mirror_header_proof": [
+      "shared constants",
+      "field names",
+      "field widths",
+      "sizeof(PORT_MESSAGE)",
+      "sizeof(PORT_DATA_INFO)",
+      "sizeof(ALPC_PORT_ATTRIBUTES)",
+      "sizeof(ALPC_MESSAGE_VIEW)",
+      "FIELD_OFFSET values"
+    ],
+    "port_calls": [
+      "NtCreatePort",
+      "NtConnectPort",
+      "NtSecureConnectPort",
+      "NtRequestPort",
+      "NtRequestWaitReplyPort",
+      "NtReplyWaitReceivePort",
+      "NtImpersonateClientOfPort",
+      "NtAlpcConnectPort",
+      "NtAlpcSendWaitReceivePort"
+    ],
+    "proxy_paths": [
+      "PipeServer.cpp old LPC request/reply",
+      "namedpipeserver.cpp ALPC connect",
+      "dll/ipc.c ALPC send/wait/receive",
+      "ipc_port.c driver endpoint policy"
+    ],
+    "message_fields": [
+      "DataLength",
+      "TotalLength",
+      "Type",
+      "DataInfoOffset",
+      "ClientId",
+      "MessageId",
+      "ClientViewSize",
+      "CallbackId",
+      "MAX_PORTMSG_LENGTH boundary"
+    ],
+    "alpc_private_fields": [
+      "ALPC_PORT_ATTRIBUTES.Flags",
+      "SecurityQos",
+      "MaxMessageLength",
+      "ALPC_MESSAGE_VIEW.SendFlags",
+      "ALPC_MESSAGE_VIEW.ReceiveFlags",
+      "ReplyLength",
+      "MessageId",
+      "CallbackId",
+      "ViewBase",
+      "ViewSize",
+      "ALPC_MESSAGE_FLAG_VIEW mapped-view path"
+    ],
+    "endpoint_policy_payloads": [
+      "LSA RPC endpoint traffic",
+      "SAM RPC endpoint traffic",
+      "spooler RPC endpoint traffic",
+      "dynamic RPC port traffic",
+      "malformed short payloads"
+    ],
+    "negative_controls": [
+      "message longer than MAX_PORTMSG_LENGTH",
+      "TotalLength below sizeof(PORT_MESSAGE)",
+      "DataLength plus PORT_MESSAGE header beyond TotalLength",
+      "nonzero DataInfoOffset where rejected",
+      "unknown ALPC_MESSAGE_VIEW flags outside the accepted mask",
+      "SQOS impersonation settings that do not permit proxy behavior",
+      "mirror-header sizeof or FIELD_OFFSET drift"
+    ]
+  }
+}

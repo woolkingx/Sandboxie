@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-117-process-util-allocation-lifetime.schema.json",
+  "title": "SREV-117 process util allocation lifetime",
+  "id": "PROCESS_UTIL_ALLOCATION_LIFETIME",
+  "owner": "Sandboxie/core/drv/process_util.c",
+  "type": "object",
+  "properties": {
+    "allocation_shape": {
+      "type": "string",
+      "description": "Pool allocation may fail and returns a nullable pointer"
+    },
+    "thread_context_owner": {
+      "type": "string",
+      "description": "Caller owns schedule-kill context until successful PsCreateSystemThread transfer"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows build and fault-injection proof for allocation and system-thread failure paths"
+    }
+  },
+  "required": [
+    "allocation_shape",
+    "thread_context_owner",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Mem_Alloc may return NULL because its pool backend may fail allocation",
+    "any buffer passed to RtlStringCbPrintfW must be allocated before use",
+    "Process_LogMessage may skip logging when transient log-text allocation fails",
+    "Process_ScheduleKill owns the two-slot thread context until PsCreateSystemThread succeeds",
+    "after PsCreateSystemThread succeeds Process_ScheduleKillProc owns and frees the thread context",
+    "if PsCreateSystemThread fails Process_ScheduleKill frees the thread context and returns FALSE",
+    "the returned system-thread handle remains closed by the caller after successful PsCreateSystemThread",
+    "this SREV does not change termination policy delay retry behavior process handle access masks service-cancel fallback log message ids or worker termination status"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-exallocatepoolwithtag",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-pscreatesystemthread",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwclose",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntstrsafe/nf-ntstrsafe-rtlstringcbprintfw"
+  ]
+}

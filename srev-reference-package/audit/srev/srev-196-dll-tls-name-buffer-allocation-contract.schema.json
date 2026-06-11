@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "DLL_TLS_NAME_BUFFER_ALLOCATION_CONTRACT",
+  "owner": "Sandboxie/core/dll/dllmem.c",
+  "entry_surface": "Sandboxie/core/dll/dll.h",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-tlsalloc",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-tlsgetvalue",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-tlssetvalue"
+  ],
+  "data_shapes": {
+    "pool_allocation": {
+      "caller_size": "ULONG byte count",
+      "hidden_prefix": "sizeof(ULONG_PTR)",
+      "debug_padding": "optional 128 byte guard when DEBUG_MEMORY is enabled",
+      "invariant": "all additions are checked before Pool_Alloc receives an ULONG size"
+    },
+    "thread_data_tls": {
+      "slot_owner": "Dll_TlsIndex from TlsAlloc",
+      "stored_value": "THREAD_DATA pointer or NULL",
+      "invariant": "THREAD_DATA is zeroed and returned only after allocation succeeds; failed TlsSetValue frees the allocation"
+    },
+    "tls_name_buffer": {
+      "index": "name_buffer[which][name_buffer_depth]",
+      "length": "rounded byte count",
+      "invariant": "replacement pointer and length are published only after allocation succeeds"
+    },
+    "name_buffer_depth": {
+      "range": "0 <= name_buffer_depth < NAME_BUFFER_DEPTH",
+      "invariant": "push and pop validate the transition before out-of-range indexing"
+    }
+  },
+  "contracts": [
+    "TlsAlloc failure is represented by TLS_OUT_OF_INDEXES",
+    "TlsGetValue may return NULL for a valid empty slot and clears last error on success",
+    "TlsSetValue returns zero on failure and must be checked before TLS publication is trusted",
+    "Dll_AllocFromPool checks ULONG addition before adding debug padding and the hidden ULONG_PTR prefix",
+    "Dll_GetTlsData checks Dll_Alloc before memzero",
+    "Dll_GetTlsData frees THREAD_DATA if TlsSetValue fails",
+    "Dll_GetTlsNameBuffer checks page-rounding arithmetic before allocation",
+    "Dll_GetTlsNameBuffer uses a temporary pointer before publishing name_buffer and name_buffer_len",
+    "Dll_PushTlsNameBuffer checks depth before incrementing and indexing name_buffer_count",
+    "Dll_PopTlsNameBuffer prevents negative depth",
+    "DEBUG_MEMORY name-buffer checks use name_buffer_depth"
+  ],
+  "runtime_gate": "Windows DLL build plus allocation/TLS/depth fault-injection smoke",
+  "status": "patched-source-needs-windows-runtime"
+}

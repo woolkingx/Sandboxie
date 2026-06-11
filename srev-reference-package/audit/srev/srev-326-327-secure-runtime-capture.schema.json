@@ -1,0 +1,267 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-326-327-secure-runtime-capture.schema.json",
+  "title": "SREV-326/SREV-327 secure runtime capture evidence",
+  "id": "SECURE_RUNTIME_CAPTURE_EVIDENCE",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "record_id",
+    "windows_build",
+    "architecture",
+    "sandboxie_commit",
+    "box_name",
+    "process_image",
+    "capture_tool",
+    "feature_path",
+    "route_result",
+    "accesscheck",
+    "appinfo_binding",
+    "negative_control",
+    "evidence"
+  ],
+  "properties": {
+    "record_id": {
+      "type": "string"
+    },
+    "windows_build": {
+      "type": "string"
+    },
+    "architecture": {
+      "type": "string",
+      "enum": ["x86", "x64", "wow64", "arm64"]
+    },
+    "sandboxie_commit": {
+      "type": "string"
+    },
+    "box_name": {
+      "type": "string"
+    },
+    "process_image": {
+      "type": "string"
+    },
+    "capture_tool": {
+      "type": "string"
+    },
+    "feature_path": {
+      "type": "string",
+      "enum": ["accesscheck-bypass", "appinfo-binding-probe", "combined"]
+    },
+    "route_result": {
+      "type": "string",
+      "enum": [
+        "bypass",
+        "native-forward",
+        "real-token-forward",
+        "probe-match",
+        "probe-miss",
+        "probe-exception",
+        "rejected",
+        "combined"
+      ]
+    },
+    "accesscheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "caller_class",
+        "allowlisted",
+        "desired_access",
+        "generic_mapping",
+        "security_descriptor_class",
+        "object_type_list_class",
+        "token_shape",
+        "native_ran",
+        "granted_access",
+        "access_status",
+        "last_error",
+        "return_status"
+      ],
+      "properties": {
+        "caller_class": {
+          "type": "string",
+          "enum": [
+            "sandboxie-bits",
+            "sandboxie-wuau",
+            "wuauclt",
+            "non-allowlisted",
+            "not_applicable"
+          ]
+        },
+        "allowlisted": {
+          "type": "boolean"
+        },
+        "desired_access": {
+          "type": "string"
+        },
+        "generic_mapping": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["generic_read", "generic_write", "generic_execute", "generic_all"],
+          "properties": {
+            "generic_read": {"type": "string"},
+            "generic_write": {"type": "string"},
+            "generic_execute": {"type": "string"},
+            "generic_all": {"type": "string"}
+          }
+        },
+        "security_descriptor_class": {
+          "type": "string",
+          "enum": [
+            "allow-dacl",
+            "deny-dacl",
+            "null-dacl",
+            "owner-specific",
+            "group-specific",
+            "object-type-specific",
+            "not_applicable"
+          ]
+        },
+        "object_type_list_class": {
+          "type": "string"
+        },
+        "token_shape": {
+          "type": "string",
+          "enum": [
+            "sandboxed-restricted",
+            "real-token-substitution",
+            "non-admin",
+            "admin",
+            "owner-match",
+            "not_applicable"
+          ]
+        },
+        "native_ran": {
+          "type": "boolean"
+        },
+        "granted_access": {
+          "type": "string"
+        },
+        "access_status": {
+          "type": "string"
+        },
+        "last_error": {
+          "type": "string"
+        },
+        "return_status": {
+          "type": "string"
+        }
+      }
+    },
+    "appinfo_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "call_path",
+        "async_state_size",
+        "notification_type",
+        "event_present",
+        "binding_value_class",
+        "rpc_binding_inq_object_status",
+        "rpc_binding_object_uuid",
+        "official_object_uuid_result",
+        "offset_of_binding_guid",
+        "guid_probe_result",
+        "exception_code",
+        "guard_fired_before_memcmp",
+        "elevation_type",
+        "result_handle_slot",
+        "appinfo_call_identity",
+        "broker_result"
+      ],
+      "properties": {
+        "call_path": {
+          "type": "string",
+          "enum": [
+            "type-1-process-elevation",
+            "type-2-token-elevation",
+            "non-appinfo-async-rpc",
+            "ordinary-non-elevation-rpc",
+            "not_applicable"
+          ]
+        },
+        "async_state_size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "notification_type": {
+          "type": "string"
+        },
+        "event_present": {
+          "type": "boolean"
+        },
+        "binding_value_class": {
+          "type": "string",
+          "enum": [
+            "null",
+            "small-handle-like",
+            "readable-local-pointer",
+            "unreadable-pointer",
+            "rpc-handle-like-opaque",
+            "not_applicable"
+          ]
+        },
+        "rpc_binding_inq_object_status": {
+          "type": "string"
+        },
+        "rpc_binding_object_uuid": {
+          "type": "string"
+        },
+        "official_object_uuid_result": {
+          "type": "string",
+          "enum": ["match", "miss", "invalid_binding", "unavailable", "not_reached", "not_applicable"]
+        },
+        "offset_of_binding_guid": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "guid_probe_result": {
+          "type": "string",
+          "enum": ["match", "miss", "not_reached", "not_applicable"]
+        },
+        "exception_code": {
+          "type": "string"
+        },
+        "guard_fired_before_memcmp": {
+          "type": "boolean"
+        },
+        "elevation_type": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2
+        },
+        "result_handle_slot": {
+          "type": "string"
+        },
+        "appinfo_call_identity": {
+          "type": "string"
+        },
+        "broker_result": {
+          "type": "string"
+        }
+      }
+    },
+    "negative_control": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "expected", "actual", "passed"],
+      "properties": {
+        "name": {"type": "string"},
+        "expected": {"type": "string"},
+        "actual": {"type": "string"},
+        "passed": {"type": "boolean"}
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["trace_path", "debugger_transcript", "capture_timestamp", "notes"],
+      "properties": {
+        "trace_path": {"type": "string"},
+        "debugger_transcript": {"type": "string"},
+        "capture_timestamp": {"type": "string"},
+        "notes": {"type": "string"}
+      }
+    }
+  }
+}

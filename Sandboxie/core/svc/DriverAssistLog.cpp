@@ -42,10 +42,17 @@
 bool GetUserNameFromProcess(DWORD pid, WCHAR* user, DWORD userSize, WCHAR* domain, DWORD domainSize)
 {
     bool bRet = false;
+    DWORD userCapacity = userSize;
+    DWORD domainCapacity = domainSize;
+    if (!user || !domain || !userCapacity || !domainCapacity)
+        return false;
+    user[0] = L'\0';
+    domain[0] = L'\0';
+
     HANDLE hToken = (HANDLE)SbieApi_QueryProcessInfo((HANDLE)pid, 'ptok');
     if(hToken != NULL)
     {
-        BYTE data[64]; // needed 44 = sizeof(TOKEN_USER) + sizeof(SID_AND_ATTRIBUTES) + sizeof(SID)
+        BYTE data[sizeof(TOKEN_USER) + SECURITY_MAX_SID_SIZE];
         DWORD tokenSize = sizeof(data);
         if(GetTokenInformation(hToken, TokenUser, data, tokenSize, &tokenSize))
         {
@@ -53,8 +60,8 @@ bool GetUserNameFromProcess(DWORD pid, WCHAR* user, DWORD userSize, WCHAR* domai
             PSID pSID = pUser->User.Sid;
             SID_NAME_USE sidName;
             if (LookupAccountSid(NULL, pSID, user, &userSize, domain, &domainSize, &sidName)) {
-                user[userSize] = L'\0';
-                domain[domainSize] = L'\0';
+                user[userCapacity - 1] = L'\0';
+                domain[domainCapacity - 1] = L'\0';
                 bRet = true;
             }
         }

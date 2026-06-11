@@ -3467,9 +3467,21 @@ bool CSandMan::SetCertificate(const QByteArray& Certificate)
 	return Status;
 }
 
+static bool CSandMan_IsLocalTestMode()
+{
+	if (!theAPI)
+		return false;
+
+	QString value = theAPI->SbieIniGet("GlobalSettings", "Test", 0).trimmed().toLower();
+	return value == "true" || value == "yes" || value == "y" || value == "1" || value == "on";
+}
 
 bool CSandMan::CheckCertificate(QWidget* pWidget, int iType)
 {
+	// LTEST-002: local-only UI gate. The driver owns core Test=true enforcement.
+	if (CSandMan_IsLocalTestMode())
+		return true;
+
 	QString Message;
 	if (iType == 1 || iType == 2)
 	{

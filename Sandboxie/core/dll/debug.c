@@ -488,7 +488,9 @@ void DbgPrint(const char* format, ...)
     char tmp1[510];
 
     extern int(__cdecl *P_vsnprintf)(char *_Buffer, size_t Count, const char * const, va_list Args);
-    P_vsnprintf(tmp1, sizeof(tmp1), format, va_args);
+    tmp1[0] = '\0';
+    P_vsnprintf(tmp1, sizeof(tmp1) - 1, format, va_args);
+    tmp1[sizeof(tmp1) - 1] = '\0';
 
     OutputDebugStringA(tmp1);
 
@@ -511,7 +513,9 @@ void DbgTrace(const char* format, ...)
     WCHAR tmp2[510];
 
     extern int(__cdecl *P_vsnprintf)(char *_Buffer, size_t Count, const char * const, va_list Args);
-    P_vsnprintf(tmp1, sizeof(tmp1), format, va_args);
+    tmp1[0] = '\0';
+    P_vsnprintf(tmp1, sizeof(tmp1) - 1, format, va_args);
+    tmp1[sizeof(tmp1) - 1] = '\0';
 
     Sbie_snwprintf((WCHAR *)tmp2, sizeof(tmp2)/sizeof(WCHAR), L"%S", tmp1);
 

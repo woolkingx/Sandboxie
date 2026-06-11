@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "WFP_RULE_LOAD_FAIL_CLOSED_LOGGING",
+  "title": "WFP rule load fail-closed logging boundary",
+  "type": "object",
+  "owner": "Sandboxie/core/drv/wfp.c",
+  "stage": "schema -> topology -> action -> verify",
+  "source_functions": [
+    "WFP_LoadRules",
+    "WFP_UpdateProcess",
+    "WFP_FreeRules"
+  ],
+  "contracts": [
+    "WFP_LoadRules owns NetworkAccess rule construction and concrete allocation failure logging",
+    "NetFw_AllocRule failure logs MSG_1201 with the process session id and pid before WFP_LoadRules returns false",
+    "WFP_UpdateProcess owns the fail-closed transition when rule loading fails",
+    "WFP_UpdateProcess must not duplicate the MSG_1201 popup for the same allocation failure",
+    "Partially loaded NewNetFwRules move to OldNetFwRules before cleanup when rule loading fails",
+    "BlockInternet true is the local fail-closed state for a WFP rule-load failure",
+    "This SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-ioallocateerrorlogentry",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_io_error_log_packet",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-iowriteerrorlogentry",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntstrsafe/nf-ntstrsafe-rtlstringcblengtha"
+  ],
+  "local_edges": [
+    "NetworkAccess setting -> WFP_LoadRules -> NETFW_RULE allocation parse append",
+    "NetFw_AllocRule failure -> Log_Msg_Process MSG_1201 session_id pid -> false return",
+    "WFP_LoadRules false -> NewNetFwRules moved to OldNetFwRules",
+    "WFP_LoadRules false -> BlockInternet true",
+    "OldNetFwRules -> WFP_FreeRules cleanup"
+  ],
+  "runtime_gate": "Windows WFP rule-load allocation-failure injection or low-memory test proves one MSG_1201 and fail-closed internet blocking with partial rule list cleanup",
+  "status": "patched-comment-topology-no-behavior-change-needs-windows-runtime-injection-proof"
+}

@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "SANDMAN_TEST_UI_CERTIFICATE_GATE",
+  "title": "LTEST-002 SandMan Test UI Certificate Gate",
+  "type": "object",
+  "owner": "SandboxiePlus/SandMan/SandMan.cpp",
+  "required": [
+    "setting",
+    "helper",
+    "consumer",
+    "contracts",
+    "runtime_gate"
+  ],
+  "properties": {
+    "setting": {
+      "const": "Test"
+    },
+    "helper": {
+      "const": "CSandMan_IsLocalTestMode"
+    },
+    "consumer": {
+      "const": "CSandMan::CheckCertificate"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 6
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "setting": "Test",
+  "helper": "CSandMan_IsLocalTestMode",
+  "consumer": "CSandMan::CheckCertificate",
+  "contracts": [
+    "Test=true is a local SandMan UI test setting, not a supporter certificate",
+    "the setting is read from Sandboxie.ini GlobalSettings Test",
+    "accepted true spellings are true yes y 1 and on",
+    "CSandMan::CheckCertificate returns true under the local UI test gate before showing the supporter-certificate QMessageBox",
+    "the local UI test gate must not mutate g_CertInfo or certificate parsing state",
+    "the local UI test gate must not change driver feature flags or core process enforcement",
+    "this local test entry is not an SREV and must not be included in the upstream-facing SREV/KPATH ledger"
+  ],
+  "runtime_gate": "Windows SandMan smoke with Sandboxie.ini [GlobalSettings] Test=true proving supporter-certificate warning dialogs are suppressed while driver feature enforcement remains owned by LTEST-001 core gates"
+}

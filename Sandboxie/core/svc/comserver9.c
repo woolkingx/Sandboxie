@@ -31,6 +31,7 @@
 
 #define COBJMACROS
 #include <objbase.h>
+#include <oleauto.h>
 #include <docobj.h>
 #include <htiface.h>
 #include "htiface7.h"
@@ -498,7 +499,7 @@ _FX HRESULT ComServer_IClassFactory_CreateInstance(
     } else
         hr = E_NOINTERFACE;
 
-    return S_OK;
+    return hr;
 }
 
 

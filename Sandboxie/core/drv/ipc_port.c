@@ -136,8 +136,21 @@ NTSTATUS Ipc_CheckPortRequest_Dynamic(
     PROCESS *proc, OBJECT_NAME_INFORMATION *Name, PORT_MESSAGE *msg);
 
 
+static ULONG Ipc_DynamicPortSize(ULONG FilterCount);
+
+static IPC_DYNAMIC_PORT *Ipc_CreateDynamicPort(
+    const WCHAR *PortId,
+    const WCHAR *PortName,
+    ULONG FilterCount,
+    UCHAR *FilterIDs,
+    NTSTATUS *Status);
+
 static NTSTATUS Ipc_Api_GetRpcPortName_2(
     PEPROCESS ProcessObject, WCHAR* pDstPortName);
+
+static void Ipc_TraceRpcMsgShape(
+    PROCESS *proc, const WCHAR *endpoint_name,
+    UCHAR *data, ULONG data_len, UCHAR msg_id);
 
 
 //---------------------------------------------------------------------------
@@ -148,6 +161,142 @@ static NTSTATUS Ipc_Api_GetRpcPortName_2(
 IPC_DYNAMIC_PORTS Ipc_Dynamic_Ports;
 
 static const WCHAR* _rpc_control = L"\\RPC Control";
+
+
+//---------------------------------------------------------------------------
+// Ipc_DynamicPortSize
+//---------------------------------------------------------------------------
+
+
+_FX ULONG Ipc_DynamicPortSize(ULONG FilterCount)
+{
+    if (FilterCount > ((ULONG)-1) - sizeof(IPC_DYNAMIC_PORT))
+        return 0;
+
+    return sizeof(IPC_DYNAMIC_PORT) + sizeof(UCHAR) * FilterCount;
+}
+
+
+//---------------------------------------------------------------------------
+// Ipc_CreateDynamicPort
+//---------------------------------------------------------------------------
+
+
+_FX IPC_DYNAMIC_PORT *Ipc_CreateDynamicPort(
+    const WCHAR *PortId,
+    const WCHAR *PortName,
+    ULONG FilterCount,
+    UCHAR *FilterIDs,
+    NTSTATUS *Status)
+{
+    ULONG port_len = Ipc_DynamicPortSize(FilterCount);
+    IPC_DYNAMIC_PORT *port;
+
+    if (! port_len) {
+        *Status = STATUS_INVALID_PARAMETER;
+        return NULL;
+    }
+
+    port = Mem_AllocEx(Driver_Pool, port_len, TRUE);
+    if (! port) {
+        Log_Msg0(MSG_1104);
+        *Status = STATUS_INSUFFICIENT_RESOURCES;
+        return NULL;
+    }
+
+    wmemcpy(port->wstrPortId, PortId, DYNAMIC_PORT_ID_CHARS);
+    wmemcpy(port->wstrPortName, PortName, DYNAMIC_PORT_NAME_CHARS);
+
+    port->FilterCount = FilterCount;
+    if (port->FilterCount > 0)
+    {
+        try {
+            ProbeForRead(FilterIDs, sizeof(UCHAR) * port->FilterCount, sizeof(UCHAR));
+            memcpy(port->FilterIDs, FilterIDs, sizeof(UCHAR) * port->FilterCount);
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            *Status = GetExceptionCode();
+            Mem_Free(port, port_len);
+            return NULL;
+        }
+    }
+
+    *Status = STATUS_SUCCESS;
+    return port;
+}
+
+
+//---------------------------------------------------------------------------
+// Ipc_GetRpcMsgId
+//---------------------------------------------------------------------------
+
+
+_FX BOOLEAN Ipc_GetRpcMsgId(
+    PROCESS *proc, const WCHAR *endpoint_name,
+    UCHAR *data, ULONG data_len, UCHAR *msg_id)
+{
+    //
+    // Existing endpoint filters empirically treat payload byte 20 as the
+    // operation/message id. Keep that compatibility point centralized and
+    // traced until the observed local-RPC payload shape is proven.
+    //
+
+    if (data_len <= 20) {
+
+        if (Session_MonitorCount && (proc->ipc_trace & (TRACE_ALLOW | TRACE_DENY))) {
+            WCHAR msg_str[64];
+            RtlStringCbPrintfW(msg_str, sizeof(msg_str),
+                L"RPC: malformed Len=%lu", data_len);
+            Log_Debug_Msg(MONITOR_IPC | MONITOR_DENY | MONITOR_TRACE,
+                msg_str, endpoint_name);
+        }
+
+        return FALSE;
+    }
+
+    *msg_id = data[20];
+
+    Ipc_TraceRpcMsgShape(proc, endpoint_name, data, data_len, *msg_id);
+
+    return TRUE;
+}
+
+
+//---------------------------------------------------------------------------
+// Ipc_TraceRpcMsgShape
+//---------------------------------------------------------------------------
+
+
+_FX void Ipc_TraceRpcMsgShape(
+    PROCESS *proc, const WCHAR *endpoint_name,
+    UCHAR *data, ULONG data_len, UCHAR msg_id)
+{
+    if (!Session_MonitorCount || !(proc->ipc_trace & (TRACE_ALLOW | TRACE_DENY)))
+        return;
+
+    if (data_len >= 16) {
+        WCHAR msg_str[160];
+        RtlStringCbPrintfW(msg_str, sizeof(msg_str),
+            L"RPC0: Len=%lu Msg20=%02X B00-15=%02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
+            data_len, (ULONG)msg_id,
+            data[0], data[1], data[2], data[3],
+            data[4], data[5], data[6], data[7],
+            data[8], data[9], data[10], data[11],
+            data[12], data[13], data[14], data[15]);
+        Log_Debug_Msg(MONITOR_IPC | MONITOR_TRACE, msg_str, endpoint_name);
+    }
+
+    if (data_len >= 32) {
+        WCHAR msg_str[160];
+        RtlStringCbPrintfW(msg_str, sizeof(msg_str),
+            L"RPC1: B16-31=%02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
+            data[16], data[17], data[18], data[19],
+            data[20], data[21], data[22], data[23],
+            data[24], data[25], data[26], data[27],
+            data[28], data[29], data[30], data[31]);
+        Log_Debug_Msg(MONITOR_IPC | MONITOR_TRACE, msg_str, endpoint_name);
+    }
+}
 
 
 //---------------------------------------------------------------------------
@@ -599,6 +748,31 @@ _FX NTSTATUS Ipc_AlpcSendWaitReceivePort(
 // Param 2 is the process PID for which to open the port, can be 0 when port is special
 // Param 3 is the port type/identifier
 
+
+static NTSTATUS Ipc_CopyFixedUserWString(
+    WCHAR *dst, const WCHAR *src, ULONG chars)
+{
+    ULONG i;
+
+    wmemzero(dst, chars);
+    if (! src)
+        return STATUS_INVALID_PARAMETER;
+
+    ProbeForRead((WCHAR *)src, sizeof(WCHAR) * chars, sizeof(WCHAR));
+
+    for (i = 0; i < chars - 1; ++i) {
+        if (src[i] == L'\0')
+            break;
+        dst[i] = src[i];
+    }
+
+    if ((! i) || (i == chars - 1))
+        return STATUS_INVALID_PARAMETER;
+
+    return STATUS_SUCCESS;
+}
+
+
 _FX NTSTATUS Ipc_Api_OpenDynamicPort(PROCESS* proc, ULONG64* parms)
 {
     NTSTATUS status = STATUS_SUCCESS;
@@ -616,15 +790,15 @@ _FX NTSTATUS Ipc_Api_OpenDynamicPort(PROCESS* proc, ULONG64* parms)
     if (pArgs->port_name.val == NULL)
         return STATUS_INVALID_PARAMETER;
     try {
-        ProbeForRead(pArgs->port_name.val, sizeof(WCHAR) * DYNAMIC_PORT_NAME_CHARS, sizeof(WCHAR));
-        wmemcpy(portName, pArgs->port_name.val, DYNAMIC_PORT_NAME_CHARS - 1);
-        portName[DYNAMIC_PORT_NAME_CHARS - 1] = L'\0';
+        status = Ipc_CopyFixedUserWString(
+            portName, pArgs->port_name.val, DYNAMIC_PORT_NAME_CHARS);
+        if (!NT_SUCCESS(status))
+            __leave;
 
         if (pArgs->port_id.val == NULL)
             __leave;
-        ProbeForRead(pArgs->port_id.val, sizeof(WCHAR) * DYNAMIC_PORT_ID_CHARS, sizeof(WCHAR));
-        wmemcpy(portId, pArgs->port_id.val, DYNAMIC_PORT_ID_CHARS - 1);
-        portId[DYNAMIC_PORT_ID_CHARS - 1] = L'\0';
+        status = Ipc_CopyFixedUserWString(
+            portId, pArgs->port_id.val, DYNAMIC_PORT_ID_CHARS);
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
         status = GetExceptionCode();
@@ -638,6 +812,12 @@ _FX NTSTATUS Ipc_Api_OpenDynamicPort(PROCESS* proc, ULONG64* parms)
 
     if (pArgs->port_id.val != NULL && Ipc_Dynamic_Ports.pPortLock)
     {
+        IPC_DYNAMIC_PORT* new_port = Ipc_CreateDynamicPort(
+            portId, portName, pArgs->filter_num.val,
+            (UCHAR*)pArgs->filter_ids.val, &status);
+        if (! NT_SUCCESS(status))
+            return status;
+
         KeEnterCriticalRegion();
         ExAcquireResourceExclusiveLite(Ipc_Dynamic_Ports.pPortLock, TRUE);
 
@@ -646,7 +826,13 @@ _FX NTSTATUS Ipc_Api_OpenDynamicPort(PROCESS* proc, ULONG64* parms)
         {    
             if (_wcsicmp(portId, port->wstrPortId) == 0)
             {
-                wmemcpy(port->wstrPortName, portName, DYNAMIC_PORT_NAME_CHARS);
+                List_Insert_After(&Ipc_Dynamic_Ports.Ports, port, new_port);
+                List_Remove(&Ipc_Dynamic_Ports.Ports, port);
+
+                if (_wcsicmp(new_port->wstrPortId, L"spooler") == 0)
+                    Ipc_Dynamic_Ports.pSpoolerPort = new_port;
+
+                Mem_Free(port, Ipc_DynamicPortSize(port->FilterCount));
                 break;
             }
 
@@ -655,32 +841,10 @@ _FX NTSTATUS Ipc_Api_OpenDynamicPort(PROCESS* proc, ULONG64* parms)
 
         if (port == NULL) 
         {
-            port = Mem_AllocEx(Driver_Pool, sizeof(IPC_DYNAMIC_PORT) + sizeof(UCHAR) * pArgs->filter_num.val, TRUE);
-            if (!port)
-                Log_Msg0(MSG_1104);
-            else
-            {
-                wmemcpy(port->wstrPortId, portId, DYNAMIC_PORT_ID_CHARS);
-                wmemcpy(port->wstrPortName, portName, DYNAMIC_PORT_NAME_CHARS);
+            if (_wcsicmp(new_port->wstrPortId, L"spooler") == 0)
+                Ipc_Dynamic_Ports.pSpoolerPort = new_port;
 
-                if (_wcsicmp(port->wstrPortId, L"spooler") == 0)
-                    Ipc_Dynamic_Ports.pSpoolerPort = port;
-
-                port->FilterCount = pArgs->filter_num.val;
-                if (port->FilterCount > 0)
-                {
-                    try {
-                        ProbeForRead(pArgs->filter_ids.val, sizeof(UCHAR) * port->FilterCount, sizeof(UCHAR));
-                        memcpy(port->FilterIDs, pArgs->filter_ids.val, sizeof(UCHAR) * port->FilterCount);
-                    }
-                    __except (EXCEPTION_EXECUTE_HANDLER) {
-                        status = GetExceptionCode();
-                    }
-                }
-
-                if (NT_SUCCESS(status))
-                    List_Insert_After(&Ipc_Dynamic_Ports.Ports, NULL, port);
-            }
+            List_Insert_After(&Ipc_Dynamic_Ports.Ports, NULL, new_port);
         }
 
         ExReleaseResourceLite(Ipc_Dynamic_Ports.pPortLock);
@@ -755,7 +919,11 @@ _FX NTSTATUS Ipc_CheckPortRequest_Dynamic(
 
                             ProbeForRead(ptr, len, sizeof(WCHAR));
 
-                            UCHAR uMsg = ptr[20];
+                            UCHAR uMsg;
+                            if (!Ipc_GetRpcMsgId(proc, port->wstrPortName, ptr, len, &uMsg)) {
+                                status = STATUS_INVALID_PARAMETER;
+                                break;
+                            }
 
                             //
                             // apply filter

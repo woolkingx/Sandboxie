@@ -31,6 +31,8 @@
 
 
 #define LDR_NUM_CALLBACKS 8 
+#define LDR_DLL_NOTIFICATION_REASON_LOADED 1
+#define LDR_DLL_NOTIFICATION_REASON_UNLOADED 2
 
 
 //---------------------------------------------------------------------------
@@ -42,6 +44,7 @@ typedef struct tagDLL {
     const WCHAR *nameW;
     BOOLEAN(*init_func)(HMODULE);
     int state;
+    BOOLEAN(*unload_func)(HMODULE);
 } DLL;
 
 typedef struct _LDR_DLL_LOADED_NOTIFICATION_DATA {
@@ -199,13 +202,13 @@ static DLL Ldr_Dlls[] = {
     { L"sxs.dll",               Sxs_Init,                       0}, // add message to SxsInstallW
     { L"ws2_32.dll",            WSA_Init,                       0}, // network restrictions
     { L"iphlpapi.dll",          IpHlp_Init,                     0}, // ping support
-    { L"msi.dll",               Scm_MsiDll,                     0}, // msi installer
+    { L"msi.dll",               Scm_MsiDll,                     0, Scm_MsiDll}, // msi installer
     { L"secur32.dll",           Lsa_Init_Secur32,               0}, // xp, vista - LsaRegisterLogonProcess
     { L"sspicli.dll",           Lsa_Init_SspiCli,               0}, // win 7 - LsaRegisterLogonProcess
     { L"netapi32.dll",          NetApi_Init,                    0}, // xp, vista - NetUseAdd
     { L"wkscli.dll",            NetApi_Init_WksCli,             0}, // win 7 - NetUseAdd
     { L"pstorec.dll",           Pst_Init,                       0}, // Protected Storage
-    { L"winspool.drv",          Gdi_Init_Spool,                 0}, // print spooler workaround for 32 bit
+    { L"winspool.drv",          Gdi_Init_Spool,                 0}, // SREV-287: 32-bit WINSPOOL/SplWow64 printer DC retry
     // Disabled functionality:
     { L"userenv.dll",           UserEnv_Init,                   0}, // disable some GPO stuff
     { L"sfc_os.dll",            Sfc_Init,                       0}, // disable SFC
@@ -216,20 +219,20 @@ static DLL Ldr_Dlls[] = {
     { L"setupapi.dll",          Setup_Init_SetupApi,            0}, // VerifyCatalogFile
     { L"zipfldr.dll",           SH32_Init_ZipFldr,              0},
     { L"uxtheme.dll",           SH32_Init_UxTheme,              0}, // explorer.exe, SetWindowThemeAttribute
-    { L"hnetcfg.dll",           HNet_Init,                      0}, // firewall workaround
-    { L"winnsi.dll",            NsiRpc_Init,                    0}, // WININET workaround
+    { L"hnetcfg.dll",           HNet_Init,                      0}, // SREV-313: private hnetcfg firewall dynamic-port shim
+    { L"winnsi.dll",            NsiRpc_Init,                    0}, // SREV-314: private NSI network-change notification shim
 //    { L"wininet.dll",           Wininet_Init,                   0},
     { L"nsi.dll",               Nsi_Init,                       0},
     { L"advpack.dll",           Proc_Init_AdvPack,              0}, // fix for IE
-    { L"dwrite.dll",            Scm_DWriteDll,                  0}, // hack for IE 9, make sure FontCache is running
+    { L"dwrite.dll",            Scm_DWriteDll,                  0}, // SREV-315: DirectWrite FontCache service-start shim
     { L"ComDlg32.dll",          ComDlg32_Init,                  0}, // fix for opera.exe
-    { L"ntmarta.dll",           Ntmarta_Init,                   0}, // workaround for chrome and acrobat reader
+    { L"ntmarta.dll",           Ntmarta_Init,                   0}, // SREV-316: window-object security hook selection
     // Non Windows DLLs:
     { L"osppc.dll",             Scm_OsppcDll,                   0}, // ensure osppsvc is running
-    { L"mso.dll",               File_MsoDll,                    0}, // hack for File_IsRecoverable
+    { L"mso.dll",               File_MsoDll,                    0}, // SREV-285: Office recovery filter signal
     { L"agcore.dll",            Custom_SilverlightAgCore,       0}, // msft silverlight - deprecated
 
-    // $Workaround$ - 3rd party fix
+    // SREV-317: non-Microsoft module callback registration group.
 #ifndef _M_ARM64
     // Non Microsoft DLLs:
     { L"acscmonitor.dll",       Acscmonitor_Init,               0},
@@ -285,13 +288,15 @@ void CALLBACK Ldr_LdrDllNotification(ULONG NotificationReason, PLDR_DLL_NOTIFICA
     ULONG_PTR LdrCookie = 0;
     NTSTATUS status = 0;
 
-    if (NotificationReason == 1) {
+    if (NotificationReason == LDR_DLL_NOTIFICATION_REASON_LOADED) {
         status = __sys_LdrLockLoaderLock(0, NULL, &LdrCookie);
-        Ldr_MyDllCallbackNew(NotificationData->Loaded.BaseDllName->Buffer, (HMODULE)NotificationData->Loaded.DllBase, TRUE);
-        __sys_LdrUnlockLoaderLock(0, LdrCookie);
+        if (NT_SUCCESS(status)) {
+            Ldr_MyDllCallbackNew(NotificationData->Loaded.BaseDllName->Buffer, (HMODULE)NotificationData->Loaded.DllBase, TRUE);
+            __sys_LdrUnlockLoaderLock(0, LdrCookie);
+        }
     }
-    else if (NotificationReason == 2) {
-        Ldr_MyDllCallbackNew(NotificationData->Unloaded.BaseDllName->Buffer,  (HMODULE)NotificationData->Loaded.DllBase, FALSE);
+    else if (NotificationReason == LDR_DLL_NOTIFICATION_REASON_UNLOADED) {
+        Ldr_MyDllCallbackNew(NotificationData->Unloaded.BaseDllName->Buffer,  (HMODULE)NotificationData->Unloaded.DllBase, FALSE);
     }
 }
 
@@ -451,7 +456,8 @@ _FX BOOLEAN Ldr_Init()
             return FALSE;
         }
 
-        // Todo: Fix-Me: this hangs some processes on arm64
+        // SREV-318: NtTerminateProcess notification-cookie cleanup remains
+        // disabled; enabling it needs ARM64 process-exit runtime proof.
         //SBIEDLL_HOOK(Ldr_, NtTerminateProcess);
         SBIEDLL_HOOK(Ldr_Win10_, LdrLoadDll);
     }
@@ -1121,6 +1127,11 @@ _FX void Ldr_MyDllCallbackNew(const WCHAR *ImageName, HMODULE ImageBase, BOOL Lo
             }
             else {
                 if (dll->state) {
+                    if (dll->unload_func) {
+                        ok = dll->unload_func(NULL);
+                        if (!ok)
+                            SbieApi_Log(2318, dll->nameW);
+                    }
                     //SbieDll_UnHookModule(ImageBase);
                     EnterCriticalSection(&Ldr_LoadedModules_CritSec);
                     dll->state = 0;
@@ -1418,4 +1429,3 @@ _FX BOOLEAN SbieDll_IsDllSkipHook(const WCHAR* ImageName)
     }
     return FALSE;
 }
-

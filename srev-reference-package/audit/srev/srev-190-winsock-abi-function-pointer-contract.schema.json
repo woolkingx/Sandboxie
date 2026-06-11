@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-190-winsock-abi-function-pointer-contract.schema.json",
+  "title": "SREV-190 Winsock ABI function pointer contract",
+  "id": "WINSOCK_ABI_FUNCTION_POINTER_CONTRACT",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/wsa_defs.h"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 8
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 8
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/dll/wsa_defs.h",
+  "contracts": [
+    "wsa_defs.h owns local Winsock and IP Helper dynamic function pointer ABI declarations",
+    "net.c owns the corresponding Winsock detour entry points installed through SBIEDLL_HOOK",
+    "Winsock function pointers must use WSAAPI to preserve provider call convention",
+    "IP Helper GetAdaptersAddresses must use WINAPI",
+    "socket and WSASocketW must return SOCKET not int",
+    "WSASetLastError must return void",
+    "getsockname must receive a writable output address pointer",
+    "ConnectEx and AcceptEx extension pointers must return BOOL",
+    "ConnectEx detour failure paths must return FALSE not SOCKET_ERROR",
+    "runtime proof is required on x86 and x64 Windows"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-wsastartup",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-send",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-socket",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-wsaaccept",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-wsasetlasterror",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-getsockname",
+    "https://learn.microsoft.com/en-us/windows/win32/api/mswsock/nc-mswsock-lpfn_connectex",
+    "https://learn.microsoft.com/en-us/windows/win32/api/iphlpapi/nf-iphlpapi-getadaptersaddresses"
+  ],
+  "runtime_gate": "Windows x86 and x64 build plus Winsock socket connect ConnectEx send recv sendto recvfrom bind-IP proxy and DNS-filter runtime proof"
+}

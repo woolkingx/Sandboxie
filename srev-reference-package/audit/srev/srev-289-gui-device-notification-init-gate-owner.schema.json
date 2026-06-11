@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "GUI_DEVICE_NOTIFICATION_INIT_GATE_OWNER",
+  "title": "GUI device notification init gate owner",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/gui.c",
+  "stage": "schema -> boundary -> topology -> verify",
+  "source_function": "Gui_Init and Gui_Init3",
+  "contracts": [
+    "Gui_Init owns only the BlockRegisterDeviceNotification configuration gate for Gui_Init3",
+    "Gui_Init3 owns the RegisterDeviceNotificationA W and UnregisterDeviceNotification hook group installation",
+    "SREV-083 owns the fake notification handle and unregister forwarding runtime behavior",
+    "A and W RegisterDeviceNotification hooks preserve the existing same-address alias branch",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-registerdevicenotificationa",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-registerdevicenotificationw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-unregisterdevicenotification"
+  ],
+  "local_edges": [
+    "Gui_Init -> BlockRegisterDeviceNotification config gate",
+    "config gate true -> Gui_Init3",
+    "Gui_Init3 -> RegisterDeviceNotificationA/W hook selection",
+    "same A/W export address -> W hook only",
+    "different A/W export address -> A and W hooks",
+    "Gui_Init3 -> UnregisterDeviceNotification hook",
+    "installed hooks -> SREV-083 fake notification handle contract"
+  ],
+  "runtime_gate": "Inherited from SREV-083 Windows BlockRegisterDeviceNotification fake registration unregister success and non-fake handle forwarding",
+  "status": "patched-comment-topology-after-srev-083-device-notification-review-no-behavior-change"
+}

@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "WFP_DRIVER_HEADER_TOPOLOGY_CONTRACT",
+  "owner": "Sandboxie/core/drv/wfp.h",
+  "related_owners": [
+    "Sandboxie/core/drv/wfp.c",
+    "Sandboxie/core/drv/driver.c",
+    "Sandboxie/core/drv/process.c",
+    "Sandboxie/core/drv/file.c",
+    "docs/plan/ledger/srev-027.md"
+  ],
+  "status": "docs-only-source-topology-reviewed-needs-windows-driver-build-proof",
+  "official_references": [
+    "docs/plan/srev-027-wfp-classify-logging-irql.md"
+  ],
+  "contracts": [
+    "wfp.h is the driver WFP module declaration header",
+    "The header may include driver.h and declare module lifecycle process entry points that take or return local driver types",
+    "The header does not own WFP engine sessions BFE state callbacks callout sublayer filter registration classify IRQL behavior network rule parsing per-process rule maps or settings refresh decisions",
+    "Runtime behavior changes belong to wfp.c driver.c process.c file.c or NetFw rule owners depending on the transition",
+    "Future header changes must prove driver initialization process lifecycle settings refresh and WFP callout topology before behavior claims"
+  ],
+  "runtime_gate": "Windows driver build continues to compile wfp.h and wire WFP module lifecycle through driver.c / process.c / file.c; runtime behavior remains covered by existing and future concrete-owner SREV Windows gates."
+}

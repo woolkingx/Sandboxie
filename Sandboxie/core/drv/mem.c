@@ -112,6 +112,37 @@ _FX WCHAR *Mem_AllocStringEx(
 
 
 //---------------------------------------------------------------------------
+// Mem_AllocUnicodeStringEx
+//---------------------------------------------------------------------------
+
+
+_FX WCHAR *Mem_AllocUnicodeStringEx(
+    POOL *pool, const UNICODE_STRING *model_string, BOOLEAN InitMsg)
+{
+    WCHAR *str;
+    ULONG num_bytes;
+
+    if (! model_string)
+        return NULL;
+    if ((model_string->Length & (sizeof(WCHAR) - 1)) != 0)
+        return NULL;
+    if (model_string->Length && (! model_string->Buffer))
+        return NULL;
+    if (model_string->Length > (ULONG)-1 - sizeof(WCHAR))
+        return NULL;
+
+    num_bytes = model_string->Length + sizeof(WCHAR);
+    str = Mem_AllocEx(pool, num_bytes, InitMsg);
+    if (str) {
+        if (model_string->Length)
+            memcpy(str, model_string->Buffer, model_string->Length);
+        str[model_string->Length / sizeof(WCHAR)] = L'\0';
+    }
+    return str;
+}
+
+
+//---------------------------------------------------------------------------
 // Mem_FreeString
 //---------------------------------------------------------------------------
 
@@ -171,4 +202,3 @@ int __cdecl memcmp(
 	return (RtlCompareMemory(_Buf1, _Buf2, _Size) == _Size) ? 0 : 1;
 }
 #endif
-

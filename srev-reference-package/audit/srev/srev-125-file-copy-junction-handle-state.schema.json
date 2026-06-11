@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-125-file-copy-junction-handle-state.schema.json",
+  "title": "SREV-125 File copy junction handle state",
+  "id": "FILE_COPY_JUNCTION_HANDLE_STATE",
+  "owner": "Sandboxie/core/dll/file_copy.c",
+  "type": "object",
+  "properties": {
+    "source_metadata": {
+      "type": "string",
+      "description": "open_info is consumed only after NtQueryInformationFile succeeds"
+    },
+    "source_reparse": {
+      "type": "string",
+      "description": "source reparse data is consumed only after FSCTL_GET_REPARSE_POINT succeeds"
+    },
+    "destination_handle": {
+      "type": "string",
+      "description": "FSCTL_SET_REPARSE_POINT is called only after destination NtCreateFile succeeds"
+    },
+    "cleanup": {
+      "type": "string",
+      "description": "local failure paths close owned handles and free copied security descriptor storage"
+    }
+  },
+  "required": [
+    "source_metadata",
+    "source_reparse",
+    "destination_handle",
+    "cleanup"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "File_MigrateJunction opens the source reparse point before querying source metadata or reparse data",
+    "FILE_NETWORK_OPEN_INFORMATION is used only after NtQueryInformationFile FileNetworkOpenInformation succeeds",
+    "source reparse data is used only after FSCTL_GET_REPARSE_POINT succeeds",
+    "every local failure after TrueHandle opens closes TrueHandle before returning",
+    "destination reparse data is set only after destination NtCreateFile succeeds and initializes CopyHandle",
+    "destination create failure frees copied security descriptor storage when one exists and returns before FSCTL_SET_REPARSE_POINT",
+    "reparse data shape ACL copy policy destination create options and attribute-copy behavior are unchanged"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntcreatefile",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntqueryinformationfile",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntfscontrolfile",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ifs/fsctl-set-reparse-point",
+    "https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-fsa/a4942f57-dfa2-4852-a971-db1b8ad37150",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwclose"
+  ]
+}

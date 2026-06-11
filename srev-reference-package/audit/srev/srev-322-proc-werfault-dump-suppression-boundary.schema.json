@@ -1,0 +1,104 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-322-proc-werfault-dump-suppression-boundary.schema.json",
+  "title": "SREV-322 Proc WerFault dump suppression boundary",
+  "id": "PROC_WERFAULT_DUMP_SUPPRESSION_BOUNDARY",
+  "owner": "Sandboxie/core/dll/proc.c",
+  "stage": "data -> schema -> topology -> logic -> action -> verify",
+  "contracts": [
+    "WerFault dump suppression is local proc.c process-lifetime policy",
+    "WER dump configuration and in-process minidump writing are separate owners",
+    "the first WerFault process may be resumed and waited for dump capture",
+    "repeated WerFault processes may be terminated only after the exact WerFault predicate and duplicate-state gate",
+    "duplicate WerFault suppression terminates and waits but keeps PROCESS_INFORMATION handles caller-owned on the successful create path",
+    "runtime matrix must prove LocalDumps setup, WerFault launch count, dump file output, duplicate suppression, output handle behavior, negative controls, and EnableMiniDump regression",
+    "LocalDumps matrix must prove dump capture timing, duplicate WerFault lifetime, and caller-visible process/thread handle semantics before release",
+    "SREV-322 source path removes duplicate-path premature handle close while preserving first WerFault and non-WerFault resume behavior"
+    ,
+    "shared user-mode lifecycle capture records must use feature_path werfault-localdumps-boundary"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/windows-error-reporting",
+    "https://learn.microsoft.com/en-us/windows/win32/wer/collecting-user-mode-dumps",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-resumethread",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-terminateprocess",
+    "https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject",
+    "https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-closehandle"
+  ],
+  "runtime_capture_matrix": {
+    "builds": [
+      "supported Windows 10 releases",
+      "supported Windows 11 releases"
+    ],
+    "wer_configuration": [
+      "global LocalDumps",
+      "per-application LocalDumps",
+      "DumpFolder",
+      "DumpCount",
+      "DumpType",
+      "CustomDumpFlags",
+      "dump folder ACL",
+      "WER disabled",
+      "automatic debugging configured",
+      "missing LocalDumps registry keys"
+    ],
+    "sandbox_configuration": [
+      "EnableMiniDump enabled",
+      "EnableMiniDump disabled",
+      "default box",
+      "restricted token box",
+      "blocked write access to dump folder"
+    ],
+    "crash_sources": [
+      "deterministic native crash",
+      "repeated crash in same box",
+      "custom crash reporting process",
+      "non-crashing child process"
+    ],
+    "werfault_path": [
+      "first WerFault process id",
+      "duplicate WerFault process ids",
+      "SbieApi_Log(2224)",
+      "first ResumeThread return value",
+      "first wait result",
+      "duplicate TerminateProcess result",
+      "duplicate wait result",
+      "duplicate process exit code"
+    ],
+    "dump_output": [
+      "dump file path",
+      "dump file count",
+      "dump timestamp order",
+      "dump type",
+      "expected process identity",
+      "DumpCount replacement behavior",
+      "no dump when WER LocalDumps is disabled"
+    ],
+    "handle_semantics": [
+      "first-path PROCESS_INFORMATION.hProcess validity",
+      "first-path PROCESS_INFORMATION.hThread validity",
+      "duplicate-path PROCESS_INFORMATION.hProcess validity",
+      "duplicate-path PROCESS_INFORMATION.hThread validity",
+      "non-WerFault path handle validity",
+      "failed-token-fixup path handle closure",
+      "caller GetExitCodeProcess readback",
+      "caller WaitForSingleObject readback",
+      "caller CloseHandle readback"
+    ],
+    "adjacency_regression": [
+      "SREV-156 Dump_Init path",
+      "SREV-237 MiniDumpWriteDump path",
+      "in-process dump output independent of WER LocalDumps"
+    ],
+    "negative_controls": [
+      "non-WerFault suspended child resumes normally",
+      "WerFault outside exact predicate is not suppressed",
+      "WER disabled or LocalDumps absent preserves ordinary process creation",
+      "automatic debugging suppresses LocalDumps",
+      "dump folder ACL denial produces no dump output",
+      "fresh box first WerFault path is not duplicate-suppressed"
+    ]
+  },
+  "shared_runtime_capture_schema": "docs/plan/srev-092-322-user-lifecycle-runtime-capture.schema.json feature_path werfault-localdumps-boundary",
+  "runtime_gate": "Windows WER LocalDumps crash matrix proving LocalDumps setup, WerFault launch count, dump file output, duplicate suppression, first-path and duplicate-path process/thread handle behavior, non-WerFault negative controls, WER-disabled negative controls, automatic-debugger negative controls, dump-folder ACL negative controls, and EnableMiniDump regression"
+}

@@ -1,0 +1,25 @@
+---
+kind: srev-ledger-entry
+id: SREV-105
+title: Verify Legacy Certificate Level Compatibility
+status: source-level-classified-after-official-certificate-validity-window-and-windows-t
+owner: Sandboxie/core/drv/verify.c
+spec: docs/plan/srev-105-verify-legacy-cert-level-compatibility.md
+schema: docs/plan/srev-105-verify-legacy-cert-level-compatibility.schema.json
+checker: docs/plan/check-srev-105.py
+runtime_gate: "Windows build matrix with signed `Certificate.dat` samples for `LARGE`, `MEDIUM`, `SMALL`, pre-2022 `LARGE`, `HUGE`, `STANDARD`, subscription and non-subscription types, expired/non-expired dates, grace-period boundaries, `BuildDate` outdated checks, and lock-refresh enabled and disabled"
+---
+### SREV-105: Verify Legacy Certificate Level Compatibility
+
+| Field | Content |
+|---|---|
+| Severity | [minor] |
+| Status | source-level classified after official certificate validity-window and Windows time-value shape; comment-only source clarification, no behavior change |
+| Evidence | `Sandboxie/core/drv/verify.c` parses the local signed-text `Certificate.dat` file and maps `TYPE`, `LEVEL`, `DATE`, `DAYS`, and `OPTIONS` into `Verify_CertInfo`. The uncovered TODO comments suggested removing `LARGE`, `MEDIUM`, and `SMALL` legacy level cases after calendar dates that are now in the past. Microsoft documents certificate validity as a reference-time comparison against `NotBefore` / `NotAfter` style validity boundaries and documents Windows system time as UTC 100-nanosecond intervals. This Sandboxie path is not an X.509 chain parser; its local policy keeps legacy signed level aliases and enforces validity through the common `expiration_date`, `expired`, `outdated`, `grace_period`, and `active` gate. |
+| Data | `KphValidateCertificate`, `Certificate.dat`, `cert_date`, `level`, `days`, `Verify_CertInfo`, scheme 1.1 personal / Patreon `LARGE`, `MEDIUM`, `SMALL`, pre-2022 `LARGE` `-2` sentinel, `expiration_date`, `KphGetDateInterval`, `CERT_IS_SUBSCRIPTION`, `BuildDate`, `UtcTime`, `expired`, `outdated`, `grace_period`, `active`, and `STATUS_ACCOUNT_EXPIRED`. |
+| Schema | `VERIFY_LEGACY_CERT_LEVEL_COMPATIBILITY` says certificate validity is a time-window decision; Windows system time is represented as UTC 100-nanosecond intervals; `Certificate.dat` is a local signed text contract rather than an X.509 certificate chain; legacy `LARGE`, `MEDIUM`, and `SMALL` levels are parser compatibility aliases for already signed certificate text; `LARGE` assigns an explicit two-year expiration unless it is the pre-2022 semi-perpetual sentinel; `MEDIUM` uses the common default one-year expiration gate; `SMALL` maps to Home subscription before that common gate; subscription certificates are gated by `expired`, non-subscription certificates are gated by `outdated`, and inactive certificates become `STATUS_ACCOUNT_EXPIRED` outside grace period. |
+| Topology | `Certificate.dat` signed tags feed `type`, `level`, `cert_date`, `days`, and `options`; scheme 1.1 level aliases map legacy text to local type/level/expiration state; option defaults are derived from level; `expiration_date` is finalized; `CERT_IS_SUBSCRIPTION` selects the active decision edge; the common gate sets `expired`, `outdated`, `grace_period`, `active`, and `STATUS_ACCOUNT_EXPIRED`. |
+| Logic Risk | Removing the stale TODO branches would be a compatibility-breaking parser change rather than a validity fix. Old signed certificate text would stop mapping through the same local type/level path before diagnostics and common expiry enforcement. The legal minimal repair is to keep the aliases and replace stale removal-date comments with the compatibility contract. |
+| Official Shape | `docs/plan/srev-105-verify-legacy-cert-level-compatibility.md` records Microsoft `CertVerifyTimeValidity`, `CERT_INFO`, `KeQuerySystemTimePrecise`, `RtlTimeFieldsToTime`, and `RtlTimeToTimeFields` references. `docs/plan/srev-105-verify-legacy-cert-level-compatibility.schema.json` records the JSON Schema draft-07 local `VERIFY_LEGACY_CERT_LEVEL_COMPATIBILITY` contract. |
+| Fix | Comment-only source clarification: the three stale TODO comments were replaced with legacy compatibility comments that point to the common expiration enforcement below. No certificate parser branch, type/level mapping, option defaulting, expiration calculation, grace-period handling, lock-refresh handling, or return status behavior changed. |
+| Acceptance Gate | `docs/plan/check-srev-105.py` validates the draft-07 schema, official references, legacy level branches, pre-2022 sentinel behavior, explicit `LARGE` two-year interval, `MEDIUM` and `SMALL` default-expiration topology, subscription vs non-subscription gate, stale TODO removal, and ledger entry; `docs/plan/check-srev-105.sh` is the matrix wrapper. Runtime gate: Windows build matrix with signed `Certificate.dat` samples for `LARGE`, `MEDIUM`, `SMALL`, pre-2022 `LARGE`, `HUGE`, `STANDARD`, subscription and non-subscription types, expired/non-expired dates, grace-period boundaries, `BuildDate` outdated checks, and lock-refresh enabled and disabled. |

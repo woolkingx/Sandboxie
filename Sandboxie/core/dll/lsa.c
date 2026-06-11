@@ -37,7 +37,7 @@ static NTSTATUS Lsa_LsaRegisterLogonProcess(
 //---------------------------------------------------------------------------
 
 
-typedef ULONG (*P_LsaConnectUntrusted)(HANDLE *LsaHandle);
+typedef NTSTATUS (*P_LsaConnectUntrusted)(HANDLE *LsaHandle);
 
 typedef NTSTATUS (*P_LsaRegisterLogonProcess)(
     void *LogonProcessName, HANDLE *LsaHandle, void *SecurityMode);
@@ -71,6 +71,9 @@ _FX BOOLEAN Lsa_Init_Common(const WCHAR *DllName, HMODULE module)
         Ldr_GetProcAddrNew(DllName, L"LsaConnectUntrusted","LsaConnectUntrusted");
     LsaRegisterLogonProcess = (P_LsaRegisterLogonProcess)
         Ldr_GetProcAddrNew(DllName, L"LsaRegisterLogonProcess","LsaRegisterLogonProcess");
+
+    if (! __sys_LsaConnectUntrusted)
+        return FALSE;
 
     SBIEDLL_HOOK(Lsa_,LsaRegisterLogonProcess);
 

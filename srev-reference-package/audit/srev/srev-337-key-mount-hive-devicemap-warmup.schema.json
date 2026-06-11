@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "KEY_MOUNT_HIVE_DEVICEMAP_WARMUP",
+  "title": "Key mount hive device-map warmup",
+  "type": "object",
+  "owner": "Sandboxie/core/drv/key.c",
+  "stage": "schema -> topology -> verify",
+  "source_functions": [
+    "Key_MountHive2",
+    "Key_MountHive3"
+  ],
+  "contracts": [
+    "Key_MountHive3 owns the pre-ZwLoadKey current-process DosDevices device-map warmup ordering",
+    "Object directories and DosDevices names belong to the Windows object manager namespace",
+    "Local and global DosDevices contexts make drive-letter presentation context-sensitive",
+    "ObOpenObjectByName opens an object by name with validation and auditing and is used here only as a warmup trigger",
+    "The drive letter is incidental and the volume need not exist for the warmup contract",
+    "ZwLoadKey owns the registry hive load while Key_MountHive3 owns token default-DACL save replace restore ordering",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/object-directories",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/local-and-global-ms-dos-device-names",
+    "https://learn.microsoft.com/en-us/windows/win32/devnotes/obopenobjectbyname-function",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regloadkeya",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_reg_load_key_information"
+  ],
+  "local_edges": [
+    "Key_MountHive2 -> target key missing -> Key_MountHive3",
+    "Key_MountHive3 -> TokenDefaultDacl query -> Driver_PublicAcl temporary replacement -> restore old DACL",
+    "Key_MountHive3 -> RtlInitUnicodeString(\\\\??\\\\C:) -> ObOpenObjectByName -> optional ZwClose",
+    "Device-map warmup -> ZwLoadKey(target, source)",
+    "ZwLoadKey success -> SVC_MOUNTED_HIVE service notification"
+  ],
+  "runtime_gate": "Windows hive-load matrix for null versus initialized current-process device map DOS source paths missing drive trigger DACL restore and app-package Key_MountHive4 path",
+  "status": "patched-comment-topology-after-official-object-manager-devicemap-registry-load-review-no-behavior-change"
+}

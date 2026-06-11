@@ -35,6 +35,9 @@ static HANDLE Syscall_RestoreTargetHandle(
     void *UserHandleStackPtr, HANDLE *UserHandlePtr,
     HANDLE *TlsPtr, HANDLE TlsValue);
 
+static NTSTATUS Syscall_WriteRestoredHandleToUser(
+    HANDLE *UserHandlePtr, HANDLE NewHandle, NTSTATUS OrigStatus);
+
 static NTSTATUS Syscall_CheckObject(
     PROCESS *proc, SYSCALL_ENTRY *syscall_entry,
     void *OpenedObject, OBJECT_HANDLE_INFORMATION *HandleInfo, PUNICODE_STRING puName);
@@ -125,7 +128,7 @@ _FX HANDLE *Syscall_ReplaceTargetHandle(
 
     // make sure the user specified a valid address for the handle
     if ((! CheckIfNullHandlePtr) || UserHandlePtr)
-        ProbeForWrite(UserHandlePtr, sizeof(HANDLE), sizeof(UCHAR));
+        ProbeForWrite(UserHandlePtr, sizeof(HANDLE), sizeof(HANDLE));
 
     // replace address in the stack
     InterlockedExchangePointer(UserHandleStackPtr, TempHandlePtr);
@@ -172,6 +175,34 @@ _FX HANDLE Syscall_RestoreTargetHandle(
     }
 
     return NewHandle;
+}
+
+
+//---------------------------------------------------------------------------
+// Syscall_WriteRestoredHandleToUser
+//---------------------------------------------------------------------------
+
+
+static NTSTATUS Syscall_WriteRestoredHandleToUser(
+    HANDLE *UserHandlePtr, HANDLE NewHandle, NTSTATUS OrigStatus)
+{
+    NTSTATUS status = OrigStatus;
+
+    if (UserHandlePtr) {
+
+        __try {
+
+            ProbeForWrite(UserHandlePtr, sizeof(HANDLE), sizeof(HANDLE));
+            *UserHandlePtr = NewHandle;
+
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+
+            NtClose(NewHandle);
+            status = STATUS_PROCESS_IS_TERMINATING;
+        }
+    }
+
+    return status;
 }
 
 
@@ -256,19 +287,25 @@ _FX NTSTATUS Syscall_OpenHandle(
     void *OpenedObject;
     OBJECT_HANDLE_INFORMATION HandleInfo;
 
-    // HACK ALERT! Starting in Win 10 1903, MS has started doing strange things in WOW64. See jira SBIE-33.
-    // Inside wow64!Wow64HideThreadFromGuestByClientId, they are attempting to open threads from several processes in the host.
-    // Then they read various chunks of memory out of these threads. The purpose is unknown at this time.
-    // They are requesting THREAD_GET_CONTEXT | THREAD_SET_CONTEXT access on the NtOpenThread call, but they really do not require THREAD_SET_CONTEXT.
-    // Sandboxie will block all OpenThread calls that request write access and return ACCESS_DENIED. It also terminates the offending process in the sandbox.
-    // So, if we see an OpenThread call, with only THREAD_GET_CONTEXT | THREAD_SET_CONTEXT, and the target process is running outside the sandbox,
-    // We will remove the THREAD_SET_CONTEXT option and request r/o.
-    // The theory is that if some other process is attempting an OpenThread with write access, it will fail later on when it actually tries to write.
-    // But these strange calls from WOW64 will succeed. So no hole is created.
+    // SREV-339: Windows 10 1903+ WOW64 may open host threads for read
+    // context.  For that exact OpenThread access mask, inspect the
+    // caller-supplied CLIENT_ID safely, then remove THREAD_SET_CONTEXT
+    // only for null or outside-box targets.
 
     if ((strcmp(syscall_entry->name, "OpenThread") == 0) && (user_args[1] == (THREAD_GET_CONTEXT | THREAD_SET_CONTEXT))) {
         PCLIENT_ID  ClientId = (PCLIENT_ID)user_args[3];
-        if ( (ClientId == NULL) || !Process_IsSameBox(proc, NULL, (ULONG_PTR)ClientId->UniqueProcess)) {
+        ULONG_PTR ClientProcessId = 0;
+
+        __try {
+            if (ClientId) {
+                ProbeForRead(ClientId, sizeof(CLIENT_ID), sizeof(ULONG_PTR));
+                ClientProcessId = (ULONG_PTR)ClientId->UniqueProcess;
+            }
+        } __except (EXCEPTION_EXECUTE_HANDLER) {
+            return GetExceptionCode();
+        }
+
+        if ((ClientId == NULL) || !Process_IsSameBox(proc, NULL, ClientProcessId)) {
             user_args[1] = THREAD_GET_CONTEXT;
         }
     }
@@ -419,17 +456,8 @@ _FX NTSTATUS Syscall_OpenHandle(
     //
 
     if (NT_SUCCESS(status)) {
-
-        __try {
-
-            if (UserHandlePtr)
-                *UserHandlePtr = NewHandle;
-            status = orig_status;
-
-        } __except (EXCEPTION_EXECUTE_HANDLER) {
-
-            status = STATUS_PROCESS_IS_TERMINATING;
-        }
+        status = Syscall_WriteRestoredHandleToUser(
+                                    UserHandlePtr, NewHandle, orig_status);
     }
 
     //if (!NT_SUCCESS(status)) {
@@ -456,7 +484,9 @@ _FX NTSTATUS Syscall_GetNextProcess(
     if (Obj_CallbackInstalled) // ObCallbacks takes care of that already
         return Syscall_Invoke(syscall_entry, user_args); // so here we can just allow the execution
 
-    // ToDo: make this syscall work
+    // SREV-340: without ObCallbacks, enumerate with NtGetNextProcess
+    // and close each rejected outside-box process handle before trying
+    // the next one.  The syscall ABI remains a runtime-only gate.
 
 
     NTSTATUS status;
@@ -552,17 +582,8 @@ next:
     //
 
     if (NT_SUCCESS(status)) {
-
-        __try {
-
-            if (UserHandlePtr)
-                *UserHandlePtr = NewHandle;
-            status = orig_status;
-
-        } __except (EXCEPTION_EXECUTE_HANDLER) {
-
-            status = STATUS_PROCESS_IS_TERMINATING;
-        }
+        status = Syscall_WriteRestoredHandleToUser(
+                                    UserHandlePtr, NewHandle, orig_status);
     }
 
     return status;
@@ -720,17 +741,8 @@ _FX NTSTATUS Syscall_DuplicateHandle(
     //
 
     if (NT_SUCCESS(status)) {
-
-        __try {
-
-            if (UserHandlePtr)
-                *UserHandlePtr = NewHandle;
-            status = orig_status;
-
-        } __except (EXCEPTION_EXECUTE_HANDLER) {
-
-            status = STATUS_PROCESS_IS_TERMINATING;
-        }
+        status = Syscall_WriteRestoredHandleToUser(
+                                    UserHandlePtr, NewHandle, orig_status);
     }
 
     //  if (! NT_SUCCESS(status)) {

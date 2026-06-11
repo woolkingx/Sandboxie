@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-072-file-recovery-mup-path-buffer.schema.json",
+  "title": "SREV-072 file recovery MUP path buffer contract",
+  "id": "FILE_RECOVERY_MUP_PATH_BUFFER",
+  "api": "File_IsRecoverable redirector normalization",
+  "owner": "Sandboxie/core/dll/file_recovery.c",
+  "type": "object",
+  "properties": {
+    "source_path": {
+      "type": "string",
+      "description": "Incoming TruePath and redirector share suffix"
+    },
+    "translated_path": {
+      "type": "string",
+      "description": "Allocated MUP path normalization buffer"
+    },
+    "fallback": {
+      "type": "string",
+      "description": "Original TruePath comparison when local normalization allocation fails"
+    }
+  },
+  "required": [
+    "source_path",
+    "translated_path",
+    "fallback"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "wmemcpy requires valid source and destination buffers for the requested character count",
+    "path2 may receive the File_Mup prefix only after Dll_Alloc returns non-null",
+    "path2 may receive the redirector suffix only inside the same allocation-success gate",
+    "TruePath may be replaced by path2 only after both wide-copy operations initialize the buffer",
+    "Allocation failure must keep the original TruePath and skip only local redirector normalization"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/memcpy-wmemcpy?view=msvc-170"
+  ]
+}

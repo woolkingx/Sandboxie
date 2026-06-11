@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "PDH_STATUS_ABI_CONTRACT",
+  "owner": "Sandboxie/core/dll/pdh.c",
+  "declaration": "Sandboxie/core/dll/dll.h",
+  "status": "patched-source-level-after-official-pdh-status-abi-review-needs-windows-runtime-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhconnectmachinew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhlookupperfnamebyindexw",
+    "https://learn.microsoft.com/en-us/windows/win32/perfctrs/pdh-error-codes"
+  ],
+  "contracts": [
+    "pdh.c owns Sandboxie DLL-side PDH deny hooks",
+    "Local PDH function-pointer typedefs use PDH_STATUS matching the official PDH return contract",
+    "Hook functions use PDH_STATUS matching the resolved export ABI",
+    "Policy denial returns PDH_ACCESS_DENIED",
+    "Hook installation and the selected PDH export set remain unchanged"
+  ],
+  "runtime_gate": "Windows DLL build plus sandboxed PDH smoke for PdhConnectMachineW and PdhLookupPerfNameByIndexW, proving callers receive a PDH failure status without successful performance-counter access and without unexpected output-buffer writes on denied calls."
+}

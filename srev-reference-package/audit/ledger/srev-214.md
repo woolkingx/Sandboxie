@@ -1,0 +1,27 @@
+---
+kind: srev-ledger-entry
+id: SREV-214
+title: Driver DLL Entry Resource Lifetime
+status: patched-source-level-after-official-object-handle-and-section-view-lifetime-review-needs-windows-runtime-proof
+owner: Sandboxie/core/drv/dll.c
+declaration: Sandboxie/core/drv/dll.h
+spec: docs/plan/srev-214-driver-dll-entry-resource-lifetime.md
+schema: docs/plan/srev-214-driver-dll-entry-resource-lifetime.schema.json
+checker: docs/plan/check-srev-214.py
+runtime_gate: Windows driver build plus a loader failure-injection smoke that exercises failure after file open, after section creation, and after view mapping, proving no handle/view/pool leak under Driver Verifier or equivalent pool/handle tracking. A normal driver init/unload smoke must prove successful DLL entries still support syscall/export discovery and are freed at unload.
+---
+
+### SREV-214: Driver DLL Entry Resource Lifetime
+
+| Field | Content |
+|---|---|
+| Severity | [major] |
+| Status | patched source-level after official object-handle and section-view lifetime review; needs Windows runtime proof |
+| Evidence | `Sandboxie/core/drv/dll.c` was the top unnamed reviewable core file after SREV-213. It owns driver-side DLL image loading for syscall/export discovery. `Dll_Load` allocates a `DLL_ENTRY`, opens a system DLL with `ZwCreateFile`, creates a section with `ZwCreateSection`, maps it with `ZwMapViewOfSection`, parses the PE export directory, and stores the resulting entry in `Dll_List`. Before this fix, a failure after file open, section creation, or view mapping returned `NULL` without releasing already acquired resources. `Dll_Unload` released successful entries' view and handles but did not free the `DLL_ENTRY` allocation. The file open also omitted `OBJ_KERNEL_HANDLE` for a driver-private handle. |
+| Data | `dll.c`, `dll.h`, `Dll_Load`, `Dll_Unload`, `DLL_ENTRY`, `Dll_List`, `Driver_Pool`, `Mem_Alloc`, `Mem_Free`, `InitializeObjectAttributes`, `OBJ_CASE_INSENSITIVE`, `OBJ_KERNEL_HANDLE`, `ZwCreateFile`, `ZwQueryInformationFile`, `ZwCreateSection`, `ZwMapViewOfSection`, `ZwUnmapViewOfSection`, `ZwClose`, `Dll_RvaToAddr`, `Dll_GetProc`, `Syscall_Init_List`, `Syscall_Init_ServiceData`, `Syscall_Init32`, and `Driver_FindMissingServices`. |
+| Schema | `DRIVER_DLL_ENTRY_RESOURCE_LIFETIME` says `dll.c` owns driver-side DLL image load entries; a `DLL_ENTRY` owns exactly one optional mapped view, one optional section handle, one optional file handle, and its pool allocation; failure after any partial acquisition must release the acquired view, section handle, file handle, and pool allocation before returning `NULL`; successful entries remain owned by `Dll_List` until `Dll_Unload` removes and releases them; and driver-private handles opened by this loader must use `OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE`. |
+| Topology | Load flow is `Dll_Load -> Mem_Alloc(DLL_ENTRY) -> InitializeObjectAttributes(OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE) -> ZwCreateFile(file handle) -> ZwQueryInformationFile(file size) -> ZwCreateSection(section handle backed by file handle) -> ZwMapViewOfSection(view in current process) -> PE export parse -> List_Insert_After(Dll_List)`. Failure flow is `partial DLL_ENTRY -> optional ZwUnmapViewOfSection(mapped view) -> optional ZwClose(section handle) -> optional ZwClose(file handle) -> Mem_Free(DLL_ENTRY) -> return NULL`. Unload flow is `Dll_Unload -> List_Remove(Dll_List entry) -> same DLL_ENTRY release helper`. |
+| Logic Risk | Returning `NULL` after logging hides a partially initialized `DLL_ENTRY` from `Dll_List`, so later unload cannot find and release it. Successful entries had the opposite ownership leak: unload removed and closed OS resources but did not release the pool allocation. The missing `OBJ_KERNEL_HANDLE` is a boundary error because the DLL file handle is driver-private, not a handle intended for the current user process. |
+| Official Shape | `docs/plan/srev-214-driver-dll-entry-resource-lifetime.md` records Microsoft `ZwCreateFile`, `ZwCreateSection`, `ZwMapViewOfSection`, `ZwUnmapViewOfSection`, `ZwClose`, and object-handle references. `docs/plan/srev-214-driver-dll-entry-resource-lifetime.schema.json` records the JSON Schema draft-07 local `DRIVER_DLL_ENTRY_RESOURCE_LIFETIME` contract. |
+| Fix | `dll.c` now has a single `Dll_FreeEntry` helper that releases the optional mapped view, optional section handle, optional file handle, and `DLL_ENTRY` allocation. `Dll_Load` calls the helper on any initialization failure before returning `NULL`. `Dll_Unload` uses the same helper after removing successful entries from `Dll_List`. `Dll_Load` now opens the DLL file with `OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE`. |
+| Acceptance Gate | `docs/plan/check-srev-214.py` validates the draft-07 schema, official references, source-level `Dll_FreeEntry` ownership shape, failure cleanup from `Dll_Load`, unload cleanup from `Dll_Unload`, driver-private `OBJ_KERNEL_HANDLE` attributes, split ledger fragment, and removal of the stale partial-failure leak and successful-entry pool leak shapes; `docs/plan/check-srev-214.sh` is the targeted wrapper. Runtime/build gate: Windows driver build plus a loader failure-injection smoke that exercises failure after file open, after section creation, and after view mapping, proving no handle/view/pool leak under Driver Verifier or equivalent pool/handle tracking. A normal driver init/unload smoke must prove successful DLL entries still support syscall/export discovery and are freed at unload. |

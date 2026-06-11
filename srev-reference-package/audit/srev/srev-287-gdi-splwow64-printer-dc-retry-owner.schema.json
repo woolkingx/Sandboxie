@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "GDI_SPLWOW64_PRINTER_DC_RETRY_OWNER",
+  "title": "GDI SplWow64 printer DC retry owner",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/gdi.c",
+  "stage": "schema -> boundary -> topology -> verify",
+  "source_function": "Gdi_CreateDCW2",
+  "contracts": [
+    "Gdi_CreateDCW2 owns only the 32-bit WINSPOOL printer DC retry path",
+    "SREV-061 owns the lpszDevice printer-name and lpInitData DEVMODE separation",
+    "the Gdi_CreateDCW2 source comment must name the SplWow64 printer-host bridge and SREV-061 gate rather than a generic workaround",
+    "the winspool.drv loader registration comment must name the SREV-287 32-bit WINSPOOL/SplWow64 printer DC retry owner",
+    "the retry remains bounded by WINSPOOL driver match lpszDevice presence DocumentProperties availability and retry count",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-createdcw",
+    "https://learn.microsoft.com/en-us/windows/win32/printdocs/openprinter2",
+    "https://learn.microsoft.com/en-us/windows/win32/printdocs/documentproperties",
+    "https://learn.microsoft.com/en-us/troubleshoot/windows/win32/print-app-xps-document-writer"
+  ],
+  "local_edges": [
+    "CreateDCW(WINSPOOL) -> initial native CreateDCW",
+    "failed HDC -> lpszDevice gate",
+    "lpszDevice -> OpenPrinter2W",
+    "printer handle plus lpszDevice -> DocumentPropertiesW fMode zero",
+    "DocumentProperties wake query edge -> retry same CreateDCW request"
+  ],
+  "runtime_gate": "Inherited from SREV-061 Windows 32-bit WINSPOOL CreateDCW retry after SplWow64 failure successful initial CreateDCW unchanged and no spooler path without lpszDevice",
+  "status": "patched-comment-topology-after-srev-061-and-official-splwow64-printer-review-no-behavior-change"
+}

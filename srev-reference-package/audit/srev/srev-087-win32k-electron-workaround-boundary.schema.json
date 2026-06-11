@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-087-win32k-electron-workaround-boundary.schema.json",
+  "title": "SREV-087 Win32k Electron workaround boundary",
+  "id": "WIN32K_ELECTRON_WORKAROUND_BOUNDARY",
+  "owner": "Sandboxie/core/dll/Win32.c and Sandboxie/core/dll/proc.c",
+  "type": "object",
+  "properties": {
+    "win32k_hookability": {
+      "type": "string",
+      "description": "Local Sandboxie runtime state indicating win32k syscall hook tables are available"
+    },
+    "mitigation_policy": {
+      "type": "string",
+      "description": "Public Windows ProcessSystemCallDisablePolicy boundary"
+    },
+    "graphics_flow": {
+      "type": "string",
+      "description": "Public WDDM Direct3D runtime / UMD / KMD flow"
+    },
+    "electron_detection": {
+      "type": "string",
+      "description": "Local Electron/Chromium detection and Chrome-like image classification"
+    },
+    "workaround_state": {
+      "type": "string",
+      "description": "Inactive Electron command-line workaround state"
+    }
+  },
+  "required": [
+    "win32k_hookability",
+    "mitigation_policy",
+    "graphics_flow",
+    "electron_detection",
+    "workaround_state"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Win32k syscall hookability is local Sandboxie runtime state, not a Microsoft public API guarantee",
+    "ProcessSystemCallDisablePolicy is the public mitigation boundary for blocking NTUser/GDI system calls",
+    "WDDM graphics work flows through Direct3D runtime, UMD, KMD, and Dxgkrnl",
+    "Electron workaround state must not be toggled from a hook-installed boolean alone",
+    "the inactive Electron command-line workaround remains inactive until a Windows runtime matrix proves replacement coverage",
+    "this SREV does not extend win32u syscall patching or revive Electron command-line mutation"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-process_mitigation_system_call_disable_policy",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getprocessmitigationpolicy",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-setprocessmitigationpolicy",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/display/windows-vista-and-later-display-driver-model-operation-flow",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_display/"
+  ]
+}

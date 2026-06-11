@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-033-file-key-exists-wire.schema.json",
+  "title": "SREV-033 file key exists wire",
+  "id": "FILE_CHECK_KEY_EXISTS_WIRE_STRING",
+  "owner": "Sandboxie/core/svc/fileserver.cpp",
+  "type": "object",
+  "properties": {
+    "audit_contract": {
+      "type": "string",
+      "description": "API: FileServer::CheckKeyExists | wire: {\"request\": \"FILE_CHECK_KEY_EXISTS_REQ\", \"header\": \"MSG_HEADER\", \"fields\": [{\"name\": \"KeyPath_len\", \"type\": \"ULONG\", \"unit\": \"bytes\", \"includes_trailing_nul\": true}, {\"name\": \"KeyPath\", \"type\": \"WCHAR[]\", \"length_field\": \"KeyPath_len\"}]}"
+    },
+    "validation_invariants": {
+      "type": "string",
+      "description": "All contracts listed in the contracts metadata must hold before any data is trusted past the validation boundary"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate proves contracts hold under normal and malformed inputs"
+    }
+  },
+  "required": [
+    "audit_contract",
+    "validation_invariants",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "KeyPath_len is a byte count, not a WCHAR count",
+    "KeyPath_len must be nonzero and <= PIPE_MAX_DATA_LEN",
+    "KeyPath_len must be aligned to sizeof(WCHAR)",
+    "KeyPath_len bytes must fit inside MSG_HEADER.length from FIELD_OFFSET(FILE_CHECK_KEY_EXISTS_REQ, KeyPath)",
+    "KeyPath[KeyPath_len / sizeof(WCHAR) - 1] must be NUL before CheckBoxKeyPath or RtlInitUnicodeString",
+    "RtlInitUnicodeString receives only a bounded NUL-terminated WCHAR string"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtlinitunicodestring",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwopenkey",
+    "https://learn.microsoft.com/en-us/windows/win32/api/ntdef/ns-ntdef-_unicode_string"
+  ]
+}

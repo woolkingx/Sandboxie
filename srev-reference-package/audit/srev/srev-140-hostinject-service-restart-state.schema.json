@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-140-hostinject-service-restart-state.schema.json",
+  "title": "SREV-140 HostInject service restart state",
+  "id": "HOSTINJECT_SERVICE_RESTART_STATE",
+  "owner": "Sandboxie/core/svc/HostInjectProcessUtil.cpp",
+  "type": "object",
+  "properties": {
+    "executor": {
+      "type": "string",
+      "description": "HostInjectProcessUtil enumerates active services and restarts only policy/injection mismatches"
+    },
+    "service_state_gate": {
+      "type": "string",
+      "description": "RestartService waits for SERVICE_STOPPED before StartServiceW"
+    },
+    "buffer_owner": {
+      "type": "string",
+      "description": "EnumServicesStatusExW byte buffer allocated with new[] is released with delete[]"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows SCM restart proof for stopped, stop-pending, failed-stop, and HostInjectProcess mismatch services"
+    }
+  },
+  "required": [
+    "executor",
+    "service_state_gate",
+    "buffer_owner",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "HostInjectProcessUtil.cpp owns only the executor edge enumerate active services compare policy to module-injection state then restart mismatches",
+    "BuildSvcSet and IsSvcInjected policy matching remain unchanged",
+    "A restart stop edge is complete only when QueryServiceStatusEx reports SERVICE_STOPPED or the service was already inactive",
+    "StartServiceW may run only after the stop edge is complete",
+    "If stop fails for a reason other than already-inactive or stop-pending state the executor must not issue a blind start against the still-running service",
+    "Stop-pending state may be waited through QueryServiceStatusEx",
+    "The service enumeration buffer allocated with new BYTE[] must be released with delete[]"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-controlservice",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-startservicew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-queryservicestatusex",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-enumservicesstatusexw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openservicew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openprocess",
+    "https://learn.microsoft.com/en-us/windows/win32/api/psapi/nf-psapi-enumprocessmodules",
+    "https://learn.microsoft.com/en-us/cpp/cpp/delete-operator-cpp"
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-251-advapi-change-notify-privilege-filter.schema.json",
+  "id": "ADVAPI_CHANGE_NOTIFY_PRIVILEGE_FILTER",
+  "title": "Advapi ChangeNotify privilege filter",
+  "type": "object",
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/advapi.c"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 6
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 3
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/dll/advapi.c",
+  "contracts": [
+    "CreateRestrictedToken receives a count plus optional array of privileges to delete from the new restricted token",
+    "LookupPrivilegeValueW resolves SE_CHANGE_NOTIFY_NAME to the local LUID used for comparison",
+    "SE_CHANGE_NOTIFY_NAME is the traverse-checking bypass privilege and is enabled by default for all users",
+    "Sandboxie Chrome compatibility filter may remove only that LUID from the delete list",
+    "If lookup or scratch allocation fails the hook must call the real CreateRestrictedToken with the original privilege-delete arguments",
+    "This SREV does not change SID disabling restricted SID handling token type returned handle ownership or Chrome image detection"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-createrestrictedtoken",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-lookupprivilegevaluew",
+    "https://learn.microsoft.com/en-us/windows/win32/secauthz/privilege-constants"
+  ],
+  "runtime_gate": "Windows build plus Chrome dropped-rights launch smoke proving SeChangeNotifyPrivilege behavior and unchanged restricted-token creation"
+}

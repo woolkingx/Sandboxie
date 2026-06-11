@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-263-dns-filter-final-fence-owner.schema.json",
+  "id": "DNS_FILTER_FINAL_FENCE_OWNER",
+  "title": "DNS filter final fence owner",
+  "type": "object",
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/dns_filter.c"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 4
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 3
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/dll/dns_filter.c",
+  "contracts": [
+    "SREV-050 owns the response buffer capacity contract",
+    "CHECK_BUFFER_SPACE gates each release-mode segment write against bufferEnd",
+    "The final end check is diagnostic only and uses the same bufferEnd owner",
+    "This SREV does not change response layout required-size calculation WSAEFAULT behavior HOSTENT relative-offset encoding or DNS filter policy"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-wsalookupservicenextw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsock2/ns-winsock2-wsaquerysetw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsock2/ns-winsock2-blob"
+  ],
+  "runtime_gate": "Inherited from SREV-050"
+}

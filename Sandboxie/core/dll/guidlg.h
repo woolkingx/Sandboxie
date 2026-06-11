@@ -120,16 +120,26 @@ typedef struct {
 
 #pragma check_stack(off) 
 
+#ifndef GUI_DLG_CLASS_NAME_CAPACITY
+#define GUI_DLG_CLASS_NAME_CAPACITY 256
+#endif
+
 void *GUI_CreateDialogTemplate(
     DLGTMPL *tmpl)
 {
     DLGTMPL1 *newTmpl;
     UCHAR *ptr, *out;
-    WCHAR *old_clsnm[256];
-    WCHAR *new_clsnm[256];
-    WCHAR *old_winnm, *new_winnm;
+    WCHAR *old_clsnm[GUI_DLG_CLASS_NAME_CAPACITY];
+    WCHAR *new_clsnm[GUI_DLG_CLASS_NAME_CAPACITY];
+    WCHAR *old_winnm = NULL, *new_winnm = NULL;
     int i;
     ULONG alloc_size, size = 0;
+
+    if (tmpl->cDlgItems >= GUI_DLG_CLASS_NAME_CAPACITY)
+        return NULL;
+
+    memzero(old_clsnm, sizeof(old_clsnm));
+    memzero(new_clsnm, sizeof(new_clsnm));
 
     // skip past the fixed-length header
     ptr = (UCHAR *)&tmpl->menu;
@@ -146,12 +156,16 @@ void *GUI_CreateDialogTemplate(
     } else {
         old_clsnm[0] = (WCHAR *)ptr;
         new_clsnm[0] = Gui_CreateClassNameW(old_clsnm[0]);
+        if (! new_clsnm[0])
+            goto failed;
         ptr += (wcslen((WCHAR *)ptr) + 1) * sizeof(WCHAR);
         size += wcslen(new_clsnm[0]) * sizeof(WCHAR);
     }
 
     old_winnm = (WCHAR *)ptr;
     new_winnm = Gui_CreateTitleW(old_winnm);
+    if (! new_winnm)
+        goto failed;
 
     ptr += (wcslen((WCHAR *)ptr) + 1) * sizeof(WCHAR);      // title
     if ((tmpl->style & DS_SETFONT) != 0) {
@@ -175,6 +189,8 @@ void *GUI_CreateDialogTemplate(
         } else {
             old_clsnm[i + 1] = (WCHAR *)ptr;
             new_clsnm[i + 1] = Gui_CreateClassNameW(old_clsnm[i + 1]);
+            if (! new_clsnm[i + 1])
+                goto failed;
             ptr += (wcslen((WCHAR *)ptr) + 1) * sizeof(WCHAR);
             size += wcslen(new_clsnm[i + 1]) * sizeof(WCHAR);
         }
@@ -197,7 +213,7 @@ void *GUI_CreateDialogTemplate(
     alloc_size = size + 8;
     newTmpl = Dll_Alloc(alloc_size);
     if (! newTmpl)
-        return NULL;
+        goto failed;
     memzero(newTmpl, alloc_size);
     *(ULONG *)((UCHAR *)newTmpl + alloc_size - sizeof(ULONG)) = tzuk;
 
@@ -305,6 +321,9 @@ void *GUI_CreateDialogTemplate(
             ptr += sizeof(WORD);
         }
 
+    }
+
+    for (i = 0; i <= tmpl->cDlgItems; ++i) {
         if (new_clsnm[i] && old_clsnm[i] != new_clsnm[i])
             Gui_Free(new_clsnm[i]);
     }
@@ -313,6 +332,18 @@ void *GUI_CreateDialogTemplate(
         SbieApi_Log(2316, NULL);
 
     return newTmpl;
+
+failed:
+
+    for (i = 0; i <= tmpl->cDlgItems && i < GUI_DLG_CLASS_NAME_CAPACITY; ++i) {
+        if (new_clsnm[i] && old_clsnm[i] != new_clsnm[i])
+            Gui_Free(new_clsnm[i]);
+    }
+
+    if (new_winnm && new_winnm != old_winnm)
+        Gui_Free(new_winnm);
+
+    return NULL;
 }
 
 #endif // GUI_CreateDialogTemplate

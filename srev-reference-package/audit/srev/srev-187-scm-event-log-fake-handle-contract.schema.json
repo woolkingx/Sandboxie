@@ -1,0 +1,64 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-187-scm-event-log-fake-handle-contract.schema.json",
+  "title": "SREV-187 SCM event log fake handle contract",
+  "id": "SCM_EVENT_LOG_FAKE_HANDLE_CONTRACT",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "owners",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owners": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 2
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 10
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 4
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owners": [
+    "Sandboxie/core/dll/scm_event.c",
+    "Sandboxie/core/dll/scm.c"
+  ],
+  "contracts": [
+    "scm_event.c owns the DLL-side event-log write suppression policy for sandboxed processes",
+    "RegisterEventSourceW returns only the Sandboxie fake event-log handle and does not open a host event-log writer",
+    "RegisterEventSourceA must check RtlAnsiStringToUnicodeString before passing the converted source name to the W path",
+    "ReportEventA/W consume a handle returned by RegisterEventSource and only HANDLE_EVENT_LOG is a valid local write-suppression handle",
+    "DeregisterEventSource consumes a handle returned by RegisterEventSource and only HANDLE_EVENT_LOG is a valid local handle to close",
+    "invalid or non-local event-source handles fail with ERROR_INVALID_HANDLE and are not reported as successful host writes",
+    "CloseEventLog remains separate and passes non-local event-log handles to the native CloseEventLog owner",
+    "ReportEventA/W local prototypes keep the official pointer-to-string-array shape even though the local policy suppresses the write",
+    "this SREV does not add host event-log brokering change service-control APIs or change read-side event-log handles",
+    "runtime proof is required"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-registereventsourcea",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-reporteventa",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-deregistereventsource",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-rtlansistringtounicodestring"
+  ],
+  "runtime_gate": "Windows DLL build for advapi32 event-log hooks, fake-handle ReportEvent/DeregisterEventSource smoke, invalid-handle ERROR_INVALID_HANDLE smoke, and CloseEventLog native-close regression smoke"
+}

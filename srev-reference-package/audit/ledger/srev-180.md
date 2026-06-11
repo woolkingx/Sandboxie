@@ -1,0 +1,25 @@
+---
+kind: srev-ledger-entry
+id: SREV-180
+title: Syscall32 Shadow Table Candidate Read Boundary
+status: patched-source-level-after-official-mmisaddressvalid-and-driver-seh-review-needs-windows-x86-runtime-proof
+owner: Sandboxie/core/drv/syscall_32.c
+spec: docs/plan/srev-180-syscall32-shadow-table-candidate-read-boundary.md
+schema: docs/plan/srev-180-syscall32-shadow-table-candidate-read-boundary.schema.json
+checker: docs/plan/check-srev-180.py
+runtime_gate: "Windows x86/32-bit-supported build and runtime matrix covering service-table discovery fallback, Driver Verifier, HVCI/Core Isolation where applicable, and ordinary NT plus win32k syscall dispatch smoke"
+---
+### SREV-180: Syscall32 Shadow Table Candidate Read Boundary
+
+| Field | Content |
+|---|---|
+| Severity | [major] |
+| Status | patched source-level after official `MmIsAddressValid` and driver structured-exception handling review; needs Windows x86/32-bit-supported build/runtime proof |
+| Evidence | `Sandboxie/core/drv/syscall_32.c` was the highest-ranked unnamed reviewable core file after SREV-179. Its `GetShadowTableAddress` fallback scans `KeAddSystemServiceTable` byte by byte, interprets each position as a possible `PSYSTEM_SERVICE_TABLE`, and before this SREV used `MmIsAddressValid(pTable)` as the only gate before `memcmp(pTable, &KeServiceDescriptorTable, sizeof(SYSTEM_SERVICE_TABLE))`. Microsoft explicitly says `MmIsAddressValid` is not recommended and that a `TRUE` return does not make later access safe unless memory is locked down or valid nonpaged pool. |
+| Data | `Sandboxie/core/drv/syscall_32.c`, `GetShadowTableAddress`, `Syscall_GetServiceTable`, `KeAddSystemServiceTable`, `KeServiceDescriptorTable`, `SYSTEM_SERVICE_TABLE`, `PSYSTEM_SERVICE_TABLE`, `pCheckByte`, `pTable`, `MmIsAddressValid`, `memcmp`, and `MSG_1113 TABLE` fail-closed logging. |
+| Schema | `SYSCALL32_SHADOW_TABLE_CANDIDATE_READ_BOUNDARY` says `GetShadowTableAddress` owns the 32-bit private shadow service-table fallback scanner; bytes in `KeAddSystemServiceTable` are untrusted candidate table pointers until locally validated; `MmIsAddressValid` is only a preliminary nonpaged-address check and is not sufficient proof for the following structure read; candidate `SYSTEM_SERVICE_TABLE` comparison must be inside a structured exception boundary; the scanner rejects `NULL` candidates and `KeServiceDescriptorTable` itself before comparing contents; the helper preserves the existing 1024-byte scan window and same-table-content predicate; this SREV does not change service-table offsets, syscall indices, process-flag offsets, or syscall dispatch. |
+| Topology | Legal fallback flow is `Syscall_GetServiceTable` -> version offset guess for `ShadowTable` -> if missing or first entry mismatch, call `GetShadowTableAddress` -> scan `KeAddSystemServiceTable` byte window -> derive candidate pointer from private instruction bytes -> `Syscall_IsShadowTableCandidate` rejects `NULL` and master-table identity -> `MmIsAddressValid` precheck -> guarded `memcmp` against `KeServiceDescriptorTable` -> return candidate or fail closed with `MSG_1113 TABLE`. |
+| Logic Risk | The old code treated "the candidate page currently looks valid" as equivalent to "the whole candidate table structure can be read safely". Microsoft's `MmIsAddressValid` documentation rejects that equivalence. A false-positive candidate pointer from private instruction bytes could make kernel code fault during `memcmp`, and an unhandled kernel exception can bug check the machine. |
+| Official Shape | `docs/plan/srev-180-syscall32-shadow-table-candidate-read-boundary.md` records Microsoft `MmIsAddressValid`, Windows driver exception handling, structured exception-handler syntax, and `MmGetSystemRoutineAddress` references. `docs/plan/srev-180-syscall32-shadow-table-candidate-read-boundary.schema.json` records the JSON Schema draft-07 local `SYSCALL32_SHADOW_TABLE_CANDIDATE_READ_BOUNDARY` contract. |
+| Fix | `syscall_32.c` now has `Syscall_IsShadowTableCandidate`, which keeps the old identity/content predicate but wraps the candidate `SYSTEM_SERVICE_TABLE` comparison in `__try` / `__except`. `MmIsAddressValid` remains only as a preliminary precheck. `GetShadowTableAddress` now calls the helper instead of directly mixing `MmIsAddressValid`, identity rejection, and `memcmp`. No 32-bit service-table offsets, scan window size, process flag offset logic, syscall index extraction, or syscall dispatch behavior changed. |
+| Acceptance Gate | `docs/plan/check-srev-180.py` validates the draft-07 schema, official references, syscall32 source shape, guarded candidate comparison, removal of the old direct `MmIsAddressValid || memcmp` predicate, unchanged fallback scan window, and ledger fragment; `docs/plan/check-srev-180.sh` is the matrix wrapper. Runtime gate: Windows x86/32-bit-supported build and runtime matrix covering service-table discovery fallback, Driver Verifier, HVCI/Core Isolation where applicable, and ordinary NT plus win32k syscall dispatch smoke. |

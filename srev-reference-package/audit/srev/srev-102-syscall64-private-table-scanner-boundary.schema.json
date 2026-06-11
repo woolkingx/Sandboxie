@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-102-syscall64-private-table-scanner-boundary.schema.json",
+  "title": "SREV-102 syscall64 private table scanner boundary",
+  "id": "SYSCALL64_PRIVATE_TABLE_SCANNER_BOUNDARY",
+  "owner": "Sandboxie/core/drv/syscall_64.c",
+  "type": "object",
+  "properties": {
+    "x64_master_table_scanner": {
+      "type": "string",
+      "description": "Private x64 KeServiceDescriptorTable scanner and disabled spacing invariant"
+    },
+    "kva_shadow_boundary": {
+      "type": "string",
+      "description": "KVA Shadow / Meltdown mitigation changed x64 kernel-entry internals"
+    },
+    "arm64_filter_table": {
+      "type": "string",
+      "description": "ARM64 KeServiceDescriptorTableFilter lookup fail-closed boundary"
+    },
+    "source_change": {
+      "type": "string",
+      "description": "Comment-only clarification preserving scanner behavior"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows x64/ARM64 syscall table runtime proof"
+    }
+  },
+  "required": [
+    "x64_master_table_scanner",
+    "kva_shadow_boundary",
+    "arm64_filter_table",
+    "source_change",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Syscall_GetMasterServiceTable uses exported KeServiceDescriptorTable when available before private pattern scanning",
+    "the disabled x64 0x40 / 0xC0 spacing check is a historical private invariant and must not be re-enabled from source comments alone",
+    "KVA Shadow / KB4056892 changed x64 kernel-entry and system-service dispatch internals for Meltdown mitigation",
+    "Microsoft says KVA Shadow implementation details are subject to change and drivers must not depend on those internals without updated documentation",
+    "Syscall_GetServiceTable still validates ShadowTable->Addrs against MasterTable->Addrs after deriving the candidate table",
+    "ARM64 MasterTable lookup uses an ADRP / ADD pattern in KeAddSystemServiceTable",
+    "ARM64 FilterTable lookup remains fail-closed until a version-gated KeAddSystemServiceTable pattern is proven",
+    "this SREV does not change service table offsets, pattern scanner behavior, or syscall dispatch"
+  ],
+  "official_references": [
+    "https://www.microsoft.com/en-us/msrc/blog/2018/03/kva-shadow-mitigating-meltdown-on-windows",
+    "https://support.microsoft.com/en-us/topic/kb4072698-windows-server-and-azure-stack-hci-guidance-to-protect-against-silicon-based-microarchitectural-and-speculative-execution-side-channel-vulnerabilities-2f965763-00e2-8f98-b632-0d96f30c8c8e",
+    "https://www.intel.com/content/www/us/en/developer/articles/technical/software-security-guidance/advisory-guidance/rogue-data-cache-load.html",
+    "https://learn.microsoft.com/en-us/cpp/build/arm64-windows-abi-conventions?view=msvc-170",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/develop/building-arm64-drivers"
+  ]
+}

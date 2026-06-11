@@ -413,6 +413,7 @@ _FX void *SbieDll_Hook_x86(
         }
         *(ULONG *)func = (ULONG)diff;
         VirtualProtect(func, 4, prot, &dummy_prot);
+        FlushInstructionCache(GetCurrentProcess(), func, 4);
 
         return (void *)target;
 
@@ -571,6 +572,7 @@ skip_e9_rewrite: ;
         SbieApi_Log(2303, _fmt1, SourceFuncName, 2);
         goto finish;
     }
+    FlushInstructionCache(GetCurrentProcess(), tramp, 128);
 
 	//ULONG ByteCount = *(ULONG*)(tramp + 80);
 	//ULONG UsedCount = 0;
@@ -678,12 +680,14 @@ skip_e9_rewrite: ;
 	//UsedCount = 1 + 4;
 #endif
 
-	// just in case nop out the rest of the code we moved to the trampoline
-	// ToDo: why does this break unity games
-	//for(; UsedCount < ByteCount; UsedCount++)
-	//	func[UsedCount] = 0x90; // nop
+		// Do not pad the moved instruction tail with NOPs here. The entry jump
+		// already owns the normal control-flow transfer, while extending the
+		// write span to HookTramp's ByteCount needs a Unity runtime gate.
+		//for(; UsedCount < ByteCount; UsedCount++)
+		//	func[UsedCount] = 0x90; // nop
 
 	VirtualProtect(RegionBase, RegionSize, prot, &dummy_prot);
+    FlushInstructionCache(GetCurrentProcess(), RegionBase, RegionSize);
 
     // the trampoline code begins at trampoline + 16 bytes
     func = (UCHAR *)(ULONG_PTR)(tramp + 16);
@@ -1936,11 +1940,15 @@ _FX void Dll_FixWow64Syscall(void)
             if (!_code) {
                 ULONG X86SwitchTo64BitMode = __readfsdword(0xC0);
                 _code = (UCHAR *)Dll_AllocCode128();
-                // and eax, 0xFFFF ; xor ecx, ecx ; jmp xxx ( push xxx; ret; )
+                if (! _code)
+                    return;
+                // SREV-247 owns this 13-byte pre-Windows 10 WOW64 stub:
+                // and eax,0xFFFF; xor ecx,ecx; jmp [push target; ret].
                 *(ULONG *)(_code + 0) = 0xFF25C933;
                 *(ULONG *)(_code + 4) = 0x680000FF;
                 *(ULONG *)(_code + 8) = X86SwitchTo64BitMode;
                 *(UCHAR *)(_code + 12) = 0xc3;
+                FlushInstructionCache(GetCurrentProcess(), _code, 13);
             }
             __writefsdword(0xC0, (ULONG)_code);
             return;

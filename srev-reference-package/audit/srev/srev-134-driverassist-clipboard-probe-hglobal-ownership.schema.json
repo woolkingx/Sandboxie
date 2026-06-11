@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "DRIVERASSIST_CLIPBOARD_PROBE_HGLOBAL_OWNERSHIP",
+  "title": "DriverAssist clipboard probe HGLOBAL ownership",
+  "type": "object",
+  "required": [
+    "owner",
+    "severity",
+    "contracts",
+    "official_references",
+    "runtime_gates"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/svc/DriverAssistStart.cpp"
+    },
+    "severity": {
+      "const": "major"
+    },
+    "contracts": {
+      "type": "array",
+      "minItems": 8,
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "InitClipboard creates four unique movable memory objects for the four driver-probe clipboard formats"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "string",
+        "format": "uri"
+      }
+    },
+    "runtime_gates": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "contracts": [
+    "InitClipboard creates four unique movable memory objects for the four driver-probe clipboard formats",
+    "GlobalAlloc failure prevents clipboard probing and still releases every allocated local object",
+    "GlobalLock failure prevents clipboard probing and still releases every allocated local object",
+    "InitClipboard dereferences a GlobalLock pointer only after the pointer is non-null",
+    "SetClipboardData receives one unique HGLOBAL per private probe format",
+    "InitClipboard invokes API_GUI_CLIPBOARD only after the dummy clipboard items have been placed",
+    "InitClipboard empties the clipboard after the driver probe and before locally freeing the dummy private-format objects",
+    "Gui_InitClipboard still observes the same four format markers in the same order",
+    "Vista+ clipboard structure probing and retry topology are unchanged"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-globalalloc",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-globallock",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setclipboarddata",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-emptyclipboard"
+  ],
+  "runtime_gates": [
+    "Windows service build for DriverAssistStart.cpp",
+    "Vista+ clipboard init smoke proving API_GUI_CLIPBOARD detects the clipboard item length and integrity index",
+    "allocation failure injection proving no GlobalLock NULL dereference and all allocated HGLOBALs are freed",
+    "clipboard-open retry smoke proving failure to open the clipboard leaves every local HGLOBAL freed",
+    "driver clipboard fix smoke proving ordinary clipboard operations still receive the expected integrity correction"
+  ]
+}

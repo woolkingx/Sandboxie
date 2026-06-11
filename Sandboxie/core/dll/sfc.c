@@ -28,7 +28,7 @@
 //---------------------------------------------------------------------------
 
 
-static BOOL Sfc_SfcIsFileProtected(HANDLE RpcHandle, LPCWSTR *FileName);
+static BOOL Sfc_SfcIsFileProtected(HANDLE RpcHandle, LPCWSTR ProtFileName);
 
 static BOOL Sfc_SfcIsKeyProtected(HKEY hKey, LPCWSTR lpSubKey, REGSAM sam);
 
@@ -38,7 +38,7 @@ static BOOL Sfc_SfcGetNextProtectedFile(HANDLE RpcHandle, void *FileData);
 //---------------------------------------------------------------------------
 
 
-typedef BOOL (*P_SfcIsFileProtected)(HANDLE RpcHandle, LPCWSTR *FileName);
+typedef BOOL (*P_SfcIsFileProtected)(HANDLE RpcHandle, LPCWSTR ProtFileName);
 
 typedef BOOL (*P_SfcIsKeyProtected)(HKEY hKey, LPCWSTR lpSubKey, REGSAM sam);
 
@@ -63,7 +63,7 @@ _FX BOOLEAN Sfc_Init(HMODULE module)
     void *SfcIsFileProtected, *SfcIsKeyProtected, *SfcGetNextProtectedFile;
 
     //
-    // intercept SECUR32 entry points
+    // intercept SFC/WRP entry points
     //
 
     SfcIsFileProtected = (P_SfcIsFileProtected)
@@ -92,7 +92,7 @@ _FX BOOLEAN Sfc_Init(HMODULE module)
 //---------------------------------------------------------------------------
 
 
-_FX BOOL Sfc_SfcIsFileProtected(HANDLE RpcHandle, LPCWSTR *FileName)
+_FX BOOL Sfc_SfcIsFileProtected(HANDLE RpcHandle, LPCWSTR ProtFileName)
 {
     SetLastError(ERROR_FILE_NOT_FOUND);
     return FALSE;

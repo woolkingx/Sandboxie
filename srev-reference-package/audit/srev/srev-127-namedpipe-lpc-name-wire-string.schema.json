@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-127-namedpipe-lpc-name-wire-string.schema.json",
+  "title": "SREV-127 Named pipe LPC name wire string",
+  "id": "NAMEDPIPE_LPC_NAME_WIRE_STRING",
+  "owner": "Sandboxie/core/svc/namedpipeserver.cpp",
+  "type": "object",
+  "properties": {
+    "wire_field": {
+      "type": "string",
+      "description": "NAMED_PIPE_LPC_CONNECT_REQ name is a fixed wire field"
+    },
+    "string_gate": {
+      "type": "string",
+      "description": "LpcConnectHandler terminates req->name before CRT string operations"
+    },
+    "policy": {
+      "type": "string",
+      "description": "LPC allow-list and connection topology are unchanged"
+    }
+  },
+  "required": [
+    "wire_field",
+    "string_gate",
+    "policy"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "NAMED_PIPE_LPC_CONNECT_REQ name is a fixed-size wire field not a trusted C wide string until server termination",
+    "LpcConnectHandler validates the full fixed request header before writing the local terminator into req->name",
+    "LpcConnectHandler writes NUL to the last element of req->name before _wcsicmp wcscpy or wcscat consumes it",
+    "existing allow-list remains limited to ntsvcs and plugplay",
+    "RPC Control object path composition old LPC versus ALPC branch info validation and proxy-handle ownership are unchanged",
+    "OpenHandler remains the nearby precedent for terminating fixed wire string fields before string operations"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/stricmp-wcsicmp-mbsicmp-stricmp-l-wcsicmp-l-mbsicmp-l?view=msvc-170",
+    "https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/strcpy-wcscpy-mbscpy?view=msvc-170"
+  ]
+}

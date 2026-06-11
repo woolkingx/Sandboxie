@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-107-driverassist-host-inject-restart-coalescing.schema.json",
+  "title": "SREV-107 driverassist host inject restart coalescing",
+  "id": "DRIVERASSIST_HOST_INJECT_RESTART_COALESCING",
+  "owner": "Sandboxie/core/svc/DriverAssist.cpp",
+  "type": "object",
+  "properties": {
+    "config_update_shape": {
+      "type": "string",
+      "description": "Driver-to-service config reload message shape"
+    },
+    "scm_shape": {
+      "type": "string",
+      "description": "Official SCM enumerate, control, and start-service shape"
+    },
+    "coalescing_shape": {
+      "type": "string",
+      "description": "Local generation-based quiet-window coalescing shape"
+    },
+    "source_change": {
+      "type": "string",
+      "description": "Minimal DriverAssist source change preserving HostInjectProcess restart policy"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows SCM and host-injection runtime proof"
+    }
+  },
+  "required": [
+    "config_update_shape",
+    "scm_shape",
+    "coalescing_shape",
+    "source_change",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "each config update increments a generation counter",
+    "only one restart worker may be active at a time",
+    "the active worker waits for a 250ms quiet window before entering SCM work",
+    "the worker must not hold m_critSecHostInjectedSvcs while sleeping",
+    "SCM enumeration stop and start work runs under m_critSecHostInjectedSvcs",
+    "if a new generation appears while SCM work is running a worker must run another quiet-window pass",
+    "if another worker claims the new generation the current worker may exit",
+    "EnumServicesStatusExW enumerates services from an SCM database and requires SC_MANAGER_ENUMERATE_SERVICE",
+    "ControlService sends service control codes through SCM and SCM processes control notifications serially",
+    "StartServiceW starts services through SCM and can block when another service is handling a control code",
+    "this SREV must not change HostInjectProcess matching or service restart policy"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-enumservicesstatusexw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openscmanagerw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openservicew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-controlservice",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-startservicew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-sleep"
+  ]
+}

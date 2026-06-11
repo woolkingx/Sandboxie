@@ -1,0 +1,69 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-178-mountmanager-wire-string-shape.schema.json",
+  "title": "SREV-178 MountManager wire string shape",
+  "id": "MOUNTMANAGER_WIRE_STRING_SHAPE",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "owner",
+    "fields",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "MountManager broker wire request boundary"
+    },
+    "fields": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 7
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 8
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 2
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "fields": [
+    "IMBOX_CREATE_REQ.password",
+    "IMBOX_CREATE_REQ.file_root",
+    "IMBOX_MOUNT_REQ.password",
+    "IMBOX_MOUNT_REQ.reg_root",
+    "IMBOX_MOUNT_REQ.file_root",
+    "IMBOX_UNMOUNT_REQ.reg_root",
+    "IMBOX_QUERY_REQ.reg_root"
+  ],
+  "contracts": [
+    "MountManager owns the ImBox broker request string-shape gate before mount unmount enum query or create logic consumes request fields",
+    "Fixed password[129] fields must contain L'\\0' inside the declared array before C-string or password-handoff logic",
+    "Fixed reg_root[MAX_REG_ROOT_LEN] fields must contain L'\\0' inside the declared array before map lookup lock release protect or unprotect logic",
+    "Flexible file_root[1] tails must contain L'\\0' inside MSG_HEADER.length before GetImageFileName wcsrchr OpenOrCreateNtFolder or CreateJunction",
+    "CreateHandler rejects a terminated create file_root with no backslash before using the wcsrchr result as a range boundary",
+    "SbieDll_Mount initializes the full outbound IMBOX_MOUNT_REQ including admin_only before setting fields",
+    "SbieDll_Mount rejects BoxKey values that do not fit password[129] before wcscpy",
+    "This SREV does not change ImDisk discovery encryption policy reparse point creation removal box-root ownership UseFileImage UseRamDisk or API_PROTECT_ROOT semantics"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/strcpy-wcscpy-mbscpy?view=msvc-170",
+    "https://learn.microsoft.com/en-us/windows/win32/api/stralign/nf-stralign-uaw_wcslen"
+  ],
+  "runtime_gate": "Windows service and DLL build plus malformed IMBOX broker-message runtime proof and normal mount unmount query protected-root smoke"
+}

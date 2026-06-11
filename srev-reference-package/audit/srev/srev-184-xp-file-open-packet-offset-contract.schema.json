@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-184-xp-file-open-packet-offset-contract.schema.json",
+  "title": "SREV-184 XP file open packet offset contract",
+  "id": "XP_FILE_OPEN_PACKET_OFFSET_CONTRACT",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/drv/file_xp.c"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 8
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 2
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/drv/file_xp.c",
+  "contracts": [
+    "file_xp.c owns the 32-bit Windows XP and Windows 2003 file and device parse-procedure hook",
+    "OPEN_PACKET is a private local layout mirror used only by the XP parse-procedure path",
+    "File_CreateMyContext may read CreateOptions Options and CreateDisposition only after Context Type equals IO_TYPE_OPEN_PACKET",
+    "expected 32-bit OPEN_PACKET offsets are CreateOptions 0x20 Options 0x30 and CreateDisposition 0x34",
+    "the offsets are compile-time gates through FIELD_OFFSET and changing the local OPEN_PACKET layout must fail the source gate",
+    "Vista and later use the minifilter route so this XP parse hook must not claim Vista Windows 7 or Windows 8 context layout compatibility",
+    "ACCESS_STATE OriginalDesiredAccess is read as the original requested access rights and is not modified",
+    "this SREV does not change file or device parse-procedure routing policy decisions IO_OPEN_TARGET_DIRECTORY handling font token handling or minifilter behavior",
+    "runtime proof is required"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-field_offset",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_access_state"
+  ],
+  "runtime_gate": "Windows XP/2003 32-bit driver build with XP_SUPPORT, XP file and device parse-procedure hook smoke, file open and rename smoke, and Vista+ minifilter route smoke"
+}

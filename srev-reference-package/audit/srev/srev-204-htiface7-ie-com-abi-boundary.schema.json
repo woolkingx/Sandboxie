@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "HTIFACE7_IE_COM_ABI_BOUNDARY",
+  "owner": "Sandboxie/core/svc/htiface7.h",
+  "consumer": "Sandboxie/core/svc/comserver9_ie.c",
+  "status": "classified-source-level-no-local-mutation-after-official-ie-uri-shape-review",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/previous-versions/windows/internet-explorer/ie-developer/platform-apis/ms775038(v=vs.85)",
+    "https://learn.microsoft.com/en-us/previous-versions/windows/internet-explorer/ie-developer/platform-apis/ms775098(v=vs.85)",
+    "https://learn.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-sysfreestring",
+    "docs/plan/srev-193-ie-com-navigation-input-contract.md"
+  ],
+  "contracts": [
+    "htiface7.h is an external IE COM ABI projection, not a local policy owner",
+    "Uri_PROPERTY_PASSWORD is a URI component property, not Protected Storage or credential-store data",
+    "IUri official shape comes from URLMON and IE documentation",
+    "ITargetFramePriv2 is treated as private compatibility ABI",
+    "Local safety gates belong in comserver9_ie.c consumers and SREV-193 is the active consumer fix",
+    "This SREV intentionally makes no source mutation"
+  ],
+  "runtime_gate": "Covered by SREV-193 IE COM navigation smoke unless future work changes htiface7.h or its consumer ABI"
+}

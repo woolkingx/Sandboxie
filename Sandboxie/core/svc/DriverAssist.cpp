@@ -531,7 +531,7 @@ void DriverAssist::LookupSid2(
         RegCloseKey(hKey);
     }
 
-    HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, KeyPath);
+    HeapFree(GetProcessHeap(), 0, KeyPath);
 }
 
 
@@ -577,24 +577,40 @@ extern void RestartHostInjectedSvcs();
 void DriverAssist::RestartHostInjectedSvcs()
 {
     //
-    // SbieCtrl issues a refresh on every setting change,
-    // resulting in this function getting triggered way to often, 
-    // hence we implement a small workaround.
-    // The first thread to hit this monitors how many 
-    // calls go in and waits until the last one,
-    // then it starts the Job.
+    // SbieCtrl can issue several config reloads for one edit. Coalesce the
+    // burst before touching the SCM because service stop/start control
+    // requests are serialized by SCM and may block while another service is
+    // handling a control code.
     //
 
-    static volatile ULONG JobCounter = 0;
-    if (InterlockedIncrement(&JobCounter) == 1) {
+    static volatile LONG RestartGeneration = 0;
+    static volatile LONG RestartWorkerActive = 0;
+
+    InterlockedIncrement(&RestartGeneration);
+    if (InterlockedCompareExchange(&RestartWorkerActive, 1, 0) != 0)
+        return;
+
+    LONG processedGeneration = 0;
+    for (;;) {
+
+        LONG observedGeneration;
         do {
+            observedGeneration = InterlockedCompareExchange(&RestartGeneration, 0, 0);
             Sleep(250);
-        } while (JobCounter > 1);
+        } while (observedGeneration != InterlockedCompareExchange(&RestartGeneration, 0, 0));
+
         EnterCriticalSection(&m_critSecHostInjectedSvcs);
         ::RestartHostInjectedSvcs();
         LeaveCriticalSection(&m_critSecHostInjectedSvcs);
+
+        processedGeneration = observedGeneration;
+        InterlockedExchange(&RestartWorkerActive, 0);
+
+        if (InterlockedCompareExchange(&RestartGeneration, 0, 0) == processedGeneration)
+            break;
+        if (InterlockedCompareExchange(&RestartWorkerActive, 1, 0) != 0)
+            break;
     }
-    InterlockedDecrement(&JobCounter);
 }
 
 

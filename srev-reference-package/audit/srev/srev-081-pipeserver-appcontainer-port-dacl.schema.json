@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-081-pipeserver-appcontainer-port-dacl.schema.json",
+  "title": "SREV-081 PipeServer AppContainer port DACL contract",
+  "id": "PIPESERVER_APPCONTAINER_PORT_DACL",
+  "owner": "Sandboxie/core/svc/PipeServer.cpp",
+  "type": "object",
+  "properties": {
+    "port": {
+      "type": "string",
+      "description": "SbieSvc named LPC port"
+    },
+    "descriptor": {
+      "type": "string",
+      "description": "Explicit SDDL security descriptor for the service port"
+    },
+    "principal": {
+      "type": "string",
+      "description": "Normal and AppContainer SID halves of the access decision"
+    },
+    "fallback": {
+      "type": "string",
+      "description": "Legacy explicit DACL for OS builds that do not recognize AC"
+    }
+  },
+  "required": [
+    "port",
+    "descriptor",
+    "principal",
+    "fallback"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "the service side owns the named port security descriptor",
+    "the client side must not bypass AppContainer token semantics to connect",
+    "normal clients keep the legacy any-process connect shape through WD",
+    "AppContainer clients need an explicit AC ACE on systems that understand AC",
+    "older systems that do not know AC fall back to an explicit WD DACL",
+    "the port must not be published with a NULL DACL"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/secauthz/implementing-an-appcontainer",
+    "https://learn.microsoft.com/en-us/windows/win32/api/securityappcontainer/nf-securityappcontainer-getappcontainernamedobjectpath",
+    "https://learn.microsoft.com/en-us/windows/win32/secauthz/sid-strings",
+    "https://learn.microsoft.com/en-us/windows/win32/secauthz/null-dacls-and-empty-dacls",
+    "https://learn.microsoft.com/en-us/windows/win32/secbp/creating-a-dacl"
+  ]
+}

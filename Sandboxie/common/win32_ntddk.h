@@ -1741,6 +1741,8 @@ typedef void *PPORT_VIEW;
 typedef void *PREMOTE_PORT_VIEW;
 
 // begin ALPC_INFO structure from LPC-ALPC-paper.pdf
+// SREV-138: private local ALPC ABI mirror; keep Sandboxie/core/drv/alpc.h
+// synchronized and require Windows capture before changing fields, widths, or flags.
 
 #define PORT_INFO_LPCMODE               0x001000    // Behave like an LPC port
 #define PORT_INFO_CANIMPERSONATE        0x010000    // Accept impersonation

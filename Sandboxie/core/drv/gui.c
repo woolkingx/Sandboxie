@@ -280,17 +280,17 @@ _FX void Gui_Check_OpenWinClass(PROCESS *proc)
 
 //---------------------------------------------------------------------------
 //
-// Workaround for bug in Windows Vista and later concerning clipboard which
-// prevents a process outside the sandbox from accessing data copied into
-// the clipboard by a process in the sandbox.
+// SREV-334: Windows Vista+ clipboard access crosses the window-station
+// clipboard, UIPI/MIC integrity labels, and Sandboxie's private clipboard
+// item layout probe so out-of-sandbox readers can access sandbox copies.
 //
 // The clipboard data area, within the window station object, contains
 // a list of clipboard items.  In addition to format type and pointer,
 // UIPI also stores the integrity level of the process for each item.
-// There seems to be a bug in win32k!FindClipFormat when the item IL = 0,
-// which would be the case for a process in the sandbox.
+// Private observation: win32k!FindClipFormat treats item IL = 0 poorly,
+// which is the label shape observed for a process in the sandbox.
 //
-// to work around this, we have an API call (API_GUI_CLIPBOARD) that fixes
+// To bridge this, API_GUI_CLIPBOARD adjusts
 // the IL for each clipboard item.  function CloseClipboardSlave in file
 // core/svc/GuiServer.cpp invokes this API in response to a request from
 // Gui_CloseClipboard in file core/dll/gui.c.
@@ -308,7 +308,13 @@ typedef struct _GUI_CLIPBOARD {
     ULONG count;
 } GUI_CLIPBOARD;
 
-static GUI_CLIPBOARD *Gui_GetClipboard(void);
+typedef struct _GUI_CLIPBOARD_REF {
+    GUI_CLIPBOARD *clipboard;
+    void *window_station;
+} GUI_CLIPBOARD_REF;
+
+static BOOLEAN Gui_ReferenceClipboard(GUI_CLIPBOARD_REF *ref);
+static void Gui_DereferenceClipboard(GUI_CLIPBOARD_REF *ref);
 static void Gui_InitClipboard();
 static void Gui_FixClipboard(ULONG integrity);
 
@@ -317,23 +323,25 @@ static ULONG Gui_ClipboardIntegrityIndex = 0;
 
 
 //---------------------------------------------------------------------------
-// Gui_GetClipboard
+// Gui_ReferenceClipboard
 //---------------------------------------------------------------------------
 
 
-_FX GUI_CLIPBOARD *Gui_GetClipboard(void)
+_FX BOOLEAN Gui_ReferenceClipboard(GUI_CLIPBOARD_REF *ref)
 {
     HANDLE WinStaHandle;
     void *WinStaObject;
     GUI_CLIPBOARD *Clipboard;
     NTSTATUS status;
 
+    memzero(ref, sizeof(GUI_CLIPBOARD_REF));
+
     //
     // Clipboard offset can be found in win32k!FindClipFormat
     // In windows 10 find the offset in win32kfull!FindClipFormat
 
     if (!Dyndata_Active)
-        return NULL;
+        return FALSE;
 
     //
     // get the window station object to which caller is connected
@@ -341,16 +349,14 @@ _FX GUI_CLIPBOARD *Gui_GetClipboard(void)
 
     WinStaHandle = PsGetProcessWin32WindowStation(PsGetCurrentProcess());
     if (! WinStaHandle)
-        return NULL;
+        return FALSE;
 
     status = ObReferenceObjectByHandle(
                 WinStaHandle, 0, *ExWindowStationObjectType, KernelMode,
                 &WinStaObject, NULL);
 
     if (! NT_SUCCESS(status))
-        return NULL;
-
-    ObDereferenceObject(WinStaObject);
+        return FALSE;
 
     //
     // get the clipboard data in the window station object
@@ -358,10 +364,30 @@ _FX GUI_CLIPBOARD *Gui_GetClipboard(void)
 
     Clipboard = (GUI_CLIPBOARD *) ((ULONG_PTR)WinStaObject + Dyndata_Config.Clipboard_offset);
 
-    if (Clipboard->items && Clipboard->count)
-        return Clipboard;
+    if (Clipboard->items && Clipboard->count) {
+        ref->clipboard = Clipboard;
+        ref->window_station = WinStaObject;
+        return TRUE;
+    }
 
-    return NULL;
+    ObDereferenceObject(WinStaObject);
+
+    return FALSE;
+}
+
+
+//---------------------------------------------------------------------------
+// Gui_DereferenceClipboard
+//---------------------------------------------------------------------------
+
+
+_FX void Gui_DereferenceClipboard(GUI_CLIPBOARD_REF *ref)
+{
+    if (ref->window_station) {
+        ObDereferenceObject(ref->window_station);
+        ref->window_station = NULL;
+        ref->clipboard = NULL;
+    }
 }
 
 
@@ -372,12 +398,14 @@ _FX GUI_CLIPBOARD *Gui_GetClipboard(void)
 
 _FX void Gui_InitClipboard(void)
 {
+    GUI_CLIPBOARD_REF ClipboardRef;
+    GUI_CLIPBOARD *Clipboard;
     ULONG *ptr;
     ULONG x2, x3, x4, i;
 
-    GUI_CLIPBOARD *Clipboard = Gui_GetClipboard();
-    if (! Clipboard)
+    if (! Gui_ReferenceClipboard(&ClipboardRef))
         return;
+    Clipboard = ClipboardRef.clipboard;
 
     //
     // analyze the structure of the clipboard item area.  InitClipboard
@@ -386,11 +414,11 @@ _FX void Gui_InitClipboard(void)
     //
 
     if (Clipboard->count < 4)
-        return;
+        goto finish;
 
     ptr = Clipboard->items;
     if (*ptr != 0x111111)
-        return;
+        goto finish;
 
     //
     // after we make sure the data area begins with 0x111111, the first
@@ -404,20 +432,20 @@ _FX void Gui_InitClipboard(void)
     for (x2 = 0; (x2 < 12) && (*ptr != 0x222222); ++x2, ++ptr)
         ;
     if (*ptr != 0x222222)
-        return;
+        goto finish;
 
     for (x3 = 0; (x3 < 12) && (*ptr != 0x333333); ++x3, ++ptr)
         ;
     if (*ptr != 0x333333)
-        return;
+        goto finish;
 
     for (x4 = 0; (x4 < 12) && (*ptr != 0x444444); ++x4, ++ptr)
         ;
     if (*ptr != 0x444444)
-        return;
+        goto finish;
 
     if (x2 != x3 || x3 != x4)
-        return;
+        goto finish;
 
     //
     // now we need to scan the data area to see which ULONG contains
@@ -439,18 +467,18 @@ _FX void Gui_InitClipboard(void)
         Gui_ClipboardItemLength = x2;
         Gui_ClipboardIntegrityIndex = -1;
 
-        return;
+        goto finish;
     }
 
     ptr += x2;
     if (*ptr != 0x4000)                     // 0x222222
-        return;
+        goto finish;
     ptr += x2;
     if (*ptr != 0x4000)                     // 0x333333
-        return;
+        goto finish;
     ptr += x2;
     if (*ptr != 0x4000)                     // 0x444444
-        return;
+        goto finish;
 
     //
     // finish
@@ -458,6 +486,9 @@ _FX void Gui_InitClipboard(void)
 
     Gui_ClipboardItemLength = x2;
     Gui_ClipboardIntegrityIndex = i;
+
+finish:
+    Gui_DereferenceClipboard(&ClipboardRef);
 }
 
 
@@ -470,12 +501,14 @@ _FX void Gui_FixClipboard(ULONG integrity)
 {
     if (Gui_ClipboardIntegrityIndex != -1) {    // do nothing if UIPI is off
 
+        GUI_CLIPBOARD_REF ClipboardRef;
+        GUI_CLIPBOARD *Clipboard;
         ULONG i;
         ULONG *ptr;
 
-        GUI_CLIPBOARD *Clipboard = Gui_GetClipboard();
-        if (! Clipboard)
+        if (! Gui_ReferenceClipboard(&ClipboardRef))
             return;
+        Clipboard = ClipboardRef.clipboard;
 
         ptr = Clipboard->items;
         for (i = 0; i < Clipboard->count; ++i) {
@@ -486,6 +519,8 @@ _FX void Gui_FixClipboard(ULONG integrity)
             }
             ptr += Gui_ClipboardItemLength;
         }
+
+        Gui_DereferenceClipboard(&ClipboardRef);
     }
 }
 

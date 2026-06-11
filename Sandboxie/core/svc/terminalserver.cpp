@@ -342,6 +342,7 @@ MSG_HEADER *TerminalServer::GetName(MSG_HEADER *msg)
     //
 
     WCHAR name[128];
+    memzero(name, sizeof(name));
     BOOLEAN ok = pWinStationNameFromLogonId(
                             SERVERNAME_CURRENT, req->session_id, name);
     if (! ok) {
@@ -355,8 +356,9 @@ MSG_HEADER *TerminalServer::GetName(MSG_HEADER *msg)
         error = ERROR_OUTOFMEMORY;
     else {
 
-        wmemcpy(rpl->name, name, 120);
-        name[120] = L'\0';
+        memzero(rpl->name, sizeof(rpl->name));
+        wmemcpy(rpl->name, name, 127);
+        rpl->name[127] = L'\0';
     }
 
     //
@@ -518,11 +520,17 @@ MSG_HEADER *TerminalServer::GetUserToken(MSG_HEADER *msg)
 
     HANDLE idProcess = (HANDLE)(ULONG_PTR)PipeServer::GetCallerProcessId();
 
-    if (msg->length != sizeof(MSG_HEADER)) {
+    GET_USER_TOKEN_REQ *req = (GET_USER_TOKEN_REQ *)msg;
+
+    if (msg->length != sizeof(GET_USER_TOKEN_REQ)) {
 
         err = ERROR_INVALID_PARAMETER;
 
     } else if (0 != SbieApi_QueryProcess(idProcess, NULL, NULL, NULL, &session_id)) {
+
+        err = ERROR_ACCESS_DENIED;
+
+    } else if (req->session_id != session_id) {
 
         err = ERROR_ACCESS_DENIED;
 
@@ -539,7 +547,7 @@ MSG_HEADER *TerminalServer::GetUserToken(MSG_HEADER *msg)
             HANDLE pHandle;
 
             HANDLE hToken; //hToken = (HANDLE)SbieApi_QueryProcessInfoEx((HANDLE)idProcess, 'ptok', 0);
-            if (WTSQueryUserToken(session_id, &hToken)) {
+            if (WTSQueryUserToken(req->session_id, &hToken)) {
                 
                 HANDLE hFilteredToken = NULL;
 
@@ -591,6 +599,4 @@ MSG_HEADER *TerminalServer::GetUserToken(MSG_HEADER *msg)
 
     return SHORT_REPLY(err);
 }
-
-
 

@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-100-process-create-caller-snapshot.schema.json",
+  "title": "SREV-100 process create caller snapshot",
+  "id": "PROCESS_CREATE_CALLER_SNAPSHOT",
+  "owner": "Sandboxie/core/drv/process.c",
+  "type": "object",
+  "properties": {
+    "notify_ex_identity": {
+      "type": "string",
+      "description": "Vista+ create notify identity source"
+    },
+    "legacy_notify_identity": {
+      "type": "string",
+      "description": "Legacy XP create notify identity source"
+    },
+    "process_list_lifetime": {
+      "type": "string",
+      "description": "Sandbox PROCESS map lifetime while cloning parent box state"
+    },
+    "source_change": {
+      "type": "string",
+      "description": "Minimal source change preserving process-list lock topology"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows process create runtime proof"
+    }
+  },
+  "required": [
+    "notify_ex_identity",
+    "legacy_notify_identity",
+    "process_list_lifetime",
+    "source_change",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "PS_CREATE_NOTIFY_INFO.ParentProcessId is the inherited parent process and is not necessarily the creator process",
+    "PS_CREATE_NOTIFY_INFO.CreatingThreadId.UniqueProcess is the official creator/caller process id for Vista+ create notifications",
+    "legacy PsSetCreateProcessNotifyRoutine has only ParentId and current callback context, so it keeps PsGetCurrentProcessId as CallerId",
+    "Process_Find with out_irql returns while holding Process_ListLock shared",
+    "Process_NotifyProcess_Create must clone parent_proc->box before releasing Process_ListLock",
+    "Process_Delete removes and frees PROCESS state only after acquiring Process_ListLock exclusive",
+    "the caller/parent selection logic must not dereference parent_proc after Process_ListLock is released",
+    "the stale crash wording must be replaced by an explicit stable sandbox-state snapshot contract"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddk/nf-ntddk-pssetcreateprocessnotifyroutineex",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddk/nc-ntddk-pcreate_process_notify_routine_ex",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddk/ns-ntddk-_ps_create_notify_info",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddk/nf-ntddk-pssetcreateprocessnotifyroutine",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-exacquireresourceexclusivelite",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/eresource-structures"
+  ]
+}

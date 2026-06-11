@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-034-cred-aw-conversion.schema.json",
+  "title": "SREV-034 cred aw conversion",
+  "id": "CRED_AW_CONVERSION_BLOCK",
+  "owner": "Sandboxie/core/dll/cred.c",
+  "type": "object",
+  "properties": {
+    "audit_contract": {
+      "type": "string",
+      "description": "API: Cred_CREDENTIALA2W / Cred_CREDENTIALW2A | data: {\"input\": [\"CREDENTIALA\", \"CREDENTIALW\", \"CREDENTIAL_TARGET_INFORMATIONA\"], \"output\": [\"single LocalAlloc block containing the converted structure\", \"all converted string pointers point inside the output block\", \"attribute array storage precedes converted attribute keywords\"]}"
+    },
+    "validation_invariants": {
+      "type": "string",
+      "description": "All contracts listed in the contracts metadata must hold before any data is trusted past the validation boundary"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate proves contracts hold under normal and malformed inputs"
+    }
+  },
+  "required": [
+    "audit_contract",
+    "validation_invariants",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "conversion output cursor starts inside the newly allocated output block",
+    "Cred_CREDENTIALW2A must not write converted strings into the input CREDENTIALW block",
+    "Cred_CopyW2A writes bytes through char*, not WCHAR*",
+    "attribute array cursor advances by sizeof(CREDENTIAL_ATTRIBUTEA/W), not sizeof(pointer)",
+    "LocalAlloc failure returns NULL and caller fails with ERROR_NOT_ENOUGH_MEMORY",
+    "CredentialBlob and attribute Value pointers keep their source ownership because this local shim only converts structure/string shape"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/wincred/ns-wincred-credentiala",
+    "https://learn.microsoft.com/en-us/windows/win32/api/wincred/nf-wincred-credwritea",
+    "https://learn.microsoft.com/en-us/windows/win32/api/wincred/nf-wincred-credreada",
+    "https://learn.microsoft.com/en-us/windows/win32/api/wincred/nf-wincred-credfree"
+  ]
+}

@@ -1,0 +1,26 @@
+---
+kind: srev-ledger-entry
+id: SREV-178
+title: MountManager Wire String Shape
+status: patched-source-level-after-official-crt-string-shape-review-needs-windows-malformed-broker-runtime-proof
+owner: MountManager broker wire request boundary
+spec: docs/plan/srev-178-mountmanager-wire-string-shape.md
+schema: docs/plan/srev-178-mountmanager-wire-string-shape.schema.json
+checker: docs/plan/check-srev-178.py
+runtime_gate: "Windows service and DLL build plus malformed IMBOX broker-message runtime proof and normal mount unmount query protected-root smoke"
+---
+
+### SREV-178: MountManager Wire String Shape
+
+| Field | Content |
+|---|---|
+| Severity | [major] |
+| Status | patched source-level after official CRT string-shape review; needs Windows malformed broker runtime proof |
+| Evidence | `Sandboxie/core/svc/MountManager.h` was the highest-ranked unnamed reviewable core file after SREV-177. It declares the MountManager owner for box-root mount lifecycle and broker handlers. The wire surface in `MountManagerWire.h` contains fixed inline `password[129]` and `reg_root[MAX_REG_ROOT_LEN]` arrays plus flexible `file_root[1]` tails. Before this SREV, `MountManager.cpp` handlers checked only minimum structure size before using those fields as C strings, and `CreateHandler` used the `wcsrchr(req->file_root, L'\\')` result as a range boundary without a null-result gate. `Sandboxie/core/dll/support.c` `SbieDll_Mount` also copied `BoxKey` into `password[129]` with `wcscpy` and did not initialize the whole outbound request, leaving `admin_only` allocator-dependent when `protect_root` was true. |
+| Data | `Sandboxie/core/svc/MountManager.h`, `Sandboxie/core/svc/MountManagerWire.h`, `Sandboxie/core/svc/MountManager.cpp`, `Sandboxie/core/dll/support.c`, `IMBOX_CREATE_REQ.password`, `IMBOX_CREATE_REQ.file_root`, `IMBOX_MOUNT_REQ.password`, `IMBOX_MOUNT_REQ.reg_root`, `IMBOX_MOUNT_REQ.file_root`, `IMBOX_UNMOUNT_REQ.reg_root`, `IMBOX_QUERY_REQ.reg_root`, `MSG_HEADER.length`, `MAX_REG_ROOT_LEN`, `SbieDll_Mount`, `BoxKey`, and `admin_only`. |
+| Schema | `MOUNTMANAGER_WIRE_STRING_SHAPE` says MountManager owns the ImBox broker request string-shape gate; fixed `password[129]` and `reg_root[MAX_REG_ROOT_LEN]` fields must contain `L'\0'` inside their declared arrays before C-string/path/mount logic; flexible `file_root[1]` tails must contain `L'\0'` inside `MSG_HEADER.length`; create requests must reject a terminated path with no backslash before using `wcsrchr` as a range boundary; and the DLL-side `SbieDll_Mount` request is zero-initialized and rejects oversized `BoxKey` before `wcscpy`. |
+| Topology | Legal broker flow is `MSGID_IMBOX_*` request -> minimum struct-size gate -> fixed string gates -> flexible tail terminator gate -> create-only backslash gate -> existing mount/query/unmount/junction/protect logic. Legal DLL flow is `SbieDll_Mount` -> allocate request -> zero request including `admin_only` -> prove `BoxKey` fits `password[129]` -> copy password -> query reg/file roots -> `SbieDll_CallServer`. |
+| Logic Risk | The LPC/ALPC carrier does not prove the local MountManager payload schema. A broker request that lacks an in-message terminator can make service C-string/path logic read beyond the message. A DLL request with an oversized `BoxKey` can overflow the fixed password field, and an uninitialized `admin_only` flag can change protected-root semantics without an explicit caller decision. |
+| Official Shape | `docs/plan/srev-178-mountmanager-wire-string-shape.md` records Microsoft `wcscpy` and wide-string length references. `docs/plan/srev-178-mountmanager-wire-string-shape.schema.json` records the JSON Schema draft-07 local `MOUNTMANAGER_WIRE_STRING_SHAPE` contract. |
+| Fix | `MountManager.cpp` now has local bounded string gates for fixed arrays and flexible message tails, including `MountManager_HasMessageTerminator` for `file_root[1]` tails bounded by `MSG_HEADER.length`. `CreateHandler` validates password and `file_root`, then rejects a missing backslash before deriving the parent root with a bounded `RootEnd - req->file_root` character count. `MountHandler` validates password, `reg_root`, and `file_root`. `UnmountHandler` and `QueryHandler` validate `reg_root`. `SbieDll_Mount` now zeroes the full request, rejects oversized `BoxKey` values before `wcscpy`, and copies password only when `BoxKey` is non-null. No ImDisk discovery, encryption policy, reparse point creation/removal, box-root ownership, `UseFileImage`, `UseRamDisk`, or `API_PROTECT_ROOT` behavior changed. |
+| Acceptance Gate | `docs/plan/check-srev-178.py` validates the draft-07 schema, official references, wire-field evidence, MountManager service-side string gates, gate ordering before C-string/path/mount use, create-path backslash rejection, DLL-side request zeroing and password length gate, and ledger fragment; `docs/plan/check-srev-178.sh` is the matrix wrapper. Runtime/build gate: Windows service/DLL build; malformed broker messages for unterminated `password`, `reg_root`, and `file_root` return `ERROR_INVALID_PARAMETER` without entering mount/query/unmount/protect logic; oversized `BoxKey` passed to `SbieDll_Mount` returns false without overflowing the request; ordinary mount/unmount/query and protected-root mount smoke still work. |

@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-108-epmapper-dynamic-port-scope-and-binding-lifetime.schema.json",
+  "title": "SREV-108 epmapper dynamic port scope and binding lifetime",
+  "id": "EPMAPPER_DYNAMIC_PORT_SCOPE_AND_BINDING_LIFETIME",
+  "owner": "Sandboxie/core/svc/EpMapperServer.cpp",
+  "type": "object",
+  "properties": {
+    "endpoint_mapper_shape": {
+      "type": "string",
+      "description": "Official RPC endpoint-map inquiry and binding lifetime shape"
+    },
+    "service_pid_shape": {
+      "type": "string",
+      "description": "Official SCM service process-id query shape"
+    },
+    "dynamic_port_scope_shape": {
+      "type": "string",
+      "description": "Local driver API shape for process-id or global dynamic-port scope"
+    },
+    "filter_shape": {
+      "type": "string",
+      "description": "Local dynamic-port message-id filter ownership"
+    },
+    "source_change": {
+      "type": "string",
+      "description": "Minimal EpMapper source change preserving global compatibility behavior"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows RPC/ALPC runtime proof"
+    }
+  },
+  "required": [
+    "endpoint_mapper_shape",
+    "service_pid_shape",
+    "dynamic_port_scope_shape",
+    "filter_shape",
+    "source_change",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "caller process id maps to a sandbox box name before policy lookup",
+    "RpcPortBindingIfId resolves through local RPC endpoint mapper inquiry",
+    "RpcPortBindingSvc resolves through SCM service process id and driver ALPC owner lookup",
+    "each successful RpcMgmtEpEltInqNextW binding handle is freed with RpcBindingFree",
+    "RpcBindingToStringBindingW output is freed with RpcStringFreeW",
+    "RpcMgmtEpEltInqDone deletes the inquiry context after enumeration",
+    "QueryServiceStatusEx with SC_STATUS_PROCESS_INFO returns SERVICE_STATUS_PROCESS",
+    "SERVICE_STATUS_PROCESS carries dwProcessId for the running service process",
+    "API_OPEN_DYNAMIC_PORT currently carries process-id or global scope only",
+    "process id 0 is the existing global dynamic-port compatibility path",
+    "RpcPortFilter message ids are attached to the driver dynamic-port entry",
+    "per-sandbox dynamic ports require a driver API schema extension with a scoped key",
+    "per-process or per-sandbox ALPC message filtering must not be pretended in service-only code"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/rpcdce/nf-rpcdce-rpcmgmtepeltinqbegin",
+    "https://learn.microsoft.com/en-us/windows/win32/api/rpcdce/nf-rpcdce-rpcmgmtepeltinqnextw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/rpcdce/nf-rpcdce-rpcmgmtepeltinqdone",
+    "https://learn.microsoft.com/en-us/windows/win32/api/rpcdce/nf-rpcdce-rpcbindingtostringbindingw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/rpcdce/nf-rpcdce-rpcbindingfree",
+    "https://learn.microsoft.com/en-us/windows/win32/api/rpcdce/nf-rpcdce-rpcstringfreew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-queryservicestatusex",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/ns-winsvc-service_status_process",
+    "https://learn.microsoft.com/en-us/windows/win32/etw/alpc",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/-lpc"
+  ]
+}

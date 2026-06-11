@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-330-conf-import-template-comment-contract.schema.json",
+  "title": "SREV-330 Conf import template comment contract",
+  "id": "CONF_IMPORT_TEMPLATE_COMMENT_CONTRACT",
+  "owner": "Sandboxie/core/drv/conf.c",
+  "stage": "data -> schema -> topology -> logic -> action -> verify",
+  "contracts": [
+    "include import failure rolls back a newly imported section unless additional sections were observed",
+    "STATUS_TOO_MANY_SESSIONS is the local additional-section compatibility signal",
+    "ImportBox iteration uses map_key_iter over settings named by Conf_ImportBox",
+    "Template merge iteration uses map_key_iter over settings named by Conf_Template",
+    "placeholder comment text must not use Xxx because XXX is an audit risk token",
+    "SREV-330 changes comments and proof only, not config import or template merge behavior"
+  ],
+  "adjacent_srevs": [
+    "SREV-073"
+  ],
+  "runtime_gate": "No Windows runtime gate is required for this comment-only classification; future include/template behavior changes inherit SREV-073 low-memory config reload proof"
+}

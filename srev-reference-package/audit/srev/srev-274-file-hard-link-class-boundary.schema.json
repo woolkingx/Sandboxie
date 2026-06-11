@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "FILE_HARD_LINK_CLASS_BOUNDARY",
+  "title": "File hard-link class boundary",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/file.c",
+  "stage": "schema -> boundary -> verify",
+  "source_function": "File_NtSetInformationFile",
+  "contracts": [
+    "File_NtSetInformationFile owns DLL-side hard-link set-information routing",
+    "NtSetInformationFile FileInformation buffer shape is determined by FileInformationClass",
+    "FileLinkInformation creates a hard link with FILE_LINK_INFORMATION",
+    "FileLinkInformationEx uses the FILE_LINK_INFORMATION Flags union shape",
+    "FileLinkInformation and FileLinkInformationEx are the only classes routed into File_RenameFile hard-link creation",
+    "FileHardLinkInformation and FileHardLinkFullIdInformation remain native compatibility probes until a class-specific setter contract is proven",
+    "a failed alternate hard-link probe returns STATUS_INVALID_DEVICE_REQUEST to preserve caller fallback behavior",
+    "file_flt.c denies alternate hard-link classes for sandboxed IRP_MJ_SET_INFORMATION",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntsetinformationfile",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_link_information",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntqueryinformationfile",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_links_information"
+  ],
+  "local_edges": [
+    "FileLinkInformation -> File_RenameFile(FileHandle, FileInformation, TRUE)",
+    "FileLinkInformationEx -> File_RenameFile(FileHandle, FileInformation, TRUE)",
+    "FileHardLinkInformation -> __sys_NtSetInformationFile native compatibility probe",
+    "FileHardLinkFullIdInformation -> __sys_NtSetInformationFile native compatibility probe",
+    "native alternate hard-link failure -> STATUS_INVALID_DEVICE_REQUEST",
+    "file_flt.c IRP_MJ_SET_INFORMATION -> alternate hard-link classes denied"
+  ],
+  "runtime_gate": "Windows hard-link set-information matrix for FileLinkInformation, FileLinkInformationEx, FileHardLinkInformation, and FileHardLinkFullIdInformation",
+  "status": "patched-comment-topology-after-official-hard-link-information-class-review-no-behavior-change"
+}

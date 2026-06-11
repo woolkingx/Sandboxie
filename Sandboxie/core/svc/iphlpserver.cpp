@@ -101,6 +101,9 @@ IpHlpServer::IpHlpServer(PipeServer *pipeServer)
     m_IcmpCreateFile  = NULL;
     m_Icmp6CreateFile = NULL;
     m_IcmpCloseHandle = NULL;
+    m_IcmpSendEcho2   = NULL;
+    m_IcmpSendEcho2Ex = NULL;
+    m_Icmp6SendEcho2  = NULL;
 
     HMODULE _iphlpapi = LoadLibrary(L"iphlpapi.dll");
     if (_iphlpapi) {
@@ -280,6 +283,9 @@ MSG_HEADER *IpHlpServer::SendEchoHandler(MSG_HEADER *msg, HANDLE idProcess)
         return SHORT_REPLY(ERROR_INVALID_PARAMETER);
     if ((req->request_size > 0xFFFF) || (req->reply_size > 0x0FFFFF))
         return SHORT_REPLY(ERROR_INVALID_PARAMETER);
+    ULONG offset = FIELD_OFFSET(IPHLP_SEND_ECHO_REQ, request_data);
+    if (offset + req->request_size > req->h.length)
+        return SHORT_REPLY(ERROR_INVALID_PARAMETER);
 
     PROXY_ICMP_HANDLE *ProxyIcmp =
         (PROXY_ICMP_HANDLE *)m_ProxyHandle->Find(idProcess, req->handle);
@@ -364,7 +370,7 @@ MSG_HEADER *IpHlpServer::SendEchoHandler(MSG_HEADER *msg, HANDLE idProcess)
 
         if (num_replies == 0) {
             rpl->h.status = GetLastError();
-            num_replies = 1; // even on error we need to return one valid result buffer
+            reply_size = 0;
         } else
             rpl->h.status = ERROR_SUCCESS;
 
@@ -374,7 +380,7 @@ MSG_HEADER *IpHlpServer::SendEchoHandler(MSG_HEADER *msg, HANDLE idProcess)
         // structures to 32-bit structures
         //
 
-        if ((! req->ip6) && num_replies) {
+        if ((! req->ip6) && rpl->h.status == ERROR_SUCCESS && num_replies) {
 
             ULONG i;
 

@@ -46,6 +46,12 @@ static NTSTATUS Process_Api_CopyBoxPathsToUser(
     UNICODE_STRING64 *key_path,
     UNICODE_STRING64 *ipc_path);
 
+static NTSTATUS Process_Api_WriteQueryUlong64ToUser(
+    ULONG64 *data, ULONG64 value);
+
+static NTSTATUS Process_Api_WriteQueryHandleToUser(
+    ULONG64 *data, HANDLE *handle);
+
 
 //---------------------------------------------------------------------------
 // Process_Api_Start
@@ -324,6 +330,38 @@ _FX NTSTATUS Process_Api_Query(PROCESS *proc, ULONG64 *parms)
 //---------------------------------------------------------------------------
 
 
+static NTSTATUS Process_Api_WriteQueryUlong64ToUser(
+    ULONG64 *data, ULONG64 value)
+{
+    NTSTATUS status;
+
+    __try {
+        ProbeForWrite(data, sizeof(ULONG64), sizeof(ULONG64));
+        *data = value;
+        status = STATUS_SUCCESS;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        status = GetExceptionCode();
+    }
+
+    return status;
+}
+
+
+static NTSTATUS Process_Api_WriteQueryHandleToUser(
+    ULONG64 *data, HANDLE *handle)
+{
+    NTSTATUS status;
+
+    status = Process_Api_WriteQueryUlong64ToUser(data, (ULONG64)*handle);
+    if (! NT_SUCCESS(status)) {
+        NtClose(*handle);
+        *handle = NULL;
+    }
+
+    return status;
+}
+
+
 _FX NTSTATUS Process_Api_QueryInfo(PROCESS *proc, ULONG64 *parms)
 {
     API_QUERY_PROCESS_INFO_ARGS *args = (API_QUERY_PROCESS_INFO_ARGS *)parms;
@@ -449,15 +487,17 @@ _FX NTSTATUS Process_Api_QueryInfo(PROCESS *proc, ULONG64 *parms)
                     if (Session_CheckAdminAccess(TRUE))
                         access |= TOKEN_DUPLICATE;
 
-					HANDLE MyTokenHandle;
-					status = ObOpenObjectByPointer(PrimaryTokenObject, 0, NULL, access, *SeTokenObjectType, UserMode, &MyTokenHandle);
+						HANDLE MyTokenHandle;
+						status = ObOpenObjectByPointer(PrimaryTokenObject, 0, NULL, access, *SeTokenObjectType, UserMode, &MyTokenHandle);
 
-					ObDereferenceObject(PrimaryTokenObject);
+						ObDereferenceObject(PrimaryTokenObject);
 
-					*data = (ULONG64)MyTokenHandle;
-				}
-				else
-					status = STATUS_NOT_FOUND;
+                        if (NT_SUCCESS(status))
+                            status = Process_Api_WriteQueryHandleToUser(
+                                                data, &MyTokenHandle);
+					}
+					else
+						status = STATUS_NOT_FOUND;
 			}
 
 		} else if (args->info_type.val == 'itok' || args->info_type.val == 'ttok') { // impersonation token / test thread token
@@ -469,56 +509,74 @@ _FX NTSTATUS Process_Api_QueryInfo(PROCESS *proc, ULONG64 *parms)
 				status = STATUS_ACCESS_DENIED;
             else if(!proc->threads_lock)
                 status = STATUS_NOT_FOUND;
-			else
-			{
-                HANDLE tid = (HANDLE)(args->ext_data.val);
+				else
+				{
+	                HANDLE tid = (HANDLE)(args->ext_data.val);
+                    void *ImpersonationTokenObject = NULL;
+                    ULONG64 token_present = 0;
 
-                KIRQL irql2;
-                KeRaiseIrql(APC_LEVEL, &irql2);
+	                KIRQL irql2;
+	                KeRaiseIrql(APC_LEVEL, &irql2);
                 ExAcquireResourceExclusiveLite(proc->threads_lock, TRUE);
 
                 THREAD *thrd = Thread_GetOrCreate(proc, tid, FALSE);
-				if (thrd)
-				{
-                    if (args->info_type.val == 'ttok')
-                    {
-                        *data = thrd->token_object ? TRUE : FALSE;
-                    }
-                    else //if (args->info_type.val == 'itok')
-                    {
-                        void* ImpersonationTokenObject;
+					if (thrd)
+					{
+	                    if (args->info_type.val == 'ttok')
+	                    {
+	                        token_present = thrd->token_object ? TRUE : FALSE;
+                            status = STATUS_SUCCESS;
+	                    }
+	                    else //if (args->info_type.val == 'itok')
+	                    {
+	                        ImpersonationTokenObject = thrd->token_object;
 
-                        ImpersonationTokenObject = thrd->token_object;
+	                        if (ImpersonationTokenObject) {
+	                            ObReferenceObject(ImpersonationTokenObject);
+	                        }
 
-                        if (ImpersonationTokenObject) {
-                            ObReferenceObject(ImpersonationTokenObject);
-                        }
-
-                        if (ImpersonationTokenObject)
-                        {
-                            ACCESS_MASK access = TOKEN_QUERY | TOKEN_QUERY_SOURCE;
-                            if (Session_CheckAdminAccess(TRUE))
-                                access |= TOKEN_DUPLICATE;
-
-                            HANDLE MyTokenHandle;
-                            status = ObOpenObjectByPointer(ImpersonationTokenObject, 0, NULL, access, *SeTokenObjectType, UserMode, &MyTokenHandle);
-
-                            ObDereferenceObject(ImpersonationTokenObject);
-
-                            *data = (ULONG64)MyTokenHandle;
-                        }
-                        else
-                            status = STATUS_NO_IMPERSONATION_TOKEN;
-                    }
-                    //else
+	                        if (! ImpersonationTokenObject)
+	                            status = STATUS_NO_IMPERSONATION_TOKEN;
+	                    }
+	                    //else
                     //    status = STATUS_INVALID_PARAMETER;
 				}
 				else
 					status = STATUS_NOT_FOUND;
 
-                ExReleaseResourceLite(proc->threads_lock);
-                KeLowerIrql(irql2);
-			}
+	                ExReleaseResourceLite(proc->threads_lock);
+	                KeLowerIrql(irql2);
+
+                    if (NT_SUCCESS(status)) {
+
+                        if (args->info_type.val == 'ttok') {
+
+                            status = Process_Api_WriteQueryUlong64ToUser(
+                                                    data, token_present);
+
+                        } else if (ImpersonationTokenObject) {
+
+                            ACCESS_MASK access = TOKEN_QUERY | TOKEN_QUERY_SOURCE;
+                            if (Session_CheckAdminAccess(TRUE))
+                                access |= TOKEN_DUPLICATE;
+
+                            HANDLE MyTokenHandle;
+                            status = ObOpenObjectByPointer(
+                                        ImpersonationTokenObject, 0, NULL, access,
+                                        *SeTokenObjectType, UserMode,
+                                        &MyTokenHandle);
+
+                            ObDereferenceObject(ImpersonationTokenObject);
+
+                            if (NT_SUCCESS(status))
+                                status = Process_Api_WriteQueryHandleToUser(
+                                                    data, &MyTokenHandle);
+                        }
+                    } else if (ImpersonationTokenObject) {
+
+                        ObDereferenceObject(ImpersonationTokenObject);
+                    }
+				}
 
 		} else if (args->info_type.val == 'ippt') { // is primary process token
 
@@ -1080,9 +1138,8 @@ _FX NTSTATUS Process_Api_Enum(PROCESS *proc, ULONG64 *parms)
         wcscpy(boxname, proc->box->name);
     user_boxname = (WCHAR *)parms[2];
     if ((! boxname[0]) && user_boxname) {
-        ProbeForRead(user_boxname, sizeof(WCHAR) * (BOXNAME_COUNT - 2), sizeof(UCHAR));
-        if (user_boxname[0])
-            wcsncpy(boxname, user_boxname, (BOXNAME_COUNT - 2));
+        if (! Api_CopyBoxNameFromUser(boxname, user_boxname))
+            return STATUS_INVALID_PARAMETER;
     }
 
     // get "all users/current user only" flag from third parameter

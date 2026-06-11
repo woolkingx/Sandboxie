@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "WMP_SHELL_COM_INPUT_CONTRACT",
+  "owner": "Sandboxie/core/svc/comserver9_wmp.c",
+  "entry_surface": "Sandboxie/core/svc/comserver9_wmp.c",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-iexecutecommand-setparameters",
+    "https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-iobjectwithselection-setselection",
+    "https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-ishellitemarray-getitemat",
+    "https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-ishellitem-getdisplayname",
+    "https://learn.microsoft.com/en-us/windows/win32/api/objidl/nf-objidl-idataobject-getdata",
+    "https://learn.microsoft.com/en-us/windows/win32/api/ole2/nf-ole2-releasestgmedium",
+    "https://learn.microsoft.com/en-us/windows/win32/shell/clipboard",
+    "https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-dragqueryfilea"
+  ],
+  "data_shapes": {
+    "execute_parameters": {
+      "input": "IExecuteCommand::SetParameters LPCWSTR",
+      "owned_state": "WMPServer_Parameters",
+      "invariant": "copy with wmemcpy into allocation-base-preserving owned storage"
+    },
+    "selection_items": {
+      "input": "IShellItemArray",
+      "item": "IShellItem from GetItemAt",
+      "display_name": "LPWSTR from GetDisplayName",
+      "invariant": "release display_name with CoTaskMemFree after appending"
+    },
+    "drop_medium": {
+      "input": "IDataObject::GetData result",
+      "medium": "STGMEDIUM",
+      "invariant": "extract CF_HDROP names with DragQueryFile and release with ReleaseStgMedium"
+    }
+  },
+  "contracts": [
+    "SetParameters copies parameter text; comparison routines are not legal copies",
+    "WMPServer_Parameters always points at the allocation base or is NULL",
+    "WCHAR byte counts are checked before Dll_Alloc",
+    "SetSelection validates psia before dereference",
+    "IShellItem::GetDisplayName output is released with CoTaskMemFree",
+    "Selection append uses bounded wmemcpy builder instead of wcscpy/wcscat",
+    "IDropTarget effect output pointers are checked before write",
+    "IDataObject::GetData STGMEDIUM is released with ReleaseStgMedium",
+    "CF_HDROP extraction uses DragQueryFile instead of direct DROPFILES pointer walking",
+    "SboxSvc.vcxproj links Shell32.lib for every service configuration that builds comserver9_wmp.c"
+  ],
+  "runtime_gate": "Windows SbieSvc COM-server build plus WMP play/enqueue, selection, and CF_HDROP smoke",
+  "status": "patched-source-level-after-official-shell-com-shape-review-needs-windows-runtime-proof"
+}

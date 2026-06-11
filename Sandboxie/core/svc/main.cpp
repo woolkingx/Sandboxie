@@ -104,6 +104,7 @@ int WinMain(
     GetSystemInfo(&_SystemInfo);
 
     DriverAssist::InitializeSidCache();
+    int rc = NO_ERROR;
 
     WCHAR *cmdline = GetCommandLine();
     if (cmdline) {
@@ -111,41 +112,42 @@ int WinMain(
         WCHAR *cmdline2 = wcsstr(cmdline, SANDBOXIE L"_ComProxy");
         if (cmdline2) {
             ComServer::RunSlave(cmdline2);
-            return NO_ERROR;
+            goto finish;
         }
 
         WCHAR *cmdline3 = wcsstr(cmdline, SANDBOXIE L"_UacProxy");
         if (cmdline3) {
             ServiceServer::RunUacSlave(cmdline3);
-            return NO_ERROR;
+            goto finish;
         }
 
         WCHAR *cmdline4 = wcsstr(cmdline, SANDBOXIE L"_NetProxy");
         if (cmdline4) {
             NetApiServer::RunSlave(cmdline4);
-            return NO_ERROR;
+            goto finish;
         }
 
         WCHAR *cmdline5 = wcsstr(cmdline, SANDBOXIE L"_GuiProxy");
         if (cmdline5) {
             GuiServer::RunSlave(cmdline5);
-            return NO_ERROR;
+            goto finish;
         }
 
         WCHAR *cmdline6 = wcsstr(cmdline, SANDBOXIE L"_UserProxy");
         if (cmdline6) {
             UserServer::RunWorker(cmdline6);
-            return NO_ERROR;
+            goto finish;
         }
 
     }
 
     if (! StartServiceCtrlDispatcher(myServiceTable))
-        return GetLastError();
+        rc = GetLastError();
 
+finish:
     DriverAssist::DestroySidCache();
 
-    return NO_ERROR;
+    return rc;
 }
 
 
@@ -205,6 +207,11 @@ void WINAPI ServiceMain(DWORD argc, WCHAR *argv[])
         ServiceStatus.dwCurrentState        = SERVICE_STOPPED;
         ServiceStatus.dwWin32ExitCode       = ERROR_SERVICE_SPECIFIC_ERROR;
         ServiceStatus.dwServiceSpecificExitCode = status;
+
+        if (EventLog) {
+            CloseEventLog(EventLog);
+            EventLog = NULL;
+        }
     }
 
     SetServiceStatus(ServiceStatusHandle, &ServiceStatus);
@@ -301,6 +308,11 @@ DWORD WINAPI ServiceHandlerEx(
         DriverAssist::Shutdown();
 
         MountManager::Shutdown();
+
+        if (EventLog) {
+            CloseEventLog(EventLog);
+            EventLog = NULL;
+        }
 
     } else if (dwControl != SERVICE_CONTROL_INTERROGATE)
         return ERROR_CALL_NOT_IMPLEMENTED;
@@ -675,10 +687,12 @@ bool IsHostPath(HANDLE idProcess, WCHAR* dos_path)
         goto finish;
 
     DWORD dwRet = GetFinalPathNameByHandleW(handle, request_path, len, VOLUME_NAME_NT);
-    if (dwRet == 0 || dwRet > len) // failed || buffer to small
+    if (dwRet == 0 || dwRet >= len) // failed || buffer too small
         goto finish;
 
-    if(len > 12 && _wcsnicmp(request_path, L"\\Device\\Mup\\", 12) == 0)
+    const WCHAR MupPrefix[] = L"\\Device\\Mup\\";
+    const ULONG MupPrefixLen = (sizeof(MupPrefix) / sizeof(WCHAR)) - 1;
+    if (dwRet >= MupPrefixLen && _wcsnicmp(request_path, MupPrefix, MupPrefixLen) == 0)
         goto finish; // files on network shares are not files on the host
 
     //
@@ -700,7 +714,7 @@ bool IsHostPath(HANDLE idProcess, WCHAR* dos_path)
     //
 
     ULONG sandbox_path_len = wcslen(sandbox_path);
-    ULONG request_path_len = wcslen(request_path);
+    ULONG request_path_len = dwRet;
     if (request_path_len <= sandbox_path_len || _wcsnicmp(sandbox_path, request_path, sandbox_path_len) != 0) {
 
         result = true;

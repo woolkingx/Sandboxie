@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-253-callsvc-appcontainer-dacl-boundary.schema.json",
+  "id": "CALLSVC_APPCONTAINER_DACL_BOUNDARY",
+  "title": "Callsvc AppContainer DACL boundary",
+  "type": "object",
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/callsvc.c"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 6
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 5
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/dll/callsvc.c",
+  "contracts": [
+    "service-port access is owned by PipeServer::Start not by client-side token bypass in callsvc.c",
+    "AppContainer reachability depends on the service port DACL carrying the AppContainer side of the access check",
+    "callsvc.c may suppress noisy connection logs for AppContainer callers while runtime proof remains open",
+    "callsvc.c must not impersonate revert or otherwise bypass AppContainer token semantics to connect",
+    "SREV-081 remains the behavior owner for the service-port DACL and Windows runtime proof",
+    "This SREV does not change NtConnectPort request reply chunking service message IDs or logging for ordinary non-silent clients"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/secauthz/implementing-an-appcontainer",
+    "https://learn.microsoft.com/en-us/windows/win32/api/securityappcontainer/nf-securityappcontainer-getappcontainernamedobjectpath",
+    "https://learn.microsoft.com/en-us/windows/win32/secauthz/sid-strings",
+    "https://learn.microsoft.com/en-us/windows/win32/secauthz/null-dacls-and-empty-dacls",
+    "https://learn.microsoft.com/en-us/windows/win32/secbp/creating-a-dacl"
+  ],
+  "runtime_gate": "Inherited from SREV-081: normal sandbox and AppContainer clients need Windows service-port connection proof"
+}

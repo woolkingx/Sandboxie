@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "KEY_UTIL_REGISTRY_PATH_SHAPE",
+  "type": "object",
+  "required": [
+    "owner",
+    "data",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/key_util.c"
+    },
+    "data": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "Key_OpenIfBoxed"
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "Key_GetName owns key path normalization for RootDirectory plus UNICODE_STRING ObjectName"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 3
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddk/ns-ntddk-_key_name_information",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwquerykey",
+    "https://learn.microsoft.com/en-us/windows/win32/api/ntdef/ns-ntdef-_object_attributes"
+  ],
+  "contracts": [
+    "Key_GetName owns key path normalization for RootDirectory plus UNICODE_STRING ObjectName",
+    "Key_OpenIfBoxed must not create a second registry path builder from KEY_NAME_INFORMATION",
+    "Key_OpenIfBoxed calls SbieDll_MatchPath on the NUL-terminated true path returned by Key_GetName",
+    "Key_OpenIfBoxed preserves the existing PATH_WRITE_FLAG gate and STATUS_BAD_INITIAL_PC deny status",
+    "Key_OpenOrCreateIfBoxed saves and restores SecurityDescriptor with the same pointer level as OBJECT_ATTRIBUTES SecurityDescriptor",
+    "Key_DeleteValueFromCLSID allocates storage from measured prefix class GUID braces slash and terminator then frees it before return",
+    "SREV-176 does not change the registry policy model custom app behavior CLSID value names WOW64 access flags or create-on-missing behavior",
+    "Linux source gate is not Windows DLL build runtime proof"
+  ],
+  "owner": "Sandboxie/core/dll/key_util.c",
+  "data": [
+    "Sandboxie/core/dll/key_util.c",
+    "Sandboxie/core/dll/key.c",
+    "Key_OpenIfBoxed",
+    "Key_OpenOrCreateIfBoxed",
+    "Key_DeleteValueFromCLSID",
+    "Key_GetName",
+    "OBJECT_ATTRIBUTES",
+    "UNICODE_STRING",
+    "KEY_NAME_INFORMATION",
+    "SbieDll_MatchPath",
+    "PATH_WRITE_FLAG",
+    "STATUS_BAD_INITIAL_PC"
+  ],
+  "runtime_gate": "Windows DLL build plus sandbox customization smoke for DCOM AppID Shell CLSID helpers root-relative registry opens and longer CLSID paths"
+}

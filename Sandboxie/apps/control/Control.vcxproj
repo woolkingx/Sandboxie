@@ -231,6 +231,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <BufferSecurityCheck>true</BufferSecurityCheck>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <AdditionalDependencies>uafxcw.lib;common.lib;SbieDll.lib;ntdll.lib;psapi.lib;wininet.lib;winhttp.lib</AdditionalDependencies>

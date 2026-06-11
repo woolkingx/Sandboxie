@@ -1,0 +1,69 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "LOW_X64_ENTRY_NONVOLATILE_REGISTER",
+  "title": "Low x64 entry nonvolatile register preservation",
+  "type": "object",
+  "required": [
+    "owner",
+    "severity",
+    "contracts",
+    "official_references",
+    "runtime_gates"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/low/entry_asm.asm"
+    },
+    "severity": {
+      "const": "major"
+    },
+    "contracts": {
+      "type": "array",
+      "minItems": 8,
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "_Start is a detour prelude and must not clobber x64 nonvolatile registers before jumping to the LdrInitializeThunk trampoline"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "string",
+        "format": "uri"
+      }
+    },
+    "runtime_gates": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "contracts": [
+    "_Start is a detour prelude and must not clobber x64 nonvolatile registers before jumping to the LdrInitializeThunk trampoline",
+    "Windows x64 treats RBX RBP RDI RSI RSP R12 R13 R14 and R15 as nonvolatile registers",
+    "Windows x64 treats RAX RCX RDX R8 R9 R10 and R11 as volatile registers",
+    "_Start may use volatile scratch registers while preparing EntrypointC arguments",
+    "_Start preserves original RCX RDX R8 and R9 arguments across EntrypointC before jumping to the trampoline",
+    "_Start computes SbieLowData DetourCode and SystemService relative to the call/pop base",
+    "_Start must not use RBX as an unbalanced scratch register",
+    "SystemService x64 keeps its own RBX and RDI save/restore contract unchanged",
+    "x86 _Start and DetourCode behavior are unchanged"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/cpp/build/x64-calling-convention?view=msvc-170",
+    "https://learn.microsoft.com/en-us/cpp/build/x64-software-conventions?view=msvc-170"
+  ],
+  "runtime_gates": [
+    "Windows x64 lowlevel build proving entry_asm.asm assembles and links",
+    "x64 sandbox process startup proving LdrInitializeThunk trampoline receives original RCX RDX R8 and R9",
+    "debugger smoke proving RBX value before _Start matches RBX value at the trampoline jump",
+    "x64 syscall hook smoke proving SystemService still receives SbieLowData through its patched mov-rax immediate",
+    "x86 sandbox startup smoke proving 32-bit entry behavior remains unchanged"
+  ]
+}

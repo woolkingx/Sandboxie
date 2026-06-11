@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-188-conf-expand-early-exit-pool-lifetime.schema.json",
+  "title": "SREV-188 conf expand early exit pool lifetime",
+  "id": "CONF_EXPAND_EARLY_EXIT_POOL_LIFETIME",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/drv/conf_expand.c"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 8
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 2
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/drv/conf_expand.c",
+  "contracts": [
+    "Conf_Expand_2 owns the per-expansion page buffer Conf_Expand_Buffer",
+    "Conf_Expand_Buffer is allocated with ExAllocatePoolWithTag PagedPool PAGE_SIZE tzuk",
+    "every successful allocation of Conf_Expand_Buffer must reach ExFreePoolWithTag before returning",
+    "expansion strings allocated after model_value must be released with Mem_FreeString when expansion fails",
+    "the too-long gate must fail closed without leaking Conf_Expand_Buffer or an allocated current expansion string",
+    "the recursion gate must fail closed without leaking Conf_Expand_Buffer or the newly allocated recursive expansion string",
+    "this SREV does not change expansion variable lookup registry lookup recursion limit string length limit or logging",
+    "runtime proof is required"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-exallocatepoolwithtag",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-exfreepoolwithtag"
+  ],
+  "runtime_gate": "Windows driver build plus Driver Verifier or pool-tag observation for too-long and recursion-limit expansion failures"
+}

@@ -66,6 +66,24 @@ static ULONG Ipc_MSV10_AuthPackageNumber = 0;
 
 BOOLEAN Ipc_Filter_Lsa_Ep_Msg(PROCESS* proc, UCHAR uMsg);
 
+static BOOLEAN Ipc_Lsa_MatchPortName(
+    const UNICODE_STRING* PortName, const WCHAR* ExpectedName);
+
+
+//---------------------------------------------------------------------------
+// Ipc_Lsa_MatchPortName
+//---------------------------------------------------------------------------
+
+
+_FX BOOLEAN Ipc_Lsa_MatchPortName(
+    const UNICODE_STRING* PortName, const WCHAR* ExpectedName)
+{
+    UNICODE_STRING expected;
+
+    RtlInitUnicodeString(&expected, ExpectedName);
+    return RtlEqualUnicodeString(PortName, &expected, TRUE);
+}
+
 
 //---------------------------------------------------------------------------
 // Ipc_CheckPortRequest_Lsa
@@ -87,13 +105,13 @@ _FX NTSTATUS Ipc_CheckPortRequest_Lsa(
 
     if (Name->Name.Length == 22 * sizeof(WCHAR)) {
 
-        if (_wcsicmp(Name->Name.Buffer, L"\\LsaAuthenticationPort") != 0)
+        if (! Ipc_Lsa_MatchPortName(&Name->Name, L"\\LsaAuthenticationPort"))
             return STATUS_BAD_INITIAL_PC;
 
     }
     else if (Name->Name.Length == 23 * sizeof(WCHAR)) {
 
-        if (_wcsicmp(Name->Name.Buffer, L"\\RPC Control\\lsasspirpc") != 0)
+        if (! Ipc_Lsa_MatchPortName(&Name->Name, L"\\RPC Control\\lsasspirpc"))
             return STATUS_BAD_INITIAL_PC;
 
     }
@@ -199,7 +217,7 @@ _FX NTSTATUS Ipc_CheckPortRequest_LsaEP(
 
     if (Name->Name.Length == 28 * sizeof(WCHAR)) {
 
-        if (_wcsicmp(Name->Name.Buffer, L"\\RPC Control\\LSARPC_ENDPOINT") != 0)
+        if (! Ipc_Lsa_MatchPortName(&Name->Name, L"\\RPC Control\\LSARPC_ENDPOINT"))
             return STATUS_BAD_INITIAL_PC;
 
     }
@@ -223,10 +241,14 @@ _FX NTSTATUS Ipc_CheckPortRequest_LsaEP(
 
             ProbeForRead(ptr, len, sizeof(WCHAR));
 
-            if (Ipc_Filter_Lsa_Ep_Msg(proc, ptr[20]))
+            UCHAR uMsg;
+            if (!Ipc_GetRpcMsgId(proc, L"\\RPC Control\\LSARPC_ENDPOINT", ptr, len, &uMsg)) {
+                status = STATUS_INVALID_PARAMETER;
+            }
+            else if (Ipc_Filter_Lsa_Ep_Msg(proc, uMsg))
                 status = STATUS_ACCESS_DENIED;
 
-            //DbgPrint("\\RPC Control\\LSARPC_ENDPOINT message ID: %d\n", (int)ptr[20]);
+            //DbgPrint("\\RPC Control\\LSARPC_ENDPOINT message ID: %d\n", (int)uMsg);
         }
 
     }
@@ -265,7 +287,7 @@ _FX BOOLEAN Ipc_Filter_Lsa_Ep_Msg(PROCESS* proc, UCHAR uMsg)
     //case 0x0D:	//LsaEnumerateTrustedDomains
     //case 0x0E:	//LsaICLookupNames
     //case 0x0F:	//LsaICLookupSids_0
-    //case 0x10:	//LsaCreateSecret
+    case 0x10:		//LsarCreateSecret
     //case 0x11:	//LsaOpenAccount
     //case 0x12:	//LsaEnumeratePrivilegesOfAccount
     case 0x13:		//LsaAddPrivilegesToAccount
@@ -277,13 +299,13 @@ _FX BOOLEAN Ipc_Filter_Lsa_Ep_Msg(PROCESS* proc, UCHAR uMsg)
     //case 0x19:	//LsaOpenTrustedDomain
     //case 0x1A:	//LsaQueryInfoTrustedDomain
     case 0x1B:		//LsaSetInformationTrustedDomain
-    //case 0x1C:	//LsaOpenSecret
-    //case 0x1D:	//LsaSetSecret_Old
-    //case 0x1E:	//LsaQuerySecret_Old
+    case 0x1C:		//LsarOpenSecret
+    case 0x1D:		//LsarSetSecret
+    case 0x1E:		//LsarQuerySecret
     //case 0x1F:	//LsaLookupPrivilegeValue
     //case 0x20:	//LsaLookupPrivilegeName
     //case 0x21:	//LsaLookupPrivilegeDisplayName
-    //case 0x22:	//LsaDelete
+    case 0x22:		//LsarDeleteObject
     //case 0x23:	//LsaEnumerateAccountsWithUserRight
     //case 0x24:	//LsaEnumerateAccountRights
     case 0x25:		//LsaAddAccountRights
@@ -324,6 +346,13 @@ _FX BOOLEAN Ipc_Filter_Lsa_Ep_Msg(PROCESS* proc, UCHAR uMsg)
 
     case 0x67:		//AuditpSetGlobalSacl
     //case 0x68:	//AuditpQueryGlobalSacl
+
+    case 0x88:		//LsarOpenSecret2
+    case 0x89:		//LsarCreateSecret2
+    case 0x8A:		//LsarSetSecret2
+    case 0x8B:		//LsarQuerySecret2
+    case 0x8C:		//LsarStorePrivateData2
+    case 0x8D:		//LsarRetrievePrivateData2
 
 
     //case 0xEF:    //Unknown

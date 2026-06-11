@@ -164,8 +164,8 @@ P_VirtualAlloc2 __sys_VirtualAlloc2 = NULL;
 _FX ULONG SbieDll_InjectLow_LoadLow(BOOLEAN arch_64bit, void **sbielow_ptr, ULONG *sbielow_len, ULONG *start_offset, ULONG* data_offset, ULONG* detour_offset)
 {
     //
-    // lock the SbieLow resource (embedded within the SbieSvc executable,
-    // see lowlevel.rc) and find the offset to executable code, and length
+    // lock the SbieLow resource embedded in SbieDll, see lowlevel.rc, and find
+    // the offset to executable code and length
     //
 
     IMAGE_DOS_HEADER *dos_hdr = 0;
@@ -1534,7 +1534,7 @@ _FX void * SbieDll_InjectLow_getPage(HANDLE hProcess, void *remote_addr)
 	//  }
 	/*
 	else {
-		//use hack if all else fails
+		// SREV-066: disable fallback scan attempts if nearby allocation fails.
 		//OutputDebugStringA("Unable to allocate page!\n");
 		max_attempts = 0;
 	}
@@ -1567,19 +1567,19 @@ _FX void * SbieDll_InjectLow_getPage(HANDLE hProcess, void *remote_addr)
 		//OutputDebugStringA("Using hotpatch area\n");
 		myTable = (void *)tempAddr;
 	}
-	else { //not hot patch area: This is a hack
-		//patch area in .rdata section of ntdll
+	else { // SREV-066: fallback scan for an 8-byte hotpatch slot.
+		// Scan the ntdll .rdata fallback window through byte offsets.
 		ReadProcessMemory(hProcess, (void *)((ULONG_PTR)tempAddr + 0x100000), myBuffer, sizeof(myBuffer), &readSize);
 		if (readSize != sizeof(myBuffer)) {
 			//OutputDebugStringA("Error reading Memory\n");
 			return NULL;
 		}
-		for (int i = 0; i < sizeof(myBuffer) && !myTable; i++) {
-			if (*((ULONG_PTR*)&myBuffer[i]) == 0x9090909090909090 ||
-				*((ULONG_PTR*)&myBuffer[i]) == 0xcccccccccccccccc) {
+		for (SIZE_T i = 0; i + sizeof(ULONG_PTR) <= sizeof(myBuffer) && !myTable; i++) {
+			if (*((ULONG_PTR*)((UCHAR *)myBuffer + i)) == 0x9090909090909090 ||
+				*((ULONG_PTR*)((UCHAR *)myBuffer + i)) == 0xcccccccccccccccc) {
 				myTable = (void *)((ULONG_PTR)tempAddr + i);
 				/*
-				sprintf(buffer,"HACK: table found at %p, index %x\n",myTable, i);
+				sprintf(buffer,"SREV-066: table found at %p, index %x\n",myTable, i);
 				OutputDebugStringA(buffer);
 				*/
 			}

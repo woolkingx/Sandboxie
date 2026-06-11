@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-321-proc-msi-systemless-process-gate.schema.json",
+  "title": "SREV-321 Proc MSI systemless process gate",
+  "id": "PROC_MSI_SYSTEMLESS_PROCESS_GATE",
+  "owner": "Sandboxie/core/dll/proc.c",
+  "stage": "data -> schema -> topology -> logic -> action -> verify",
+  "contracts": [
+    "MSI systemless state is owned by scm_msi.c",
+    "process creation token and security-attributes selection is owned by this proc.c branch",
+    "the branch is legal only for DLL_IMAGE_MSI_INSTALLER, Scm_MsiServer_Systemless, not RunServicesAsSystem, and not MsiInstallerExemptions",
+    "clearing hToken and lpProcessAttributes must stay local to the exact MSI systemless predicate",
+    "SREV-092 owns MSI in-use event lifetime and SREV-270 owns the Config.Msi file retry",
+    "SREV-321 changes comments and proof only, not process creation behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessasuserw",
+    "https://learn.microsoft.com/en-us/windows/win32/secauthz/access-tokens",
+    "https://learn.microsoft.com/en-us/windows/win32/msi/serviceinstall-table"
+  ],
+  "runtime_gate": "Windows MSI install/repair/custom-action smoke with systemless MSIServer, RunServicesAsSystem negative smoke, MsiInstallerExemptions negative smoke, and SREV-092/SREV-270 regressions"
+}

@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "GUI_CHROME_MESSAGE_ONLY_WINDOW_INACTIVE_PATH",
+  "title": "GUI Chrome message-only window inactive path",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/gui.c",
+  "stage": "schema -> boundary -> topology -> verify",
+  "source_function": "Gui_CreateWindowExW",
+  "contracts": [
+    "Gui_CreateWindowExW owns active title class parent and CreateWindowExW forwarding policy",
+    "the Dll_ChromeSandbox WS_CHILD HWND_MESSAGE branch remains inactive",
+    "HWND_MESSAGE creates message-only windows that do not receive broadcast messages",
+    "DDE initiation may broadcast WM_DDE_INITIATE to top-level windows",
+    "branch revival requires Windows runtime proof and must not be driven by stale symptom wording",
+    "SREV-084 owns active DDE proxy ACK payload forwarding",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-createwindowexw",
+    "https://learn.microsoft.com/en-us/windows/win32/winmsg/window-features",
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/about-dynamic-data-exchange",
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/wm-dde-initiate"
+  ],
+  "local_edges": [
+    "Gui_CreateWindowExW -> title rewrite",
+    "Gui_CreateWindowExW -> class rewrite",
+    "Gui_CreateWindowExW -> parent validity policy",
+    "inactive Dll_ChromeSandbox branch -> WS_CHILD plus HWND_MESSAGE",
+    "active path -> __sys_CreateWindowExW",
+    "DDE active behavior -> SREV-084"
+  ],
+  "runtime_gate": "Windows Chrome Chromium sandbox launch matrix with DDE broadcast observation hardware acceleration smoke top-level and child window creation capture and SREV-084 DDE proxy checks before any branch revival",
+  "status": "patched-comment-topology-after-official-createwindowex-message-only-and-dde-review-no-behavior-change"
+}

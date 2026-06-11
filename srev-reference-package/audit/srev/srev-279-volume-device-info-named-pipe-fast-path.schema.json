@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "VOLUME_DEVICE_INFO_NAMED_PIPE_FAST_PATH",
+  "title": "Volume device info named-pipe fast path",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/file_dir.c",
+  "stage": "schema -> boundary -> verify",
+  "source_function": "File_NtQueryVolumeInformationFile",
+  "contracts": [
+    "File_NtQueryVolumeInformationFile owns the named-pipe FileFsDeviceInformation fast path",
+    "NtQueryVolumeInformationFile output shape is selected by FsInformationClass",
+    "FileFsDeviceInformation returns FILE_FS_DEVICE_INFORMATION",
+    "FILE_FS_DEVICE_INFORMATION.DeviceType identifies the associated device object type",
+    "DeviceType equal to FILE_DEVICE_NAMED_PIPE is enough to answer this volume-info query",
+    "FileFsDeviceInformation must not route through object-name resolution before returning the named-pipe device result",
+    "Recursive File_NtQueryVolumeInformationFile calls while the hook is already translating a handle path must use the native volume-info owner directly",
+    "KnownDll sandbox probing must not let volume-info queries recurse through SbieDll_GetHandlePath",
+    "KPATH-003 and SREV-171 own broader object-name routing for named-pipe handles",
+    "this SREV owns the volume-info fast path and reentrancy gate"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntqueryvolumeinformationfile",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_file_fs_device_information",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/specifying-device-types"
+  ],
+  "local_edges": [
+    "FileFsDeviceInformation + Length gate -> native volume info query",
+    "native FILE_FS_DEVICE_INFORMATION -> DeviceType",
+    "DeviceType == FILE_DEVICE_NAMED_PIPE -> copy device info to caller",
+    "named pipe fast path -> return before Sandboxie handle-path lookup",
+    "ipc_KnownDlls_lock or file_NtQueryVolumeInformation_lock -> native volume info query",
+    "non-named-pipe volume info -> normal Sandboxie volume/path translation"
+  ],
+  "runtime_gate": "Windows named-pipe FileFsDeviceInformation matrix with pending pipe I/O, normal disk volume-info controls, and Start.exe KnownDll/volume-info reentrancy smoke",
+  "status": "patched-source-needs-windows-runtime"
+}

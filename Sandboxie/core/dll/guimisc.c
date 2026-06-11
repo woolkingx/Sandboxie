@@ -402,7 +402,9 @@ _FX BOOL Gui_ClipCursor(const RECT *lpRect)
 		return __sys_ClipCursor(lpRect);
 	
     GUI_CLIP_CURSOR_REQ req;
-    void *rpl;
+    GUI_CLIP_CURSOR_RPL *rpl;
+    ULONG error;
+    BOOL retval;
 
     req.msgid = GUI_CLIP_CURSOR;
     if (lpRect) {
@@ -416,14 +418,18 @@ _FX BOOL Gui_ClipCursor(const RECT *lpRect)
     }
     req.dpi_awareness_ctx = __sys_GetThreadDpiAwarenessContext ? (LONG64)(LONG_PTR)__sys_GetThreadDpiAwarenessContext() : 0;
 
-    rpl = Gui_CallProxy(&req, sizeof(req), sizeof(ULONG));
+    rpl = Gui_CallProxy(&req, sizeof(req), sizeof(*rpl));
     if (rpl) {
+        retval = rpl->retval;
+        error = rpl->error;
         Dll_Free(rpl);
-        return TRUE;
     } else {
-        SetLastError(ERROR_ACCESS_DENIED);
-        return FALSE;
+        retval = FALSE;
+        error = ERROR_ACCESS_DENIED;
     }
+
+    SetLastError(error);
+    return retval;
 }
 
 
@@ -764,12 +770,15 @@ _FX BOOL Gui_GetUserObjectInformationW(
 // The sandboxed process is running in a restricting job, so it can't
 // get clipboard data that was copied by a process outside the sandbox.
 //
-// a second problem on UIPI systems is that an integrity level is given
-// to each clipboard data item, so a process outside the sandbox copies
-// data to the clipboard with integrity level zero.  this prevents a
-// process outside the sandbox from pasting (perhaps a bug in win32k).
+// SREV-294: Clipboard close crosses into the SbieSvc proxy so delayed
+// rendering can be forced and private clipboard item integrity can be fixed.
+// On UIPI systems each clipboard item carries integrity state; data copied by
+// a sandboxed process can otherwise remain at integrity level zero and prevent
+// an outside process from pasting. The private win32k clipboard layout is
+// observation evidence, not an API contract; SREV-096 owns the driver-side
+// window-station reference and integrity rewrite gate.
 //
-// to work around both issues we use the SbieSvc GUI Proxy.
+// The SbieSvc GUI Proxy owns the delayed-rendering and API_GUI_CLIPBOARD edge.
 //
 //---------------------------------------------------------------------------
 
@@ -1352,15 +1361,33 @@ _FX LONG Gui_GetRawInputDeviceInfo_impl(
     GUI_GET_RAW_INPUT_DEVICE_INFO_RPL* rpl;
 
     ULONG lenData = 0;
-    if (pData && pcbSize) {
+    if (!pcbSize) {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return -1;
+    }
+
+    if (pData) {
         lenData = *pcbSize;
         if (uiCommand == RIDI_DEVICENAME && bUnicode) {
+            if (lenData > 0xFFFFFFFFUL / sizeof(WCHAR)) {
+                SetLastError(ERROR_INVALID_PARAMETER);
+                return -1;
+            }
             lenData *= sizeof(WCHAR);
         }
     }
 
+    if (lenData > 0xFFFFFFFFUL - sizeof(GUI_GET_RAW_INPUT_DEVICE_INFO_REQ) - 10) {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return -1;
+    }
+
     ULONG reqSize = sizeof(GUI_GET_RAW_INPUT_DEVICE_INFO_REQ) + lenData + 10;
     req = Dll_Alloc(reqSize);
+    if (!req) {
+        SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+        return -1;
+    }
 
     LPVOID reqData = (BYTE*)req + sizeof(GUI_GET_RAW_INPUT_DEVICE_INFO_REQ);
 
@@ -1373,12 +1400,7 @@ _FX LONG Gui_GetRawInputDeviceInfo_impl(
     if (lenData)
         memcpy(reqData, pData, lenData);
 
-    // GetRawInputDeviceInfoA accesses pcbSize without testing it for being not NULL 
-    // hence if the caller passes NULL we use a dummy value so that we don't crash the helper service
-    if (pcbSize)
-        req->cbSize = *pcbSize;
-    else
-        req->cbSize = 0;
+    req->cbSize = *pcbSize;
 
     rpl = Gui_CallProxy(req, reqSize, sizeof(*rpl));
 
@@ -1390,8 +1412,7 @@ _FX LONG Gui_GetRawInputDeviceInfo_impl(
     ULONG error = rpl->error;
     ULONG retval = rpl->retval;
 
-    if (pcbSize)
-        *pcbSize = rpl->cbSize;
+    *pcbSize = rpl->cbSize;
 
     if (lenData) {
         LPVOID rplData = (BYTE*)rpl + sizeof(GUI_GET_RAW_INPUT_DEVICE_INFO_RPL);

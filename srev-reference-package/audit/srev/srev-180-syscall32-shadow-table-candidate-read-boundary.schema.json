@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-180-syscall32-shadow-table-candidate-read-boundary.schema.json",
+  "title": "SREV-180 Syscall32 shadow table candidate read boundary",
+  "id": "SYSCALL32_SHADOW_TABLE_CANDIDATE_READ_BOUNDARY",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/drv/syscall_32.c"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 7
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 4
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/drv/syscall_32.c",
+  "contracts": [
+    "GetShadowTableAddress owns the 32-bit private shadow service-table fallback scanner",
+    "The scanner treats bytes in KeAddSystemServiceTable as untrusted candidate table pointers until locally validated",
+    "MmIsAddressValid is only a preliminary nonpaged-address check and is not sufficient proof for the following structure read",
+    "The candidate SYSTEM_SERVICE_TABLE comparison must be inside a structured exception boundary",
+    "The scanner rejects NULL candidates and KeServiceDescriptorTable itself before comparing contents",
+    "The helper preserves the existing 1024-byte scan window and same-table-content predicate",
+    "This SREV does not change service-table offsets syscall indices process-flag offsets or syscall dispatch"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-gb/windows-hardware/drivers/ddi/ntddk/nf-ntddk-mmisaddressvalid",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/handling-exceptions",
+    "https://learn.microsoft.com/en-us/windows/win32/debug/exception-handler-syntax",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-mmgetsystemroutineaddress"
+  ],
+  "runtime_gate": "Windows x86/32-bit-supported build and runtime matrix covering service-table discovery fallback, Driver Verifier, HVCI/Core Isolation where applicable, and ordinary NT plus win32k syscall dispatch smoke"
+}

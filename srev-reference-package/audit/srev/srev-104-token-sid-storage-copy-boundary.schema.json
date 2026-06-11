@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-104-token-sid-storage-copy-boundary.schema.json",
+  "title": "SREV-104 token SID storage copy boundary",
+  "id": "TOKEN_SID_STORAGE_COPY_BOUNDARY",
+  "owner": "Sandboxie/core/drv/token.c",
+  "type": "object",
+  "properties": {
+    "sid_shape": {
+      "type": "string",
+      "description": "Official SID validity and variable-length copy contract"
+    },
+    "token_query_shape": {
+      "type": "string",
+      "description": "Official token user/group and SeFilterToken SID shape"
+    },
+    "private_storage_shape": {
+      "type": "string",
+      "description": "Local offset-based token storage boundary"
+    },
+    "source_change": {
+      "type": "string",
+      "description": "Minimal source change preserving temporary token pointer-restore topology"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows token SID storage runtime proof"
+    }
+  },
+  "required": [
+    "sid_shape",
+    "token_query_shape",
+    "private_storage_shape",
+    "source_change",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "SID is variable-length and drivers must not modify SID structure fields directly",
+    "RtlValidSid must validate both the token SID and SandboxieLogonSid before RtlLengthSid",
+    "RtlLengthSid has undefined return value for invalid SIDs",
+    "RtlCopySid copies a SID into a caller-allocated buffer and returns STATUS_BUFFER_TOO_SMALL when the destination is too small",
+    "TOKEN_USER identifies the token user through SID_AND_ATTRIBUTES and TOKEN_USER itself is not a SeFilterToken input",
+    "TOKEN_GROUPS contains group SID_AND_ATTRIBUTES and can carry a user SID as deny-only input to SeFilterToken",
+    "SeFilterToken returns a referenced filtered token object that must later be dereferenced",
+    "Token_IsSharedSid_W8 is a private offset-based classifier and only decides whether inline copy is allowed",
+    "inline token SID rewrite must use RtlCopySid with the measured destination SID length",
+    "shared or too-small token SID storage must use pointer substitution and restore the original pointer before dereferencing the temporary token object"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_sid",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-rtlvalidsid",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-rtllengthsid",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-rtlcopysid",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_sid_and_attributes",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_token_user",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_token_groups",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-sefiltertoken",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-sequeryinformationtoken"
+  ]
+}

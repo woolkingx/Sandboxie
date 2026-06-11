@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-030-service-query.schema.json",
+  "title": "SREV-030 service query",
+  "id": "SERVICE_QUERY",
+  "owner": "Sandboxie/core/svc/servicewire.h",
+  "type": "object",
+  "properties": {
+    "audit_contract": {
+      "type": "string",
+      "description": "MSGID: MSGID_SERVICE_QUERY | request: {\"struct\": \"SERVICE_QUERY_REQ\", \"header\": \"MSG_HEADER h\", \"min_length\": \"sizeof(SERVICE_QUERY_REQ)\", \"payload_offset\": \"FIELD_OFFSET(SERVICE_QUERY_REQ, name)\", \"segments\": [{\"name\": \"name\", \"length_field\": \"name_len\", \"unit\": \"wchar\", \"max_chars\": 256, \"nul_terminated\": true}]} | reply: {\"struct\": \"SERVICE_QUERY_RPL\", \"header\": \"MSG_HEADER h\", \"payload\": \"QUERY_SERVICE_CONFIG plus service status/config data\"}"
+    },
+    "validation_invariants": {
+      "type": "string",
+      "description": "All contracts listed in the contracts metadata must hold before any data is trusted past the validation boundary"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate proves contracts hold under normal and malformed inputs"
+    }
+  },
+  "required": [
+    "audit_contract",
+    "validation_invariants",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "DLL sender validates real service name length before fixed-buffer copy",
+    "DLL sender computes h.length before SbieDll_CallServer",
+    "service receiver validates name_len plus terminator before OpenServiceW",
+    "service name max follows OpenServiceW 256-character contract"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openservicew"
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "XP_KEY_HOTFIX_KERNEL_HANDLE",
+  "type": "object",
+  "required": [
+    "owner",
+    "data",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/drv/key_xp.c"
+    },
+    "data": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "Key_Check_KB979683"
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "driver-private handles opened through ZwOpenKey or ZwCreateFile must use object attributes with OBJ_KERNEL_HANDLE"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 2
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/object-handles",
+    "https://learn.microsoft.com/en-us/windows/win32/api/ntdef/nf-ntdef-initializeobjectattributes",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwopenkey"
+  ],
+  "contracts": [
+    "key_xp.c owns the legacy XP key parse-procedure hook and its hotfix probe",
+    "Key_Check_KB979683 opens registry-key and catalog-file handles only for driver-private hotfix detection",
+    "driver-private handles opened through ZwOpenKey or ZwCreateFile must use object attributes with OBJ_KERNEL_HANDLE",
+    "the path remains case-insensitive",
+    "successful key or file probe handles remain closed by ZwClose",
+    "parse-procedure hook installation Key_Have_KB979683 detection logic KB fallback list ZoneAlarm wait hook behavior and key access policy are unchanged",
+    "Linux source gate is not Windows XP or Windows 2003 runtime proof"
+  ],
+  "owner": "Sandboxie/core/drv/key_xp.c",
+  "data": [
+    "Sandboxie/core/drv/key_xp.c",
+    "Sandboxie/core/drv/key.c",
+    "Sandboxie/core/drv/obj.h",
+    "Key_Init_XpHook",
+    "Key_Check_KB979683",
+    "InitializeObjectAttributes",
+    "OBJECT_ATTRIBUTES",
+    "OBJ_CASE_INSENSITIVE",
+    "OBJ_KERNEL_HANDLE",
+    "ZwOpenKey",
+    "ZwCreateFile",
+    "ZwClose",
+    "Key_Have_KB979683"
+  ],
+  "runtime_gate": "Windows XP/2003 32-bit XP_SUPPORT driver build, registry hotfix probe, catalog fallback probe, no-hotfix path, parse-procedure hook smoke, and unload smoke"
+}

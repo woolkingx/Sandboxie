@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-058-dllhook-instruction-cache.schema.json",
+  "title": "SREV-058 DLL hook instruction cache coherency contract",
+  "id": "DLLHOOK_INSTRUCTION_CACHE_COHERENCY",
+  "api": "SbieDll_Hook_x86",
+  "owner": "Sandboxie/core/dll/dllhook.c",
+  "type": "object",
+  "properties": {
+    "code_mutation": {
+      "type": "string",
+      "description": "Runtime write to executable hook or trampoline code"
+    },
+    "mutated_range": {
+      "type": "string",
+      "description": "Base and byte size of the mutated instruction span"
+    },
+    "flush_gate": {
+      "type": "string",
+      "description": "FlushInstructionCache call covering the mutated range"
+    }
+  },
+  "required": [
+    "code_mutation",
+    "mutated_range",
+    "flush_gate"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "VirtualProtect changes committed page protection but does not by itself prove instruction-cache coherency",
+    "Generated or modified executable code must be followed by FlushInstructionCache",
+    "The existing E9 operand rewrite must flush the 4-byte operand span",
+    "The trampoline writer must flush the generated trampoline buffer",
+    "The source function detour writer must flush the RegionBase and RegionSize span after restoring page protection"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualprotect",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-flushinstructioncache"
+  ]
+}

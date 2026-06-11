@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-020-getfilename-type-output-abi.schema.json",
+  "title": "SREV-020 GetFileName type output ABI shape",
+  "id": "GETFILENAME_TYPE_OUTPUT_ABI_SHAPE",
+  "owner": "Sandboxie/core/drv/file.c",
+  "type": "object",
+  "properties": {
+    "neither_io_shape": {
+      "type": "string",
+      "description": "METHOD_NEITHER user buffers are original user-space virtual addresses; driver must probe, access in caller context or lock/map, and wrap probe + access in structured exception handling"
+    },
+    "probe_shape": {
+      "type": "string",
+      "description": "ProbeForWrite is historical; ProbeForRead recommended; every user-buffer output requires a known byte length and exception-protected access"
+    },
+    "abi_mismatch_evidence": {
+      "type": "string",
+      "description": "API_GET_FILE_NAME_ARGS declares type_buf as WCHAR*; public DLL header exposes the fourth SbieApi_GetFileName argument as ULONG*; the two declarations cannot share one slot safely"
+    },
+    "current_caller_state": {
+      "type": "string",
+      "description": "All in-tree callers pass NULL for the fourth argument; no caller needs the type output"
+    },
+    "fail_closed_owner": {
+      "type": "string",
+      "description": "Driver rejects non-NULL type_buf with STATUS_INVALID_PARAMETER before any type-name write"
+    },
+    "future_abi_invariant": {
+      "type": "string",
+      "description": "Future bounded API must add both a type buffer pointer and a type buffer byte length; the existing slot stays reserved"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate: 4-byte non-NULL fourth argument fails closed without writing past the buffer; existing NULL-fourth-arg name queries still work"
+    }
+  },
+  "required": [
+    "neither_io_shape",
+    "probe_shape",
+    "abi_mismatch_evidence",
+    "current_caller_state",
+    "fail_closed_owner",
+    "future_abi_invariant",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Driver must not invent a new ABI inside the old fourth-argument slot",
+    "Non-NULL type_buf returns STATUS_INVALID_PARAMETER before any write",
+    "SbieApi_GetFileName(..., NULL) call sites remain valid",
+    "Probing objectType->Name.Length+sizeof(WCHAR) does not prove caller allocated to public ABI shape"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-neither-buffered-nor-direct-i-o",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-probeforwrite",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/handling-exceptions"
+  ]
+}

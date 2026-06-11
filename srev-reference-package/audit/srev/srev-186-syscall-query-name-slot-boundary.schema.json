@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-186-syscall-query-name-slot-boundary.schema.json",
+  "title": "SREV-186 syscall query name slot boundary",
+  "id": "SYSCALL_QUERY_NAME_SLOT_BOUNDARY",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "owners",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owners": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 4
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 10
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 1
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owners": [
+    "Sandboxie/core/drv/syscall.h",
+    "Sandboxie/core/drv/syscall.c",
+    "Sandboxie/core/drv/syscall_win32.c",
+    "Sandboxie/core/drv/syscall_util.c"
+  ],
+  "contracts": [
+    "PE export names are input strings owned by the Windows image export table",
+    "Microsoft PE/COFF documents export and import names as ASCII strings terminated by a null byte",
+    "Sandboxie owns the syscall query wire slot that appends an optional syscall name after index and offset",
+    "the query name slot is exactly 16 ULONG values or 64 bytes",
+    "stored syscall names must be at most 63 bytes so the terminator byte remains inside the 64-byte slot",
+    "NTDLL Zw and WIN32U Nt enumeration use the same local name-length limit",
+    "query buffer size and pointer advancement must use the same named slot contract",
+    "hook-map conversion and name-based syscall lookup must use the same maximum name contract",
+    "this SREV does not change syscall index extraction hook policy service-table discovery syscall dispatch or the external query slot size",
+    "runtime proof is required"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/debug/pe-format"
+  ],
+  "runtime_gate": "Windows driver build, API_QUERY_SYSCALLS add_names=0/add_names=1 smoke for native NT and win32k tables, and DLL consumer compatibility smoke"
+}

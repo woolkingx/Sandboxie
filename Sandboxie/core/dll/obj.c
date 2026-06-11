@@ -37,6 +37,11 @@ static NTSTATUS Obj_NtQueryObject(
     ULONG Length,
     ULONG *ResultLength);
 
+static BOOLEAN Obj_IsNamedPipeFileHandle(HANDLE ObjectHandle);
+
+static NTSTATUS Obj_GetObjectNameFromDriver(
+    HANDLE ObjectHandle, void *ObjectName, ULONG *Length);
+
 static NTSTATUS Obj_NtQueryVirtualMemory(
     HANDLE ProcessHandle,
     void *BaseAddress,
@@ -53,10 +58,23 @@ static NTSTATUS Obj_NtQueryVirtualMemory(
 
 static P_NtQueryObject          __sys_NtQueryObject             = NULL;
 
+static P_NtQueryVolumeInformationFile
+                                __sys_NtQueryVolumeInformationFile
+                                                                    = NULL;
+
        P_NtQueryVirtualMemory   __sys_NtQueryVirtualMemory      = NULL;
 
 
 BOOLEAN obj_use_driver_obj_lookup = FALSE;
+
+#ifndef FILE_DEVICE_NAMED_PIPE
+#define FILE_DEVICE_NAMED_PIPE 0x00000011
+#endif
+
+typedef struct _OBJ_FILE_FS_DEVICE_INFORMATION {
+    ULONG DeviceType;
+    ULONG Characteristics;
+} OBJ_FILE_FS_DEVICE_INFORMATION;
 
 //---------------------------------------------------------------------------
 // Obj_Init
@@ -73,6 +91,12 @@ _FX BOOLEAN Obj_Init(void)
     SBIEDLL_HOOK(Obj_,NtQueryObject);
     SBIEDLL_HOOK(Obj_,NtQueryVirtualMemory);
 #endif
+
+    __sys_NtQueryVolumeInformationFile =
+        (P_NtQueryVolumeInformationFile)GetProcAddress(
+            module, "NtQueryVolumeInformationFile");
+    if (! __sys_NtQueryVolumeInformationFile)
+        return FALSE;
 
     if (!Dll_CompartmentMode) // NoDriverAssist
     obj_use_driver_obj_lookup = SbieApi_QueryConfBool(NULL, L"UseDriverObjLookup", FALSE);
@@ -142,20 +166,11 @@ _FX NTSTATUS Obj_GetObjectName(
     // To remedy this we ask the driver to lookup the objects name instead
     // 
 
-    if (obj_use_driver_obj_lookup) {
+    if (obj_use_driver_obj_lookup ||
+            (Obj_GetObjectType(ObjectHandle) == OBJ_TYPE_FILE &&
+             Obj_IsNamedPipeFileHandle(ObjectHandle))) {
 
-        OBJECT_NAME_INFORMATION* info = (OBJECT_NAME_INFORMATION*)ObjectName;
-        
-        wchar_t* NameBuf = (UCHAR*)ObjectName + sizeof(OBJECT_NAME_INFORMATION);
-        ULONG NameLen = *Length - sizeof(OBJECT_NAME_INFORMATION);
-
-        status = SbieApi_GetFileName(ObjectHandle, NameBuf, &NameLen, NULL);
-
-        if (NT_SUCCESS(status)) {
-            info->Name.Buffer = NameBuf;
-            info->Name.Length = wcslen(NameBuf) * sizeof(wchar_t);
-            info->Name.MaximumLength = (USHORT)NameLen;
-        }
+        status = Obj_GetObjectNameFromDriver(ObjectHandle, ObjectName, Length);
     }
     else {
 
@@ -167,6 +182,60 @@ _FX NTSTATUS Obj_GetObjectName(
             ObjectHandle, ObjectNameInformation, ObjectName, *Length, Length);
 
         TlsData->obj_NtQueryObject_lock = FALSE;
+    }
+
+    return status;
+}
+
+
+//---------------------------------------------------------------------------
+// Obj_IsNamedPipeFileHandle
+//---------------------------------------------------------------------------
+
+
+static _FX BOOLEAN Obj_IsNamedPipeFileHandle(HANDLE ObjectHandle)
+{
+    NTSTATUS status;
+    IO_STATUS_BLOCK io_status;
+    OBJ_FILE_FS_DEVICE_INFORMATION dev_info = { 0 };
+
+    status = __sys_NtQueryVolumeInformationFile(
+        ObjectHandle, &io_status, &dev_info, sizeof(dev_info),
+        FileFsDeviceInformation);
+
+    return NT_SUCCESS(status) &&
+           dev_info.DeviceType == FILE_DEVICE_NAMED_PIPE;
+}
+
+
+//---------------------------------------------------------------------------
+// Obj_GetObjectNameFromDriver
+//---------------------------------------------------------------------------
+
+
+static _FX NTSTATUS Obj_GetObjectNameFromDriver(
+    HANDLE ObjectHandle, void *ObjectName, ULONG *Length)
+{
+    NTSTATUS status;
+    OBJECT_NAME_INFORMATION* info = (OBJECT_NAME_INFORMATION*)ObjectName;
+    ULONG NameLen;
+    wchar_t* NameBuf;
+
+    if (*Length < sizeof(OBJECT_NAME_INFORMATION)) {
+        *Length = sizeof(OBJECT_NAME_INFORMATION);
+        return STATUS_INFO_LENGTH_MISMATCH;
+    }
+
+    NameBuf = (wchar_t*)((UCHAR*)ObjectName + sizeof(OBJECT_NAME_INFORMATION));
+    NameLen = *Length - sizeof(OBJECT_NAME_INFORMATION);
+
+    status = SbieApi_GetFileName(ObjectHandle, NameBuf, &NameLen, NULL);
+    *Length = sizeof(OBJECT_NAME_INFORMATION) + NameLen;
+
+    if (NT_SUCCESS(status)) {
+        info->Name.Buffer = NameBuf;
+        info->Name.Length = wcslen(NameBuf) * sizeof(wchar_t);
+        info->Name.MaximumLength = (USHORT)NameLen;
     }
 
     return status;
@@ -191,6 +260,7 @@ _FX NTSTATUS Obj_NtQueryObject(
     UNICODE_STRING *name;
     NTSTATUS status;
     ULONG type, maxlen, outlen;
+    BOOLEAN use_driver_name_lookup = FALSE;
 
     //
     // if the request is not for object name, or if this is a
@@ -229,6 +299,11 @@ _FX NTSTATUS Obj_NtQueryObject(
     // query name for object that is potentially inside the box
     //
 
+    if (type == OBJ_TYPE_FILE) {
+        use_driver_name_lookup =
+            obj_use_driver_obj_lookup || Obj_IsNamedPipeFileHandle(ObjectHandle);
+    }
+
     if (Length) {
         name = ObjectInformation;
         maxlen = Length & ~1;
@@ -237,25 +312,41 @@ _FX NTSTATUS Obj_NtQueryObject(
         name = Dll_AllocTemp(maxlen);
     }
 
-    status = __sys_NtQueryObject(
-        ObjectHandle, ObjectNameInformation, name, maxlen, &outlen);
+    if (use_driver_name_lookup) {
+        outlen = maxlen;
+        status = Obj_GetObjectNameFromDriver(ObjectHandle, name, &outlen);
+    }
+    else {
+        status = __sys_NtQueryObject(
+            ObjectHandle, ObjectNameInformation, name, maxlen, &outlen);
+    }
 
     if (status == STATUS_INFO_LENGTH_MISMATCH ||
-        status == STATUS_BUFFER_OVERFLOW) {
+        status == STATUS_BUFFER_OVERFLOW ||
+        status == STATUS_BUFFER_TOO_SMALL) {
 
         if (name != ObjectInformation)
             Dll_Free(name);
         maxlen = outlen;
         name = Dll_AllocTemp(maxlen);
 
-        status = __sys_NtQueryObject(
-            ObjectHandle, ObjectNameInformation, name, maxlen, &outlen);
+        if (use_driver_name_lookup) {
+            outlen = maxlen;
+            status = Obj_GetObjectNameFromDriver(ObjectHandle, name, &outlen);
+        }
+        else {
+            status = __sys_NtQueryObject(
+                ObjectHandle, ObjectNameInformation, name, maxlen, &outlen);
+        }
     }
 
     if (! NT_SUCCESS(status)) {
 
         if (name != ObjectInformation)
             Dll_Free(name);
+
+        if (use_driver_name_lookup)
+            goto finish;
 
         status = __sys_NtQueryObject(
             ObjectHandle, ObjectInformationClass,

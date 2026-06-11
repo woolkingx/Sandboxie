@@ -233,7 +233,7 @@ _FX BOOLEAN Process_Low_Inject(
 
 _FX NTSTATUS Process_Low_Api_InjectComplete(PROCESS *proc, ULONG64 *parms)
 {
-    NTSTATUS status;
+    NTSTATUS status = STATUS_SUCCESS;
 
     //
     // this API must be invoked by the Sandboxie service
@@ -276,9 +276,30 @@ _FX NTSTATUS Process_Low_Api_InjectComplete(PROCESS *proc, ULONG64 *parms)
 
                     ProbeForRead(pSID, SECURITY_MAX_SID_SIZE, sizeof(UCHAR));
 
+                    if (! RtlValidSid(pSID)) {
+                        status = STATUS_INVALID_PARAMETER;
+                        __leave;
+                    }
+
                     ULONG sid_length = RtlLengthSid(pSID);
+                    if (sid_length > SECURITY_MAX_SID_SIZE) {
+                        status = STATUS_INVALID_PARAMETER;
+                        __leave;
+                    }
+
                     proc->SandboxieLogonSid = Mem_Alloc(proc->pool, sid_length);
-                    memcpy(proc->SandboxieLogonSid, pSID, sid_length);
+                    if (! proc->SandboxieLogonSid) {
+                        status = STATUS_INSUFFICIENT_RESOURCES;
+                        __leave;
+                    }
+
+                    status = RtlCopySid(
+                        sid_length, proc->SandboxieLogonSid, pSID);
+                    if (! NT_SUCCESS(status)) {
+                        Mem_Free(proc->SandboxieLogonSid, sid_length);
+                        proc->SandboxieLogonSid = NULL;
+                        __leave;
+                    }
                 }
 
             } __except (EXCEPTION_EXECUTE_HANDLER) {
@@ -292,7 +313,8 @@ _FX NTSTATUS Process_Low_Api_InjectComplete(PROCESS *proc, ULONG64 *parms)
         if (proc) {
 
             KeSetEvent(Process_Low_Event, 0, FALSE);
-            status = STATUS_SUCCESS;
+            if (NT_SUCCESS(status))
+                status = STATUS_SUCCESS;
 
         } else
             status = STATUS_INVALID_CID;

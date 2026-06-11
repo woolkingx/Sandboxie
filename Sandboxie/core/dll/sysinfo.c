@@ -353,7 +353,8 @@ _FX void SysInfo_DiscardProcesses(SYSTEM_PROCESS_INFORMATION *buf)
 
 	WCHAR* hiddenProcesses = NULL;
 	WCHAR* hiddenProcessesPtr = NULL;
-	ULONG hiddenProcessesLen = 100 * 110; // we can hide up to 100 processes, should be enough
+	ULONG hiddenProcessesLen = 0;
+	ULONG hiddenProcessesUsed = 0;
 	WCHAR hiddenProcess[110];
 
 	WCHAR tempSid[96] = {0};
@@ -362,20 +363,32 @@ _FX void SysInfo_DiscardProcesses(SYSTEM_PROCESS_INFORMATION *buf)
 	for (ULONG index = 0; ; ++index) {
 		NTSTATUS status = SbieApi_QueryConfAsIs(NULL, L"HideHostProcess", index, hiddenProcess, 108 * sizeof(WCHAR));
 		if (NT_SUCCESS(status)) {
-			if (hiddenProcesses == NULL) {
-				hiddenProcesses = (WCHAR*)HeapAlloc(GetProcessHeap(), 0, hiddenProcessesLen * sizeof(WCHAR));
-				if (!hiddenProcesses)
-					break;
-				hiddenProcessesPtr = hiddenProcesses;
-			}
 			ULONG nameLen = wcslen(hiddenProcess) + 1; // include terminating 0
-			if ((hiddenProcessesPtr - hiddenProcesses) + nameLen + 1 > hiddenProcessesLen) {
-				SbieApi_Log(2310, L", 'HideProcess'"); // todo add custom message
+			if (hiddenProcessesUsed > (ULONG)-1 - nameLen - 1)
 				break;
+			ULONG requiredLen = hiddenProcessesUsed + nameLen + 1; // include final list terminator
+			if (requiredLen > hiddenProcessesLen) {
+				ULONG newLen = hiddenProcessesLen ? hiddenProcessesLen : 16 * 110;
+				while (newLen < requiredLen) {
+					if (newLen > (ULONG)-1 / 2) {
+						newLen = requiredLen;
+						break;
+					}
+					newLen *= 2;
+				}
+				WCHAR* newHiddenProcesses = (WCHAR*)(
+					hiddenProcesses
+						? HeapReAlloc(GetProcessHeap(), 0, hiddenProcesses, newLen * sizeof(WCHAR))
+						: HeapAlloc(GetProcessHeap(), 0, newLen * sizeof(WCHAR)));
+				if (!newHiddenProcesses)
+					break;
+				hiddenProcesses = newHiddenProcesses;
+				hiddenProcessesLen = newLen;
 			}
+			hiddenProcessesPtr = hiddenProcesses + hiddenProcessesUsed;
 			wmemcpy(hiddenProcessesPtr, hiddenProcess, nameLen);
-			hiddenProcessesPtr += nameLen;
-			*hiddenProcessesPtr = L'\0';
+			hiddenProcessesUsed += nameLen;
+			hiddenProcesses[hiddenProcessesUsed] = L'\0';
 		}
 		else if (status != STATUS_BUFFER_TOO_SMALL)
 			break;
@@ -435,7 +448,7 @@ _FX void SysInfo_DiscardProcesses(SYSTEM_PROCESS_INFORMATION *buf)
     }
 
 	if(hiddenProcesses)
-		HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, hiddenProcesses);
+		HeapFree(GetProcessHeap(), 0, hiddenProcesses);
 }
 
 

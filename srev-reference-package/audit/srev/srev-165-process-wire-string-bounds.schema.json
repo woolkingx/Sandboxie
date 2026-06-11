@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "PROCESS_WIRE_STRING_BOUNDS",
+  "type": "object",
+  "required": [
+    "owner",
+    "data",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/svc/ProcessServer.cpp"
+    },
+    "data": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "RunSandboxedCopyString"
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "ProcessWire.h lengths are WCHAR counts not byte counts"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 2
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessasuserw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heapalloc",
+    "https://learn.microsoft.com/en-us/windows/win32/api/userenv/nf-userenv-createenvironmentblock"
+  ],
+  "contracts": [
+    "ProcessServer.cpp owns service-side validation for process broker wire strings",
+    "ProcessWire.h lengths are WCHAR counts not byte counts",
+    "a WCHAR count must be checked against PIPE_MAX_DATA_LEN divided by sizeof WCHAR before multiplying by sizeof WCHAR",
+    "offset validation must prove ofs is not greater than MSG_HEADER length before computing available bytes",
+    "validation must compare byte length against available bytes and must not depend on ofs plus byte length arithmetic",
+    "RunUpdaterHandler must check HeapAlloc before writing to cmd",
+    "process-token ownership DACL policy startup flag filtering handle filtering and CreateProcessAsUser call topology are unchanged",
+    "Linux source gate is not Windows service runtime proof"
+  ],
+  "owner": "Sandboxie/core/svc/ProcessServer.cpp",
+  "data": [
+    "Sandboxie/core/svc/ProcessServer.h",
+    "Sandboxie/core/svc/ProcessServer.cpp",
+    "Sandboxie/core/svc/ProcessWire.h",
+    "PROCESS_RUN_SANDBOXED_REQ",
+    "PROCESS_RUN_UPDATER_REQ",
+    "RunSandboxedCopyString",
+    "RunSandboxedHandler",
+    "RunUpdaterHandler",
+    "MSG_HEADER.length",
+    "cmd_ofs",
+    "cmd_len",
+    "dir_ofs",
+    "dir_len",
+    "env_ofs",
+    "env_len",
+    "PIPE_MAX_DATA_LEN",
+    "HeapAlloc",
+    "CreateProcessAsUser"
+  ],
+  "runtime_gate": "Windows service build, sandboxed process launch, updater launch by signed caller, malformed IPC packet smoke, and forced allocation failure smoke"
+}

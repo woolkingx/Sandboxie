@@ -1116,11 +1116,22 @@ _FX NTSTATUS File_NtReadFile(
     else {
 
         status = rpl->h.status;
-        if (rpl->h.length > sizeof(MSG_HEADER)) {
+        ULONG offset = FIELD_OFFSET(NAMED_PIPE_READ_RPL, data);
+        if (rpl->h.length >= offset) {
 
             IoStatusBlock->Status = (NTSTATUS)(ULONG_PTR)rpl->iosb.status;
             IoStatusBlock->Information = (ULONG_PTR)rpl->iosb.information;
-            memcpy(Buffer, rpl->data, rpl->data_len);
+            if (rpl->data_len > Length || rpl->data_len > rpl->h.length - offset) {
+                status = STATUS_INVALID_PARAMETER;
+                IoStatusBlock->Status = status;
+                IoStatusBlock->Information = 0;
+            } else if (rpl->data_len) {
+                memcpy(Buffer, rpl->data, rpl->data_len);
+            }
+        } else if (NT_SUCCESS(status)) {
+            status = STATUS_INVALID_PARAMETER;
+            IoStatusBlock->Status = status;
+            IoStatusBlock->Information = 0;
         }
 
         Dll_Free(rpl);
@@ -1303,6 +1314,7 @@ _FX NTSTATUS File_WaitNamedPipe(
     FILE_PIPE_WAIT_FOR_BUFFER *ib = (FILE_PIPE_WAIT_FOR_BUFFER *)InputBuffer;
     FILE_PIPE_WAIT_FOR_BUFFER *ob = NULL;
     NTSTATUS status;
+    ULONG name_offset;
 
     //
     // the real WaitNamedPipeW typically passes the caller-provided PipeName
@@ -1311,15 +1323,33 @@ _FX NTSTATUS File_WaitNamedPipe(
     // caller says.  so we need to adjust the name.
     //
 
+    name_offset = FIELD_OFFSET(FILE_PIPE_WAIT_FOR_BUFFER, Name);
+    if ((! InputBuffer) || InputBufferLength < name_offset)
+        return STATUS_BAD_INITIAL_PC;
+    if (ib->NameLength & (sizeof(WCHAR) - 1))
+        return STATUS_BAD_INITIAL_PC;
+    if (ib->NameLength > InputBufferLength - name_offset)
+        return STATUS_BAD_INITIAL_PC;
+
     if (ib->NameLength) {
 
         WCHAR *ptr1;
         const WCHAR *ptr2;
+        ULONG extra_name_len;
+        ULONG max_name_len;
+        ULONG buf_len;
 
         ULONG name_len = ib->NameLength / sizeof(WCHAR);
-        ULONG buf_len  = sizeof(FILE_PIPE_WAIT_FOR_BUFFER)
-                       + (name_len + Dll_BoxIpcPathLen + 64) * sizeof(WCHAR);
+        extra_name_len = Dll_BoxIpcPathLen + 64;
+        max_name_len = ((ULONG)-1 / sizeof(WCHAR)) - extra_name_len;
+        if (name_len > max_name_len)
+            return STATUS_INVALID_PARAMETER;
+
+        buf_len = sizeof(FILE_PIPE_WAIT_FOR_BUFFER)
+                + (name_len + Dll_BoxIpcPathLen + 64) * sizeof(WCHAR);
         ob = Dll_AllocTemp(buf_len);
+        if (! ob)
+            return STATUS_INSUFFICIENT_RESOURCES;
 
         //
         // check that the rest of the caller-provided pipe name
@@ -1496,10 +1526,9 @@ _FX NTSTATUS File_NtDeviceIoControlFile(
     }
 
     //
-    // HACK HACK: when hooking NtDeviceIoControlFile the syscall instrumentation 
-    // will call SbieApi_MonitorPutMsg which will call NtDeviceIoControlFile
-    // hence we need to check if the hooking is not yet done and just return
-    // droppign the one log entry.
+    // SREV-284: during hook bootstrap __sys_NtDeviceIoControlFile
+    // can still be unpublished. Return the local sentinel so Sandboxie's
+    // monitor/API path does not re-enter the partially installed hook.
     //
 
     if (!__sys_NtDeviceIoControlFile) 

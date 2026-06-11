@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-329-sxs-ntsetinformationthread-pass-through-hook.schema.json",
+  "title": "SREV-329 SXS NtSetInformationThread pass-through hook",
+  "id": "SXS_NTSETINFORMATIONTHREAD_PASS_THROUGH_HOOK",
+  "owner": "Sandboxie/core/dll/sxs.c",
+  "stage": "data -> schema -> topology -> logic -> action -> verify",
+  "contracts": [
+    "NtSetInformationThread owns the thread-information transition and NTSTATUS result",
+    "Sxs_NtSetInformationThread must preserve arguments and return the native NTSTATUS",
+    "the SXS hook changes call topology even when it preserves native semantics",
+    "Gui_ConnectToWindowStationAndDesktop and Thread_SetInformationThread_ChangeNotifyToken are adjacent change-notify-token evidence",
+    "removing the hook requires Windows browser/runtime proof",
+    "SREV-329 changes comments and proof only, not NtSetInformationThread behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddk/nf-ntddk-zwsetinformationthread"
+  ],
+  "runtime_gate": "Browser/runtime matrix covering Opera-like patched NTAPI stubs and modern Chromium/Firefox/Thunderbird scenarios should prove whether removing the SXS NtSetInformationThread pass-through hook preserves the change-notify-token path and does not regress normal thread-information calls"
+}

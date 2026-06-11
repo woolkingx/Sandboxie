@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "GDI_HEADER_BITMAPBITS_SIGNATURE_CONTRACT",
+  "owner": "Sandboxie/core/dll/gdi.h",
+  "related_owners": [
+    "Sandboxie/core/dll/gdi.c",
+    "Sandboxie/core/dll/ole.cpp"
+  ],
+  "status": "patched-source-level-after-official-gdi-signature-review-needs-windows-dll-build-runtime-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-getenhmetafilebits",
+    "https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-getbitmapbits",
+    "https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-deleteobject",
+    "https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-deleteenhmetafile"
+  ],
+  "contracts": [
+    "gdi.h owns the DLL-local GDI function-pointer declarations consumed across gdi.c and ole.cpp",
+    "P_GetBitmapBits must match the documented Win32 shape LONG HBITMAP LONG LPVOID",
+    "Enhanced-metafile and delete typedefs remain unchanged because they already match the documented Win32 shape",
+    "gdi.c may continue to obtain GetBitmapBits through GetProcAddress and store it in __sys_GetBitmapBits",
+    "ole.cpp may continue using a zero-size null-buffer query only as an ownership probe before deleting TYMED_GDI storage",
+    "Linux source proof is not Windows SboxDll build runtime proof"
+  ],
+  "runtime_gate": "Windows SboxDll build plus clipboard/OLE TYMED_GDI release smoke proving GetBitmapBits(hBitmap, 0, NULL) ownership probing and DeleteObject release behavior still work; no regression in enhanced-metafile release."
+}

@@ -835,7 +835,7 @@ _FX BOOLEAN Gui_IsWellKnownClass(const WCHAR *iptr)
         L"CicLoaderWndClass",       L"CicMarshalWndClass",
         L"CiceroUIWndFrame",        L"ComboLBox",
         L"ComboBox",                L"ComboBoxEx32",
-        //L"com.adobe.ape.stage",     // FIXME
+        L"com.adobe.ape.stage",
         NULL
     };
 
@@ -931,11 +931,11 @@ _FX BOOLEAN Gui_IsWellKnownClass(const WCHAR *iptr)
     }
 
     //
-    // FIXME Adobe window classes having to do with the WM_CREATE problem
+    // Adobe/OWL classes may inspect CREATESTRUCT.lpszClass during WM_CREATE.
     //
 
-    //if (ch == 'o' && _wcsnicmp(iptr, L"OWL.", 4) == 0)
-    //    return TRUE;
+    if (ch == 'o' && _wcsnicmp(iptr, L"OWL.", 4) == 0)
+        return TRUE;
 
     //
     // Windows 8 immersive popup window

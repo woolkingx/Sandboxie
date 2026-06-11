@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "CHROME_FLASH_VOLUME_INFO_DORMANT_HOOK",
+  "title": "Chrome Flash volume-info dormant hook",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/file_init.c",
+  "additional_owners": [
+    "Sandboxie/core/dll/file_misc.c"
+  ],
+  "stage": "schema -> boundary -> verify",
+  "source_function": "dormant GetVolumeInformationW hook registration and body",
+  "contracts": [
+    "GetVolumeInformationW retrieves file-system and volume information for a root directory",
+    "GetVolumeInformationW lpRootPathName may be NULL and then uses the current directory root",
+    "GetVolumeInformationW output pointers are optional",
+    "GetVolumeInformationW buffer sizes are ignored when the corresponding output buffer is absent",
+    "the Chrome Flash GetVolumeInformationW hook registration remains inactive",
+    "the Chrome Flash all-null predicate body remains inactive",
+    "future revival requires Windows proof and a current caller contract",
+    "SREV-273 and SREV-279 own active adjacent volume-info behavior",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getvolumeinformationw"
+  ],
+  "local_edges": [
+    "file_init.c commented GetProcAddress GetVolumeInformationW -> no active registration",
+    "file_init.c commented SBIEDLL_HOOK File_GetVolumeInformationW -> no active hook",
+    "file_misc.c commented File_GetVolumeInformationW body -> no current runtime edge",
+    "Chrome all-null output-parameter predicate -> dormant compatibility note",
+    "active volume-info behavior -> SREV-273 and SREV-279 adjacent owners"
+  ],
+  "runtime_gate": "None for dormant hook state; future revival requires Windows caller proof and volume-info regression matrix",
+  "status": "patched-comment-topology-after-official-getvolumeinformation-review-no-behavior-change"
+}

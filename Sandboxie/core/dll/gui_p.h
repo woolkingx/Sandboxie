@@ -328,10 +328,10 @@ typedef BOOL (*P_SendMessageCallback)(
     HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
     SENDASYNCPROC lpCallBack, ULONG_PTR dwData);
 
-typedef LRESULT (*P_SendNotifyMessage)(
+typedef BOOL (*P_SendNotifyMessage)(
     HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-typedef LRESULT (*P_PostMessage)(
+typedef BOOL (*P_PostMessage)(
     HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 typedef BOOL (*P_PostThreadMessage)(
@@ -341,17 +341,17 @@ typedef LRESULT (*P_DispatchMessage)(const MSG *lpmsg);
 
 typedef LRESULT (*P_DispatchMessage8)(const MSG *lpmsg, ULONG IsAscii);
 
-typedef LRESULT (*P_PeekMessage)(
+typedef BOOL (*P_PeekMessage)(
     LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax,
     UINT wRemoveMsg);
 
-typedef LRESULT (*P_GetMessage)(
+typedef BOOL (*P_GetMessage)(
     LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax);
 
-typedef LRESULT (*P_MessageBoxW)(
+typedef int (*P_MessageBoxW)(
     HWND hWnd, LPCWSTR lpText, LPCWSTR lpCaption, UINT uType);
 
-typedef LRESULT (*P_MessageBoxExW)(
+typedef int (*P_MessageBoxExW)(
     HWND hWnd, LPCWSTR lpText, LPCWSTR lpCaption, UINT uType, WORD wLanguageId);
 
 typedef DWORD (*P_MsgWaitForMultipleObjects)(

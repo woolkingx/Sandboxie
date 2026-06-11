@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-010-uac-helper-wait.schema.json",
+  "title": "SREV-010 UAC helper wait boundary",
+  "id": "UAC_HELPER_WAIT_BOUNDARY",
+  "owner": "Sandboxie/core/svc/serviceserver2.cpp",
+  "type": "object",
+  "properties": {
+    "wait_api_shape": {
+      "type": "string",
+      "description": "WaitForSingleObject returns WAIT_OBJECT_0, WAIT_TIMEOUT, or WAIT_FAILED; INFINITE means return only on signaled"
+    },
+    "terminate_warning": {
+      "type": "string",
+      "description": "TerminateProcess does not run normal cleanup and is only safe on processes whose threads are in known states"
+    },
+    "helper_topology": {
+      "type": "string",
+      "description": "Sandboxie Start.exe uac_prompt helper is a dedicated prompt process launched only for this broker decision and may exit with IDYES or IDNO"
+    },
+    "bounded_wait": {
+      "type": "string",
+      "description": "WaitForSingleObject(pi.hProcess, SBIE_UAC_PROMPT_TIMEOUT_MS) replaces INFINITE only for the dedicated uac_prompt helper wait"
+    },
+    "outcome_routing": {
+      "type": "string",
+      "description": "WAIT_OBJECT_0 reads helper exit code; WAIT_TIMEOUT terminates the dedicated helper and sets ERROR_TIMEOUT; WAIT_FAILED also fails closed; all failure paths reach the existing RunUacSlave3(JustFail=true) path"
+    },
+    "constant_owner": {
+      "type": "string",
+      "description": "SBIE_UAC_PROMPT_TIMEOUT_MS = 5 * 60 * 1000 is a named constant, not an inline magic number"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate: hung Start.exe uac_prompt does not pin an SbieSvc worker forever; normal IDYES and IDNO prompt exits keep current behavior"
+    }
+  },
+  "required": [
+    "wait_api_shape",
+    "terminate_warning",
+    "helper_topology",
+    "bounded_wait",
+    "outcome_routing",
+    "constant_owner",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "WaitForSingleObject can return WAIT_OBJECT_0, WAIT_TIMEOUT, or WAIT_FAILED",
+    "INFINITE wait on a UI helper process pins the broker worker thread",
+    "Only the dedicated uac_prompt helper wait is bounded; other Sandboxie WaitForSingleObject calls are out of scope",
+    "WAIT_TIMEOUT must terminate the helper and route through JustFail",
+    "WAIT_FAILED must route through JustFail without termination side effects beyond the helper",
+    "Timeout magnitude is named through SBIE_UAC_PROMPT_TIMEOUT_MS"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject",
+    "https://learn.microsoft.com/en-us/windows/win32/procthread/terminating-a-process",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/ns-processthreadsapi-process_information"
+  ]
+}

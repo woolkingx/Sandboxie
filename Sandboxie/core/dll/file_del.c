@@ -441,8 +441,11 @@ _FX VOID File_AppendPathEntry_internal(HANDLE hPathsFile, const WCHAR* Path, ULO
 //---------------------------------------------------------------------------
 
 
-_FX VOID File_SavePathNode_internal(HANDLE hPathsFile, LIST* parent, WCHAR* Path, ULONG Length, ULONG SetFlags, WCHAR* (*TranslatePath)(const WCHAR *)) 
+_FX VOID File_SavePathNode_internal(HANDLE hPathsFile, LIST* parent, WCHAR* Path, ULONG Length, ULONG PathCapacity, ULONG SetFlags, WCHAR* (*TranslatePath)(const WCHAR *))
 {
+    if (Length + 1 >= PathCapacity)
+        return;
+
     // append  L"\\"
     Path[Length++] = L'\\'; //Path[Length] = L'0';
     WCHAR* PathBase = Path + Length;
@@ -450,6 +453,11 @@ _FX VOID File_SavePathNode_internal(HANDLE hPathsFile, LIST* parent, WCHAR* Path
     PATH_NODE* child;
     child = List_Head(parent);
     while (child) {
+
+        if (child->name_len >= PathCapacity - Length) {
+            child = List_Next(child);
+            continue;
+        }
 
         wmemcpy(PathBase, child->name, child->name_len + 1);
         ULONG Path_Len = Length + child->name_len;
@@ -465,7 +473,7 @@ _FX VOID File_SavePathNode_internal(HANDLE hPathsFile, LIST* parent, WCHAR* Path
         if ((child->flags & ~SetFlags) != 0 || child->relocation != NULL) 
             File_AppendPathEntry_internal(hPathsFile, Path, child->flags, child->relocation, TranslatePath);
 
-        File_SavePathNode_internal(hPathsFile, &child->items, Path, Path_Len, SetFlags | child->flags, TranslatePath);
+        File_SavePathNode_internal(hPathsFile, &child->items, Path, Path_Len, PathCapacity, SetFlags | child->flags, TranslatePath);
 
         child = List_Next(child);
     }
@@ -538,9 +546,14 @@ _FX VOID File_SavePathTree_internal(LIST* Root, const WCHAR* name, WCHAR* (*Tran
     if (!File_OpenDataFile(name, &hPathsFile, FALSE))
         return;
     
-    WCHAR* Path = (WCHAR *)Dll_Alloc((0x7FFF + 1)*sizeof(WCHAR)); // max nt path
+    ULONG PathCapacity = 0x7FFF + 1; // max nt path plus terminator
+    WCHAR* Path = (WCHAR *)Dll_Alloc(PathCapacity * sizeof(WCHAR));
+    if (!Path) {
+        NtClose(hPathsFile);
+        return;
+    }
 
-    File_SavePathNode_internal(hPathsFile, Root, Path, 0, 0, TranslatePath);
+    File_SavePathNode_internal(hPathsFile, Root, Path, 0, PathCapacity, 0, TranslatePath);
 
     Dll_Free(Path);
 
@@ -558,14 +571,21 @@ _FX WCHAR* File_TranslateNtToDosPathForDatFile(const WCHAR *NtPath)
     WCHAR *DosPath = NULL;
     ULONG len_nt;
 
+    if (!NtPath || !*NtPath)
+        return NULL;
+
     len_nt = wcslen(NtPath) + 11;
     DosPath = Dll_Alloc(len_nt * sizeof(WCHAR));
+    if (!DosPath)
+        return NULL;
+
     wcscpy(DosPath, NtPath);
 
     //
-    // Hack Hack: when we load a drive which does not exist we create an entry like
-    // L"\\C:\\path" in out tree to not forget it even though the NtPath is unknown
-    // here we must handle that special case and strip the L'\\'
+    // SREV-277: unavailable drive-letter paths are kept in the tree as
+    // a leading-backslash sentinel, such as L"\\C:\\path", so the
+    // FilePaths.dat round trip can preserve the entry until the drive
+    // mapping exists again.  Strip only that sentinel before writing.
     //
 
     const WCHAR* backslash = wcschr(DosPath+1, L'\\');

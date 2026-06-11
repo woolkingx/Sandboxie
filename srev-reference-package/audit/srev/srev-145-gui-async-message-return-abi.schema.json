@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-145-gui-async-message-return-abi.schema.json",
+  "title": "SREV-145 GUI async message return ABI",
+  "id": "GUI_ASYNC_MESSAGE_RETURN_ABI",
+  "owner": "Sandboxie/core/dll/gui_p.h and Sandboxie/core/dll/guimsg.c",
+  "type": "object",
+  "properties": {
+    "typedef_surface": {
+      "type": "string",
+      "description": "gui_p.h User32 private typedef return ABI"
+    },
+    "hook_wrappers": {
+      "type": "string",
+      "description": "guimsg.c PostMessage and SendNotifyMessage hook wrappers"
+    },
+    "official_shape": {
+      "type": "string",
+      "description": "Microsoft Win32 return shape for message APIs"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows GUI message hook ABI runtime proof"
+    }
+  },
+  "required": [
+    "typedef_surface",
+    "hook_wrappers",
+    "official_shape",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "gui_p.h owns the private User32 function-pointer return ABI used by the GUI hook surface",
+    "PostMessageA/W and SendNotifyMessageA/W return BOOL, not LRESULT",
+    "PeekMessageA/W and GetMessageA/W return BOOL, not LRESULT",
+    "MessageBoxW and MessageBoxExW return int, not LRESULT",
+    "PostThreadMessageA/W already returns BOOL, and DispatchMessageA/W remains LRESULT",
+    "Hook wrappers that replace PostMessageA/W and SendNotifyMessageA/W must expose the same BOOL return shape as the APIs they replace",
+    "The shared Gui_SendPostMessageCommon internal route may keep LRESULT because it also serves SendMessage and SendMessageTimeout paths"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-postmessagew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendnotifymessagew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-peekmessagew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getmessagew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-messageboxw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-messageboxexw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-postthreadmessagew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-dispatchmessagew"
+  ]
+}

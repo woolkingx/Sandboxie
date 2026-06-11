@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-105-verify-legacy-cert-level-compatibility.schema.json",
+  "title": "SREV-105 verify legacy certificate level compatibility",
+  "id": "VERIFY_LEGACY_CERT_LEVEL_COMPATIBILITY",
+  "owner": "Sandboxie/core/drv/verify.c",
+  "type": "object",
+  "properties": {
+    "certificate_time_shape": {
+      "type": "string",
+      "description": "Official and local certificate validity time-window shape"
+    },
+    "legacy_level_shape": {
+      "type": "string",
+      "description": "Signed legacy level aliases accepted by the local Certificate.dat parser"
+    },
+    "expiration_gate": {
+      "type": "string",
+      "description": "Local expired/outdated/active decision gate"
+    },
+    "source_change": {
+      "type": "string",
+      "description": "Comment-only clarification preserving legacy level behavior"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows certificate compatibility runtime proof"
+    }
+  },
+  "required": [
+    "certificate_time_shape",
+    "legacy_level_shape",
+    "expiration_gate",
+    "source_change",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "certificate validity is a time-window decision with not-before and not-after style boundaries",
+    "Windows system time is represented as UTC 100-nanosecond intervals in a LARGE_INTEGER-compatible time value",
+    "Certificate.dat is a local signed text contract and not an X.509 certificate chain",
+    "legacy LARGE MEDIUM and SMALL levels are parser compatibility aliases for already signed certificate text",
+    "LARGE assigns an explicit two-year expiration interval unless it is the pre-2022 semi-perpetual batch sentinel",
+    "MEDIUM keeps the default one-year expiration interval through the common expiration gate",
+    "SMALL maps to Home subscription before the common expiration gate",
+    "expiration_date drives expired and expirers_in_sec for non-eternal certificates",
+    "non-subscription certificates become outdated when expiration_date is older than BuildDate",
+    "subscription certificates are gated by expired while non-subscription certificates are gated by outdated",
+    "inactive certificates must be set inactive with STATUS_ACCOUNT_EXPIRED outside the grace period",
+    "this SREV must not remove legacy level branches or change certificate feature options"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-certverifytimevalidity",
+    "https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/ns-wincrypt-cert_info",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-kequerysystemtimeprecise",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtltimefieldstotime",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtltimetotimefields"
+  ]
+}

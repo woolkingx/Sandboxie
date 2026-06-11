@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-054-file-arm64ec-xtajit64-range.schema.json",
+  "title": "SREV-054 ARM64EC NtOpenFile xtajit64 range gate contract",
+  "id": "FILE_ARM64EC_XTAJIT64_RANGE_GATE",
+  "api": "File_NtOpenFile",
+  "owner": "Sandboxie/core/dll/file.c",
+  "type": "object",
+  "properties": {
+    "return_address": {
+      "type": "integer",
+      "description": "Caller return address captured by File_NtOpenFile"
+    },
+    "module_base": {
+      "type": "integer",
+      "description": "Loaded xtajit64.dll module base"
+    },
+    "module_end": {
+      "type": "integer",
+      "description": "Loaded xtajit64.dll module end computed from PE SizeOfImage"
+    }
+  },
+  "required": [
+    "return_address",
+    "module_base",
+    "module_end"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "GetModuleHandleW returns a handle for a module loaded in the calling process",
+    "The PE SizeOfImage field owns the in-memory image extent",
+    "The ARM64EC NtOpenFile compatibility bypass may trigger only inside the half-open xtajit64.dll image range",
+    "A zero or invalid xtajit64.dll base/end disables the bypass",
+    "The bypass range must not use a hard-coded image-size constant"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulehandlew",
+    "https://learn.microsoft.com/en-us/windows/win32/debug/pe-format"
+  ]
+}

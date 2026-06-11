@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "TOKEN_PRIMARY_KERNEL_HANDLE_BOUNDARY",
+  "title": "Token primary kernel handle boundary",
+  "type": "object",
+  "owner": "Sandboxie/core/drv/token.c",
+  "stage": "schema -> topology -> verify",
+  "source_functions": [
+    "Token_AssignPrimary",
+    "Token_AssignPrimaryHandle"
+  ],
+  "contracts": [
+    "Token_AssignPrimary owns conversion from token object pointer to kernel-only token handle",
+    "Token_AssignPrimaryHandle consumes a kernel-only token handle in PROCESS_ACCESS_TOKEN",
+    "Both token and process object pointers are opened with OBJ_KERNEL_HANDLE and KernelMode",
+    "The ProcessAccessToken private ABI shape remains a Windows runtime gate",
+    "Driver Verifier kernel-handle checks are the verification owner for the Windows 7 crash note",
+    "Successful and failed paths close the opened kernel handles",
+    "This SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-obopenobjectbypointer",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-obreferenceobjectbyhandle",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/miscellaneous-checks",
+    "https://learn.microsoft.com/en-us/windows/win32/procthread/process-security-and-access-rights"
+  ],
+  "local_edges": [
+    "TokenObject -> ObOpenObjectByPointer OBJ_KERNEL_HANDLE KernelMode -> TokenHandle",
+    "ProcessObject -> ObOpenObjectByPointer OBJ_KERNEL_HANDLE KernelMode -> ProcessHandle",
+    "TokenKernelHandle -> PROCESS_ACCESS_TOKEN.Token -> ZwSetInformationProcess ProcessAccessToken",
+    "Token_AssignPrimaryHandle -> ZwClose(ProcessHandle)",
+    "Token_AssignPrimary -> ZwClose(TokenHandle)"
+  ],
+  "runtime_gate": "Windows driver build and Driver Verifier miscellaneous checks on Windows 7 10 11 for primary-token replacement kernel handles cleanup and ProcessAccessToken failures",
+  "status": "patched-comment-topology-after-official-object-handle-and-driver-verifier-review-no-behavior-change"
+}

@@ -340,7 +340,7 @@ _FX WCHAR* File_TranslateGuidToNtPath2(const WCHAR* GuidPath, ULONG GuidPathLen)
         FILE_GUID* guid = File_GetLinkForGuid(&GuidPath[10]);
         if (guid) {
 
-            File_ConcatPath2(guid->path, guid->len, GuidPath + 48, GuidPathLen - 48);
+            NtPath = File_ConcatPath2(guid->path, guid->len, GuidPath + 48, GuidPathLen - 48);
 
             LeaveCriticalSection(File_DrivesAndLinks_CritSec);
         }
@@ -1304,7 +1304,7 @@ _FX const FILE_DRIVE *File_GetDriveAndLinkForPath(
             link != File_Wow64FileLink &&
 #endif WOW64_FS_REDIR
             PathLen >= src_len &&
-                (Path[PathLen] == L'\\' || Path[PathLen] == L'\0') &&
+                (Path[src_len] == L'\\' || Path[src_len] == L'\0') &&
                 _wcsnicmp(Path, link->src, src_len) == 0) {
 
             *OutLink = link;

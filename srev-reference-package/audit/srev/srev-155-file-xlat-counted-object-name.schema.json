@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-155-file-xlat-counted-object-name.schema.json",
+  "title": "SREV-155 file_xlat counted object name",
+  "id": "FILE_XLAT_COUNTED_OBJECT_NAME",
+  "owner": "Sandboxie/core/drv/file_xlat.c",
+  "type": "object",
+  "properties": {
+    "object_name_shape": {
+      "type": "string",
+      "description": "OBJECT_NAME_INFORMATION.Name is a counted UNICODE_STRING"
+    },
+    "cache_copy_shape": {
+      "type": "string",
+      "description": "CACHE_PATH destination length is derived from Name.Length"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows reparse translation runtime proof"
+    }
+  },
+  "required": [
+    "object_name_shape",
+    "cache_copy_shape",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "OBJECT_NAME_INFORMATION.Name is a counted UNICODE_STRING",
+    "UNICODE_STRING.Length is a byte count and does not include a trailing null character when one is present",
+    "File_TranslateReparsePoints_3 must derive CACHE_PATH destination length from Name->Name.Length not wcslen(Name->Name.Buffer)",
+    "Name->Name.Length must be WCHAR-aligned before converting bytes to WCHAR count",
+    "trailing backslash trimming must stay within the counted Name->Name.Buffer extent",
+    "this SREV does not change File_ReparsePointsBusy KPATH-002 wait behavior",
+    "the Linux source gate is not Windows runtime proof"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-obquerynamestring",
+    "https://learn.microsoft.com/en-us/windows/win32/api/ntdef/ns-ntdef-_unicode_string",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtlinitunicodestring"
+  ]
+}

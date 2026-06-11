@@ -145,7 +145,7 @@ ULONG UserServer::StartWorker(ULONG session_id)
             CloseHandle(worker->hProcess);
 
             List_Remove(&m_WorkersList, worker);
-            HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, worker);
+            HeapFree(GetProcessHeap(), 0, worker);
         }
 
         worker = worker_next;
@@ -290,9 +290,11 @@ ULONG UserServer::StartWorker(ULONG session_id)
             // hence we duplicate the required token and use APC to pass it to our new worker.
             //
 
-            HANDLE hThis;
-            if(NT_SUCCESS(DuplicateHandle(NtCurrentProcess(), NtCurrentProcess(), pi.hProcess, &hThis, SYNCHRONIZE, FALSE, 0)))
-                QueueUserAPC(UserServer__APC, pi.hThread, (ULONG_PTR)hThis);
+            HANDLE hThis = NULL;
+            if (DuplicateHandle(NtCurrentProcess(), NtCurrentProcess(), pi.hProcess, &hThis, SYNCHRONIZE, FALSE, 0)) {
+                if (! QueueUserAPC(UserServer__APC, pi.hThread, (ULONG_PTR)hThis))
+                    CloseHandle(hThis);
+            }
 
             CloseHandle(pi.hThread);
             if (! ok)
@@ -306,7 +308,7 @@ ULONG UserServer::StartWorker(ULONG session_id)
         CloseHandle(hNewToken);
     if (hOldToken)
         CloseHandle(hOldToken);
-    HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, cmdline);
+    HeapFree(GetProcessHeap(), 0, cmdline);
 
     return status;
 }
@@ -338,7 +340,7 @@ ULONG UserServer__StartupWorker(void* _Param)
 
     SetEvent(pParam->hEvent);
 
-    HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, pParam);
+    HeapFree(GetProcessHeap(), 0, pParam);
     return 0;
 }
 
@@ -350,7 +352,7 @@ ULONG UserServer::StartAsync(ULONG session_id, HANDLE hEvent)
 
     HANDLE hThread = CreateThread(NULL, 0, UserServer__StartupWorker, (void *)pParam, 0, NULL);
     if (!hThread) {
-        HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, pParam);
+        HeapFree(GetProcessHeap(), 0, pParam);
         return STATUS_UNSUCCESSFUL;
     }
     CloseHandle(hThread);
@@ -567,29 +569,34 @@ bool UserServer::QueueCallbackWorker2(void)
     status = STATUS_INVALID_SYSTEM_SERVICE;
     rpl_len = sizeof(ULONG);
 
-    ULONG msgid = *(ULONG *)data_ptr;
+    if (data_len < sizeof(ULONG))
+        status = STATUS_INFO_LENGTH_MISMATCH;
+    else {
 
-    if (msgid < USER_MAX_REQUEST_CODE) {
+        ULONG msgid = *(ULONG *)data_ptr;
 
-        WorkerFunc WorkerFuncPtr = m_WorkerFuncs[msgid];
-        if (WorkerFuncPtr) {
+        if (msgid < USER_MAX_REQUEST_CODE) {
 
-            bool issue_request = true;
+            WorkerFunc WorkerFuncPtr = m_WorkerFuncs[msgid];
+            if (WorkerFuncPtr) {
 
-            //
-            // issue request
-            //
+                bool issue_request = true;
 
-            if (issue_request) {
+                //
+                // issue request
+                //
 
-                args.req_len = data_len;
-                args.req_buf = data_ptr;
-                args.rpl_len = rpl_len;
-                args.rpl_buf = rpl_buf;
+                if (issue_request) {
 
-                status = (this->*WorkerFuncPtr)(&args);
-                if (status == 0)
-                    rpl_len = args.rpl_len;
+                    args.req_len = data_len;
+                    args.req_buf = data_ptr;
+                    args.rpl_len = rpl_len;
+                    args.rpl_buf = rpl_buf;
+
+                    status = (this->*WorkerFuncPtr)(&args);
+                    if (status == 0)
+                        rpl_len = args.rpl_len;
+                }
             }
         }
     }
@@ -622,6 +629,43 @@ bool UserServer::QueueCallbackWorker2(void)
 //---------------------------------------------------------------------------
 
 
+static WCHAR *UserServer_GetWireString(
+    void *req_buf, ULONG req_len, ULONG offset, ULONG min_offset)
+{
+    if (offset < min_offset || offset > req_len)
+        return NULL;
+
+    if ((offset & (sizeof(WCHAR) - 1)) != 0)
+        return NULL;
+
+    ULONG bytes_left = req_len - offset;
+    if (bytes_left < sizeof(WCHAR))
+        return NULL;
+
+    WCHAR *string = (WCHAR *)(((UCHAR *)req_buf) + offset);
+    ULONG char_count = bytes_left / sizeof(WCHAR);
+    for (ULONG index = 0; index < char_count; ++index) {
+        if (string[index] == L'\0')
+            return string;
+    }
+
+    return NULL;
+}
+
+
+static void *UserServer_GetWireRange(
+    void *req_buf, ULONG req_len, ULONG offset, ULONG length, ULONG min_offset)
+{
+    if (offset < min_offset || offset > req_len)
+        return NULL;
+
+    if (length > req_len - offset)
+        return NULL;
+
+    return ((UCHAR *)req_buf) + offset;
+}
+
+
 ULONG UserServer::OpenFile(WorkerArgs *args)
 {
     USER_OPEN_FILE_REQ *req = (USER_OPEN_FILE_REQ *)args->req_buf;
@@ -630,7 +674,19 @@ ULONG UserServer::OpenFile(WorkerArgs *args)
     if (args->req_len < sizeof(USER_OPEN_FILE_REQ))
         return STATUS_INFO_LENGTH_MISMATCH;
 
-    WCHAR* path_buff = (WCHAR*)(((UCHAR*)req) + req->FileNameOffset);
+    WCHAR* path_buff = UserServer_GetWireString(
+        req, args->req_len, req->FileNameOffset, sizeof(USER_OPEN_FILE_REQ));
+    if (! path_buff)
+        return STATUS_INFO_LENGTH_MISMATCH;
+
+    void* pEaBuff = NULL;
+    if (req->EaBufferOffset != 0) {
+        pEaBuff = UserServer_GetWireRange(
+            req, args->req_len, req->EaBufferOffset, req->EaLength,
+            sizeof(USER_OPEN_FILE_REQ));
+        if (! pEaBuff)
+            return STATUS_INFO_LENGTH_MISMATCH;
+    }
 
     //
     // check if the caller belongs to our session
@@ -727,12 +783,9 @@ ULONG UserServer::OpenFile(WorkerArgs *args)
     LARGE_INTEGER AllocSize;
     AllocSize.QuadPart = req->AllocationSize;
 
-    void* pEaBuff = NULL;
-    if (req->EaBufferOffset != 0)
-        pEaBuff = ((UCHAR*)req) + req->EaBufferOffset;
-
     HANDLE hFile;
     IO_STATUS_BLOCK IoStatusBlock;
+    rpl->FileHandle = 0;
     rpl->error = NtCreateFile(&hFile, req->DesiredAccess, &objattrs, &IoStatusBlock, AllocSize.QuadPart != 0 ? &AllocSize : NULL, 
         req->FileAttributes, req->ShareAccess, req->CreateDisposition, req->CreateOptions, pEaBuff, req->EaLength);
     rpl->Status = IoStatusBlock.Status;
@@ -746,7 +799,8 @@ ULONG UserServer::OpenFile(WorkerArgs *args)
 
         HANDLE hProcess = OpenProcess(PROCESS_DUP_HANDLE, FALSE, args->pid);
         if (hProcess) {
-            DuplicateHandle(NtCurrentProcess(), hFile, hProcess, (HANDLE*)&rpl->FileHandle, req->DesiredAccess, FALSE, 0);
+            if (! DuplicateHandle(NtCurrentProcess(), hFile, hProcess, (HANDLE*)&rpl->FileHandle, req->DesiredAccess, FALSE, 0))
+                rpl->error = STATUS_UNSUCCESSFUL;
             CloseHandle(hProcess);
         }
         else
@@ -772,7 +826,10 @@ ULONG UserServer::OpenDocument(WorkerArgs *args)
     if (args->req_len < sizeof(USER_SHELL_EXEC_REQ))
         return STATUS_INFO_LENGTH_MISMATCH;
 
-    WCHAR* path_buff = (WCHAR*)(((UCHAR*)req) + req->FileNameOffset);
+    WCHAR* path_buff = UserServer_GetWireString(
+        req, args->req_len, req->FileNameOffset, sizeof(USER_SHELL_EXEC_REQ));
+    if (! path_buff)
+        return STATUS_INFO_LENGTH_MISMATCH;
 
     //
     // check if the caller belongs to our session
@@ -901,8 +958,7 @@ ULONG UserServer::GetProcessPathList(ULONG path_code,
 //    }
 //
 //finish:
-//    HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, path_lwr);
+//    HeapFree(GetProcessHeap(), 0, path_lwr);
 //
 //    return ret;
 //}
-

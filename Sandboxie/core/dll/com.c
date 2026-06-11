@@ -2613,7 +2613,10 @@ _FX HRESULT Com_IRpcChannelBuffer_SendReceive(
 
     ULONG ProcNum = pMessage->ProcNum;
 
-    len = sizeof(COM_INVOKE_METHOD_REQ) + pMessage->BufferLength;
+    if (pMessage->BufferLength >= COM_MAX_INVOKE_BUF_LEN)
+        return MEM_E_INVALID_SIZE;
+
+    len = FIELD_OFFSET(COM_INVOKE_METHOD_REQ, Buffer) + pMessage->BufferLength;
     req = (COM_INVOKE_METHOD_REQ *)Com_Alloc(len);
     if (! req)
         return E_OUTOFMEMORY;
@@ -3471,10 +3474,13 @@ _FX void Com_LoadRTList(const WCHAR* setting, WCHAR** pNames)
     *pNames = Com_Alloc(sizeof(WCHAR) * total_len);
     if (!*pNames)
         return;
-    
+
+    (*pNames)[0] = L'\0';
+
     cur_pos = 0;
     for (index = 0; total_len > cur_pos; ++index) {
         WCHAR* buf = wbuf;
+        ULONG entry_len;
 
         status = SbieApi_QueryConfAsIs(
             NULL, setting, index, wbuf, 190 * sizeof(WCHAR));
@@ -3491,12 +3497,16 @@ _FX void Com_LoadRTList(const WCHAR* setting, WCHAR** pNames)
 
         if (*buf == L'\0') continue;
 
+        entry_len = (ULONG)wcslen(buf) + 1;
+        if (entry_len >= total_len - cur_pos)
+            break;
+
         wcscpy((*pNames) + cur_pos, buf);
 
-        cur_pos += wcslen(buf) + 1;
+        cur_pos += entry_len;
     }
 
-    (*pNames)[total_len - 1] = L'\0'; // indicated the end of data
+    (*pNames)[cur_pos] = L'\0'; // indicated the end of data
 }
 
 
@@ -3514,9 +3524,8 @@ _FX BOOLEAN Com_IsClosedRT(const wchar_t* strClassId)
     if (!(Ipc_OpenCOM && Dll_CompartmentMode) && !SbieApi_QueryConfBool(NULL, L"DisableRTBlacklist", FALSE)) {
 
         //
-        // Chrome uses the FindAppUriHandlersAsync, which fails returning a NULL value when we don't have com open and more rights
-        // than we should have. Chrome does not check for this failure mode and dereferences it, resulting in a fatal crash.
-        // Since we don't support modern app features anyways, the simplest workaround is to block this interface.
+        // Chrome's FindAppUriHandlersAsync path needs WinRT broker state outside the boxed COM contract;
+        // keep this runtime class on the built-in ClosedRT deny-list unless open COM owns the activation.
         //
 
         if (Dll_ImageType == DLL_IMAGE_GOOGLE_CHROME) {
@@ -3526,7 +3535,7 @@ _FX BOOLEAN Com_IsClosedRT(const wchar_t* strClassId)
         }
 
         //
-        // ToastNotificationManager requires open com and original token, with boxed com this causes a deadlock
+        // ToastNotificationManager also crosses into user-notification COM state outside the boxed COM contract.
         //
 
         if (wcscmp(strClassId, L"Windows.UI.Notifications.ToastNotificationManager") == 0)

@@ -34,6 +34,23 @@
 
 
 BOOLEAN Ipc_Filter_Spooler_Msg(PROCESS* proc, UCHAR uMsg);
+static BOOLEAN Ipc_Spl_MatchPortName(
+    const UNICODE_STRING* PortName, const WCHAR* ExpectedName);
+
+
+//---------------------------------------------------------------------------
+// Ipc_Spl_MatchPortName
+//---------------------------------------------------------------------------
+
+
+_FX BOOLEAN Ipc_Spl_MatchPortName(
+    const UNICODE_STRING* PortName, const WCHAR* ExpectedName)
+{
+    UNICODE_STRING expected;
+
+    RtlInitUnicodeString(&expected, ExpectedName);
+    return RtlEqualUnicodeString(PortName, &expected, TRUE);
+}
 
 
 //---------------------------------------------------------------------------
@@ -87,8 +104,8 @@ _FX NTSTATUS Ipc_CheckPortRequest_SpoolerPort(
             KeEnterCriticalRegion();
             ExAcquireResourceSharedLite(Ipc_Dynamic_Ports.pPortLock, TRUE);
 
-            if (Ipc_Dynamic_Ports.pSpoolerPort 
-                && _wcsicmp(Name->Name.Buffer, Ipc_Dynamic_Ports.pSpoolerPort->wstrPortName) == 0)
+            if (Ipc_Dynamic_Ports.pSpoolerPort
+                && Ipc_Spl_MatchPortName(&Name->Name, Ipc_Dynamic_Ports.pSpoolerPort->wstrPortName))
             {
                 // dynamic version of RPC ports, see also ipc_spl.c
                 // and RpcBindingFromStringBindingW in core/dll/rpcrt.c
@@ -104,7 +121,7 @@ _FX NTSTATUS Ipc_CheckPortRequest_SpoolerPort(
     }
     else if (Driver_OsVersion >= DRIVER_WINDOWS_VISTA) {
 
-        if (_wcsicmp(Name->Name.Buffer, L"\\RPC Control\\spoolss") != 0)
+        if (! Ipc_Spl_MatchPortName(&Name->Name, L"\\RPC Control\\spoolss"))
             return STATUS_BAD_INITIAL_PC;
 
     }
@@ -133,7 +150,12 @@ _FX NTSTATUS Ipc_CheckPortRequest_SpoolerPort(
 
             ProbeForRead(ptr, len, sizeof(WCHAR));
 
-            /*if (ptr[20] == 17) {        // RpcStartDocPrinter = Opnum 17
+            UCHAR uMsg;
+            if (!Ipc_GetRpcMsgId(proc, L"\\RPC Control\\spoolss", ptr, len, &uMsg)) {
+                status = STATUS_INVALID_PARAMETER;
+            }
+            else {
+            /*if (uMsg == 17) {        // RpcStartDocPrinter = Opnum 17
 
                 if (!proc->ipc_allowSpoolerPrintToFile)
                 {
@@ -155,10 +177,11 @@ _FX NTSTATUS Ipc_CheckPortRequest_SpoolerPort(
             }
             else*/
 
-            if (Ipc_Filter_Spooler_Msg(proc, ptr[20]))
-                status = STATUS_ACCESS_DENIED;
+                if (Ipc_Filter_Spooler_Msg(proc, uMsg))
+                    status = STATUS_ACCESS_DENIED;
+            }
 
-            //DbgPrint("Spooler IPC Port message ID: %d\n", (int)ptr[20]);
+            //DbgPrint("Spooler IPC Port message ID: %d\n", (int)uMsg);
 
         }
 

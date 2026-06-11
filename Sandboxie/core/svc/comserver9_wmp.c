@@ -22,6 +22,7 @@
 
 #include <shobjidl.h>
 #include <shlobj.h>
+#include <shellapi.h>
 
 
 //---------------------------------------------------------------------------
@@ -91,6 +92,10 @@ static HRESULT WMPServer_IDropTarget_Drop(
 static IMyUnknown *WMPServer_MyCreateInstance(REFIID riid);
 static IMyUnknown *WMPServer_MyCreateInstanceHelper(void);
 static void *WMPServer_MyQueryInterface(IMyUnknown *This, REFIID riid);
+static BOOLEAN WMPServer_TryWcharBytes(SIZE_T chars, ULONG *bytes);
+static void WMPServer_ClearParameters(void);
+static HRESULT WMPServer_SetParametersCopy(LPCWSTR pszParameters);
+static HRESULT WMPServer_AppendParameterPath(LPCWSTR path);
 
 
 //---------------------------------------------------------------------------
@@ -141,6 +146,117 @@ static const GUID IID_IObjectWithSelection = {
 
 
 static WCHAR *WMPServer_Parameters = NULL;
+
+
+//---------------------------------------------------------------------------
+// WMPServer_TryWcharBytes
+//---------------------------------------------------------------------------
+
+
+_FX BOOLEAN WMPServer_TryWcharBytes(SIZE_T chars, ULONG *bytes)
+{
+    if (chars > ((ULONG)-1) / sizeof(WCHAR))
+        return FALSE;
+
+    *bytes = (ULONG)(chars * sizeof(WCHAR));
+    return TRUE;
+}
+
+
+//---------------------------------------------------------------------------
+// WMPServer_ClearParameters
+//---------------------------------------------------------------------------
+
+
+_FX void WMPServer_ClearParameters(void)
+{
+    if (WMPServer_Parameters) {
+        HeapFree(GetProcessHeap(), 0, WMPServer_Parameters);
+        WMPServer_Parameters = NULL;
+    }
+}
+
+
+//---------------------------------------------------------------------------
+// WMPServer_SetParametersCopy
+//---------------------------------------------------------------------------
+
+
+_FX HRESULT WMPServer_SetParametersCopy(LPCWSTR pszParameters)
+{
+    SIZE_T len, trim;
+    ULONG bytes;
+    WCHAR *params;
+
+    WMPServer_ClearParameters();
+
+    if (! pszParameters)
+        return S_OK;
+
+    len = wcslen(pszParameters);
+    trim = 0;
+    while (trim < len && pszParameters[trim] == L' ')
+        ++trim;
+
+    len -= trim;
+    if (! len)
+        return S_OK;
+
+    if (! WMPServer_TryWcharBytes(len + 1, &bytes))
+        return E_OUTOFMEMORY;
+
+    params = Dll_Alloc(bytes);
+    wmemcpy(params, pszParameters + trim, len);
+    params[len] = L'\0';
+
+    WMPServer_Parameters = params;
+    return S_OK;
+}
+
+
+//---------------------------------------------------------------------------
+// WMPServer_AppendParameterPath
+//---------------------------------------------------------------------------
+
+
+_FX HRESULT WMPServer_AppendParameterPath(LPCWSTR path)
+{
+    SIZE_T param_len;
+    SIZE_T path_len;
+    SIZE_T chars;
+    ULONG bytes;
+    WCHAR *params, *ptr;
+
+    if (! path)
+        return E_INVALIDARG;
+
+    param_len = WMPServer_Parameters ? wcslen(WMPServer_Parameters) : 0;
+    path_len = wcslen(path);
+    chars = param_len + path_len + 4;
+    if (chars < param_len || chars < path_len)
+        return E_OUTOFMEMORY;
+    if (! WMPServer_TryWcharBytes(chars, &bytes))
+        return E_OUTOFMEMORY;
+
+    params = Dll_Alloc(bytes);
+    ptr = params;
+
+    if (WMPServer_Parameters) {
+        wmemcpy(ptr, WMPServer_Parameters, param_len);
+        ptr += param_len;
+        *ptr++ = L' ';
+    }
+
+    *ptr++ = L'\"';
+    wmemcpy(ptr, path, path_len);
+    ptr += path_len;
+    *ptr++ = L'\"';
+    *ptr = L'\0';
+
+    WMPServer_ClearParameters();
+    WMPServer_Parameters = params;
+    return S_OK;
+}
 
 
 //---------------------------------------------------------------------------
@@ -280,20 +396,9 @@ _FX HRESULT WMPServer_IExecuteCommand_SetKeyState(
 _FX HRESULT WMPServer_IExecuteCommand_SetParameters(
     IExecuteCommand *This, LPCWSTR pszParameters)
 {
-    if (pszParameters) {
-
-        ULONG len = wcslen(pszParameters);
-        WMPServer_Parameters = Dll_Alloc((len + 1) * sizeof(WCHAR));
-        wmemcmp(WMPServer_Parameters, pszParameters, len);
-        WMPServer_Parameters[len] = L'\0';
-
-        while (*WMPServer_Parameters == L' ')
-            ++WMPServer_Parameters;
-        if (*WMPServer_Parameters == L'\0')
-            WMPServer_Parameters = NULL;
-
-    } else
-        WMPServer_Parameters = NULL;
+    HRESULT hr = WMPServer_SetParametersCopy(pszParameters);
+    if (FAILED(hr))
+        return hr;
 
 #ifdef COMSERVER_DEBUG
     { WCHAR txt[128];
@@ -355,7 +460,8 @@ _FX HRESULT WMPServer_IExecuteCommand_SetDirectory(
     OutputDebugString(txt);
 #endif
 
-    SetCurrentDirectory(pszDirectory);
+    if (pszDirectory)
+        SetCurrentDirectory(pszDirectory);
     return S_OK;
 }
 
@@ -392,36 +498,29 @@ _FX HRESULT WMPServer_IObjectWithSelection_SetSelection(
     IObjectWithSelection *This, IShellItemArray *psia)
 {
     ULONG index = 0;
+    HRESULT hr;
+
+    if (! psia)
+        return E_POINTER;
+
     while (1) {
 
-        WCHAR *path1, *path2;
-        ULONG len;
+        WCHAR *path1 = NULL;
 
         IShellItem *pShellItem;
-        HRESULT hr = psia->lpVtbl->GetItemAt(psia, index, &pShellItem);
+        hr = psia->lpVtbl->GetItemAt(psia, index, &pShellItem);
         if (FAILED(hr))
             break;
         ++index;
 
         hr = IShellItem_GetDisplayName(pShellItem, SIGDN_FILESYSPATH, &path1);
-        if (SUCCEEDED(hr)) {
-
-            if (WMPServer_Parameters)
-                len = wcslen(WMPServer_Parameters);
-            else
-                len = 0;
-            len += wcslen(path1) + 8;
-
-            path2 = Dll_Alloc(len * sizeof(WCHAR));
-            if (WMPServer_Parameters) {
-                wcscpy(path2, WMPServer_Parameters);
-                wcscat(path2, L" \"");
-            } else
-                wcscpy(path2, L"\"");
-            wcscat(path2, path1);
-            wcscat(path2, L"\"");
-
-            WMPServer_Parameters = path2;
+        if (SUCCEEDED(hr) && path1) {
+            hr = WMPServer_AppendParameterPath(path1);
+            CoTaskMemFree(path1);
+            if (FAILED(hr)) {
+                IShellItem_Release(pShellItem);
+                return hr;
+            }
         }
 
         IShellItem_Release(pShellItem);
@@ -458,6 +557,9 @@ _FX HRESULT WMPServer_IDropTarget_DragEnter(
     IDropTarget *This, IDataObject *pDataObject,
     DWORD grfKeyState, POINTL pt, DWORD *pdwEffect)
 {
+    if (! pdwEffect)
+        return E_POINTER;
+
 #ifdef COMSERVER_DEBUG
     { OutputDebugString(L"WMPServer_IDropTarget_DragEnter\n"); }
 #endif
@@ -474,6 +576,9 @@ _FX HRESULT WMPServer_IDropTarget_DragEnter(
 _FX HRESULT WMPServer_IDropTarget_DragOver(
     IDropTarget *This, DWORD grfKeyState, POINTL pt, DWORD *pdwEffect)
 {
+    if (! pdwEffect)
+        return E_POINTER;
+
 #ifdef COMSERVER_DEBUG
     { OutputDebugString(L"WMPServer_IDropTarget_DragOver\n"); }
 #endif
@@ -509,6 +614,9 @@ _FX HRESULT WMPServer_IDropTarget_Drop(
     FORMATETC format;
     STGMEDIUM medium;
 
+    if ((! pDataObject) || (! pdwEffect))
+        return E_POINTER;
+
 #ifdef COMSERVER_DEBUG
     { OutputDebugString(L"WMPServer_IDropTarget_Drop\n"); }
 #endif
@@ -526,22 +634,30 @@ _FX HRESULT WMPServer_IDropTarget_Drop(
     if (FAILED(hr))
         return hr;
 
-    if (medium.hGlobal) {
+    if (medium.tymed == TYMED_HGLOBAL && medium.hGlobal) {
 
-        DROPFILES *DropFiles = GlobalLock(medium.hGlobal);
-        if (DropFiles->fWide) {
+        HDROP hDrop = (HDROP)medium.hGlobal;
+        UINT count = DragQueryFile(hDrop, 0xFFFFFFFF, NULL, 0);
+        if (count) {
+            UINT chars = DragQueryFile(hDrop, 0, NULL, 0);
+            if (chars) {
+                ULONG bytes;
+                WCHAR *path;
 
-            WCHAR *path = (WCHAR *)((UCHAR *)DropFiles + DropFiles->pFiles);
-            ComServer_RestartProgram(path);
+                if (! WMPServer_TryWcharBytes((SIZE_T)chars + 1, &bytes)) {
+                    ReleaseStgMedium(&medium);
+                    return E_OUTOFMEMORY;
+                }
+
+                path = Dll_Alloc(bytes);
+                if (DragQueryFile(hDrop, 0, path, chars + 1))
+                    ComServer_RestartProgram(path);
+                HeapFree(GetProcessHeap(), 0, path);
+            }
         }
-
-        GlobalUnlock(medium.hGlobal);
     }
 
-    if (medium.pUnkForRelease)
-        IUnknown_Release(medium.pUnkForRelease);
-    else if (medium.hGlobal)
-        GlobalFree(medium.hGlobal);
+    ReleaseStgMedium(&medium);
 
     *pdwEffect = DROPEFFECT_COPY;
 

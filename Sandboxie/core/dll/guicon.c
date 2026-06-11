@@ -44,6 +44,8 @@ static void Gui_WaitForParentExitApc(ULONG_PTR Parameter);
 
 static ULONG Gui_ConsoleThread(void *xHandles);
 
+static void Gui_FreeConsoleThreadHandles(HANDLE *Handles);
+
 static BOOL Gui_SetConsoleTitleA(const UCHAR *lpConsoleTitle);
 
 static BOOL Gui_SetConsoleTitleW(const WCHAR *lpConsoleTitle);
@@ -282,13 +284,14 @@ _FX BOOL Gui_AllocConsole(void)
 _FX void Gui_InitConsole2(void)
 {
     HANDLE *Handles;
+    HANDLE ReadyEvent = NULL;
+    HANDLE ConsoleThreadHandle = NULL;
     HMODULE User32;
 
-    // $Workaround$ - 3rd party fix
-    //
-    // hack:  the Kaspersky process klwtblfs.exe is protected from
-    // termination through TerminateProcess, so make sure we terminate
-    // voluntarily when the parent ends (typically SandboxieDcomLaunch)
+    // SREV-291: klwtblfs.exe uses a voluntary parent-exit worker.
+    // proc.c owns the DcomLaunch create-process block; this path only
+    // covers an already-running image by calling Proc_WaitForParentExit
+    // with DoExitProcess enabled.
     //
 
     if (_wcsicmp(Dll_ImageName, L"klwtblfs.exe") == 0) {
@@ -308,25 +311,34 @@ _FX void Gui_InitConsole2(void)
 
     User32 = GetModuleHandle(DllName_user32);
 
-    Handles = Dll_Alloc(3 * sizeof(HANDLE));
+    Handles = Dll_Alloc(2 * sizeof(HANDLE));
+    if (! Handles)
+        return;
+    Handles[0] = NULL;
+    Handles[1] = NULL;
 
     Handles[0] = OpenThread(SYNCHRONIZE, FALSE, GetCurrentThreadId());
     if (Handles[0]) {
 
-        Handles[1] = CreateEvent(NULL, FALSE, FALSE, NULL);
-        if (Handles[1]) {
+        ReadyEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+        if (ReadyEvent) {
 
-            Handles[2] = CreateThread(
+            Handles[1] = ReadyEvent;
+            ConsoleThreadHandle = CreateThread(
                             NULL, 0, Gui_ConsoleThread, Handles, 0, NULL);
-            if (Handles[2]) {
+            if (ConsoleThreadHandle) {
 
-                WaitForMultipleObjects(3, Handles, FALSE, INFINITE);
-                CloseHandle(Handles[2]);
+                HANDLE WaitHandles[2] = { ReadyEvent, ConsoleThreadHandle };
+                WaitForMultipleObjects(2, WaitHandles, FALSE, INFINITE);
+                CloseHandle(ConsoleThreadHandle);
+                Handles = NULL;
             }
 
-            CloseHandle(Handles[1]);
+            CloseHandle(ReadyEvent);
         }
     }
+
+    Gui_FreeConsoleThreadHandles(Handles);
 
     //
     // if user32 was not loaded in this thread 0 before creating thread 1
@@ -370,6 +382,7 @@ _FX ULONG Gui_ConsoleThread(void *xHandles)
         ||  (! __sys_CreateWindowExW)
         ||  (! __sys_DefWindowProcW)) {
 
+        Gui_FreeConsoleThreadHandles(Handles);
         return 0;
     }
 
@@ -394,8 +407,10 @@ _FX ULONG Gui_ConsoleThread(void *xHandles)
 
     hwnd = __sys_CreateWindowExW(0, (void *)atom, L"", WS_OVERLAPPEDWINDOW,
                                  1, 1, 1, 1, NULL, NULL, NULL, NULL);
-    if (! hwnd)
+    if (! hwnd) {
+        Gui_FreeConsoleThreadHandles(Handles);
         return 0;
+    }
 
     Gui_SetWindowProc(hwnd, TRUE);
 
@@ -408,8 +423,11 @@ _FX ULONG Gui_ConsoleThread(void *xHandles)
     while (1) {
 
         //
-        // this causes git.exe to hang also jumplists for a console process are pointless anyways
-        // 
+        // SREV-292: inactive console AppUserModelID experiment.
+        // Console helper message pumping stays separate from taskbar
+        // window-property rewriting; reviving this edge requires Windows
+        // console/git runtime proof plus SREV-004/SREV-241 taskbar gates.
+        //
         //if (Gui_ConsoleHwnd && Dll_InitComplete) {
         //
         //    Taskbar_SetWindowAppUserModelId(Gui_ConsoleHwnd);
@@ -428,7 +446,23 @@ _FX ULONG Gui_ConsoleThread(void *xHandles)
             break;
     }
 
+    Gui_FreeConsoleThreadHandles(Handles);
     return 0;
+}
+
+
+//---------------------------------------------------------------------------
+// Gui_FreeConsoleThreadHandles
+//---------------------------------------------------------------------------
+
+
+_FX void Gui_FreeConsoleThreadHandles(HANDLE *Handles)
+{
+    if (Handles) {
+        if (Handles[0])
+            CloseHandle(Handles[0]);
+        Dll_Free(Handles);
+    }
 }
 
 

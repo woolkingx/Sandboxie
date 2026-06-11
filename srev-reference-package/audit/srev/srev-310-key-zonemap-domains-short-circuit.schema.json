@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "KEY_ZONEMAP_DOMAINS_SHORT_CIRCUIT",
+  "title": "Key ZoneMap Domains short-circuit",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/key_merge.c",
+  "stage": "data -> schema -> topology -> logic -> action -> verify",
+  "source_functions": [
+    "Key_ShouldNotMerge"
+  ],
+  "contracts": [
+    "Key_ShouldNotMerge owns only the ZoneMap Domains merge short-circuit decision",
+    "ZwEnumerateKey and KEY_NODE_INFORMATION define host registry subkey enumeration shape",
+    "SREV-033 owns FILE_CHECK_KEY_EXISTS_REQ byte-counted wire string shape",
+    "Only SbieSvc object-not-found or path-not-found status proves sandbox Domains copy-key absence for short-circuiting",
+    "Allocation failure while building the service probe must preserve normal merge behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwenumeratekey",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_key_node_information",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ne-wdm-_key_information_class"
+  ],
+  "local_edges": [
+    "Key_Merge -> Key_ShouldNotMerge",
+    "HKLM or HKCU ZoneMap Domains path -> SbieSvc CheckKeyExists",
+    "FILE_CHECK_KEY_EXISTS_REQ allocation -> request writes",
+    "allocation failure -> return FALSE -> normal merge",
+    "object/path not found -> cache absence -> short-circuit merge",
+    "other status -> preserve normal merge"
+  ],
+  "runtime_gate": "Windows ZoneMap Domains registry smoke plus service-status and allocation-failure controls",
+  "status": "patched source-level after official registry enumeration and local filewire shape; needs Windows runtime proof"
+}

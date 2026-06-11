@@ -1,0 +1,25 @@
+---
+kind: srev-ledger-entry
+id: SREV-101
+title: Syscall Disabled Skip And Procmon Guard
+status: source-level-classified-after-official-nt-zw-native-service-zwmapviewofsection-s
+owner: Sandboxie/core/drv/syscall.c
+spec: docs/plan/srev-101-syscall-disabled-skip-and-procmon-guard.md
+schema: docs/plan/srev-101-syscall-disabled-skip-and-procmon-guard.schema.json
+checker: docs/plan/check-srev-101.py
+runtime_gate: "Windows x86/x64 syscall-hook matrix with McAfee ICD-10607, Chrome `wow_helper`, `NtMapViewOfSection`, `NtYieldExecution`, Procmon stack capture, `NtQuerySystemInformation(0xb9)`, HVCI on/off, and Driver Verifier observation for syscall table and hook dispatch stability"
+---
+### SREV-101: Syscall Disabled Skip And Procmon Guard
+
+| Field | Content |
+|---|---|
+| Severity | [minor] |
+| Status | source-level classified after official Nt/Zw native-service, `ZwMapViewOfSection`, section-object, and `NtQuerySystemInformation` shape; comment-only source clarification, no behavior change |
+| Evidence | `Sandboxie/core/drv/syscall.c` enumerates NTDLL `Zw*` exports, derives syscall indexes and kernel addresses, and stores `SYSCALL_ENTRY` records. Two uncovered `$Workaround$` comments were attached to commented-out `YieldExecution` and `MapViewOfSection` skip branches, meaning they were historical notes rather than active skip policy. A third uncovered comment in `Syscall_QuerySystemInfo_SupportProcmonStack` described the local `0xb9` `QuerySystemInformation` guard as a crash outcome. Microsoft documents native `Nt`/`Zw` services as syscall-accessible native services, documents section mapping through `ZwMapViewOfSection`, and warns that `NtQuerySystemInformation` may be altered or unavailable in future Windows versions. |
+| Data | `Syscall_Init`, NTDLL `Zw*` export enumeration, `Syscall_GetIndexFromNtdll`, `Syscall_GetKernelAddr`, `SYSCALL_ENTRY`, inactive `YieldExecution` skip comment, inactive `MapViewOfSection` skip comment, `Syscall_Set3("QuerySystemInformation", Syscall_QuerySystemInfo_SupportProcmonStack)`, `user_args[0] == 0xb9`, and Procmon stack support return policy. |
+| Schema | `SYSCALL_DISABLED_SKIP_AND_PROCMON_GUARD` says `Syscall_Init` enumerates NTDLL `Zw` exports and builds the Sandboxie syscall table; `YieldExecution` and `MapViewOfSection` compatibility skip branches are intentionally inactive comments; inactive skip branches must not be described as active third-party workaround policy; `MapViewOfSection` hook policy must not be changed from stale Chrome `wow_helper` comments alone; `QuerySystemInformation` is registered through `Syscall_Set3`; `SystemInformationClass 0xb9` is a private runtime guard value and not a public `SYSTEM_INFORMATION_CLASS` contract; this SREV does not change syscall hook registration, skip behavior, or return policy. |
+| Topology | `Syscall_Init` loads NTDLL, scans `Zw*` exports, derives syscall metadata, and builds `Syscall_Table`. The inactive `YieldExecution` and `MapViewOfSection` branches remain comments, so valid syscall entries still proceed through ordinary table construction. `QuerySystemInformation` is separately registered with a support predicate that returns `FALSE` for class `0xb9` before Procmon stack support proceeds. |
+| Logic Risk | The old `$Workaround$` suffix made inactive comments look like active compatibility policy. Re-enabling either skip branch would be a behavior change requiring Windows runtime proof. For the `0xb9` guard, the official boundary is weaker than the local observation: Microsoft documents `NtQuerySystemInformation` as variable, while the class value remains private/local and must stay runtime-gated. |
+| Official Shape | `docs/plan/srev-101-syscall-disabled-skip-and-procmon-guard.md` records Microsoft Nt/Zw native-service, `ZwMapViewOfSection`, section-object, `NtQuerySystemInformation`, and `ZwQuerySystemInformation` references. `docs/plan/srev-101-syscall-disabled-skip-and-procmon-guard.schema.json` records the JSON Schema draft-07 local `SYSCALL_DISABLED_SKIP_AND_PROCMON_GUARD` contract. |
+| Fix | Comment-only source clarification: the two disabled skip branches now explicitly say they are historical and intentionally inactive; the `0xb9` Procmon stack guard now says the x86-only exploit can destabilize x64 context rather than presenting a broad crash claim. No syscall hook registration, skip behavior, handler return value, or runtime behavior changed. |
+| Acceptance Gate | `docs/plan/check-srev-101.py` validates the draft-07 schema, official references, NTDLL `Zw*` enumeration topology, inactive YieldExecution and MapViewOfSection branches, `Syscall_Set3("QuerySystemInformation", ...)` wiring, class `0xb9` guard behavior, stale `$Workaround$ and crash wording removal from `syscall.c`, and ledger entry; `docs/plan/check-srev-101.sh` is the matrix wrapper. Runtime gate: Windows x86/x64 syscall-hook matrix with McAfee ICD-10607, Chrome `wow_helper`, `NtMapViewOfSection`, `NtYieldExecution`, Procmon stack capture, `NtQuerySystemInformation(0xb9)`, HVCI on/off, and Driver Verifier observation for syscall table and hook dispatch stability. |

@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "LOG_BUFFER_ALLOCATION_SIZE_CONTRACT",
+  "owner": "Sandboxie/core/drv/log_buff.c",
+  "related_owners": [
+    "Sandboxie/core/drv/log_buff.h",
+    "Sandboxie/core/drv/session.c",
+    "Sandboxie/core/drv/api.c",
+    "Sandboxie/install/SbieSettings.ini"
+  ],
+  "status": "patched-source-level-after-official-kernel-allocation-and-safe-integer-review-needs-windows-driver-runtime-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntintsafe/nf-ntintsafe-rtlulongmult",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/allocating-system-space-memory"
+  ],
+  "contracts": [
+    "log_buff.c owns allocation of the flexible-tail LOG_BUFFER object",
+    "The allocation byte count is sizeof(LOG_BUFFER) plus buffer_size",
+    "The allocation addition must be proven not to overflow SIZE_T before ExAllocatePoolWithTag",
+    "A zero byte ring has no legal entry capacity and must fail allocation",
+    "TraceBufferPages is a page count and session monitor allocation converts it to bytes as pages times PAGE_SIZE",
+    "Session_Api_MonitorControl must not multiply the byte count by sizeof(WCHAR) before calling log_buffer_init",
+    "Failed or invalid configured allocation falls back to SESSION_MONITOR_BUF_SIZE",
+    "API log reader and writer paths must not dereference Api_LogBuffer when global log buffer allocation failed"
+  ],
+  "runtime_gate": "Windows driver build plus monitor control smokes for default TraceBufferPages, explicit 2560 pages, zero pages, and excessive values."
+}

@@ -85,10 +85,8 @@ typedef struct _COM_SLAVE_MAP {
 } COM_SLAVE_MAP;
 
 
-#define COM_SLAVE_MAP_SIZE  (PAGE_SIZE * 512)
-
 #define MAX_MAP_BUFFER_LENGTH \
-                (COM_SLAVE_MAP_SIZE - FIELD_OFFSET(COM_SLAVE_MAP, Buffer))
+                COM_MAX_INVOKE_BUF_LEN
 
 
 typedef struct _COM_SLAVE {
@@ -153,6 +151,22 @@ static const GUID IID_IWbemServices = {
 static const GUID IID_IWbemClassObject = {
     0xDC12A681, 0x737F, 0x11CF,
                     { 0x88, 0x4D, 0x00, 0xAA, 0x00, 0x4B, 0x2E, 0x24 } };
+
+
+static bool ComServer_HasWcharTerminator(const WCHAR *text, ULONG chars)
+{
+    ULONG i;
+
+    if (! text)
+        return false;
+
+    for (i = 0; i < chars; ++i) {
+        if (text[i] == L'\0')
+            return true;
+    }
+
+    return false;
+}
 
 
 //---------------------------------------------------------------------------
@@ -551,6 +565,9 @@ MSG_HEADER *ComServer::QueryBlanketHandler(
     if (exc)
         return SHORT_REPLY(exc);
 
+    if (pMap->BufferLength != sizeof(COM_QUERY_BLANKET_RPL))
+        return SHORT_REPLY(RPC_S_INVALID_TAG);
+
     COM_QUERY_BLANKET_RPL *rpl =
         (COM_QUERY_BLANKET_RPL *)LONG_REPLY(sizeof(COM_QUERY_BLANKET_RPL));
     if (rpl) {
@@ -580,6 +597,11 @@ MSG_HEADER *ComServer::SetBlanketHandler(
 {
     COM_SET_BLANKET_REQ *req = (COM_SET_BLANKET_REQ *)msg;
     if (req->h.length < sizeof(COM_SET_BLANKET_REQ))
+        return SHORT_REPLY(E_INVALIDARG);
+    if ((! req->DefaultServerPrincName) &&
+            (! ComServer_HasWcharTerminator(
+                req->ServerPrincName,
+                sizeof(req->ServerPrincName) / sizeof(WCHAR))))
         return SHORT_REPLY(E_INVALIDARG);
 
     COM_SLAVE *slave = (COM_SLAVE *)_slave;
@@ -1365,46 +1387,54 @@ void ComServer::RunSlave(const WCHAR *cmdline)
         return;
     }
 
+    HANDLE hParentProcessMutex = NULL;
+    HANDLE hEvent1 = NULL;
+    HANDLE hEvent2 = NULL;
+    HANDLE hMap = NULL;
+    COM_SLAVE_MAP *pMap = NULL;
+    HRESULT hrCoInit = E_FAIL;
+    LIST ObjectsList;
+
     WCHAR objname[256];
     wcscpy(objname, _Global);
     wcscat(objname, cmdline);
     WCHAR *colon = wcsrchr(objname, L':');
+    if (! colon)
+        goto finish;
 
     wcscpy(objname, _Global);
     wcscat(objname, cmdline);
     wcscpy(colon, L"Mutex");
-    HANDLE hParentProcessMutex =
-                OpenMutex(MUTEX_MODIFY_STATE | SYNCHRONIZE, FALSE, objname);
+    hParentProcessMutex =
+        OpenMutex(MUTEX_MODIFY_STATE | SYNCHRONIZE, FALSE, objname);
     if (! hParentProcessMutex)
-        return;
+        goto finish;
 
     wcscpy(objname, _Global);
     wcscat(objname, cmdline);
     wcscpy(colon, L"Event1");
-    HANDLE hEvent1 =
-                OpenEvent(EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, objname);
+    hEvent1 = OpenEvent(EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, objname);
     if (! hEvent1)
-        return;
+        goto finish;
 
     wcscpy(objname, _Global);
     wcscat(objname, cmdline);
     wcscpy(colon, L"Event2");
-    HANDLE hEvent2 =
-                OpenEvent(EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, objname);
-    if (! hEvent1)
-        return;
+    hEvent2 = OpenEvent(EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE, objname);
+    if (! hEvent2)
+        goto finish;
 
     wcscpy(objname, _Global);
     wcscat(objname, cmdline);
     wcscpy(colon, L"Map");
-    HANDLE hMap = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, objname);
+    hMap = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, objname);
     if (! hMap)
-        return;
+        goto finish;
 
-    COM_SLAVE_MAP *pMap = (COM_SLAVE_MAP *)
+    pMap = (COM_SLAVE_MAP *)
         MapViewOfFile(hMap, FILE_MAP_ALL_ACCESS, 0, 0, COM_SLAVE_MAP_SIZE);
     if (! pMap)
-        return;
+        goto finish;
 
     //
     // initialize and begin main loop
@@ -1412,12 +1442,13 @@ void ComServer::RunSlave(const WCHAR *cmdline)
 
     m_heap = HeapCreate(0, 0, 0);
     if (! m_heap)
-        return;
+        goto finish;
 
-    LIST ObjectsList;
     List_Init(&ObjectsList);
 
-    CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    hrCoInit = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    if (FAILED(hrCoInit))
+        goto finish;
 
     CoInitializeSecurity(
         NULL, -1, NULL, NULL, RPC_C_AUTHN_LEVEL_DEFAULT,
@@ -1514,6 +1545,31 @@ void ComServer::RunSlave(const WCHAR *cmdline)
 
         SetEvent(hEvent2);
     }
+
+finish:
+
+    if (SUCCEEDED(hrCoInit))
+        CoUninitialize();
+
+    if (m_heap) {
+        HeapDestroy(m_heap);
+        m_heap = NULL;
+    }
+
+    if (pMap)
+        UnmapViewOfFile(pMap);
+
+    if (hMap)
+        CloseHandle(hMap);
+
+    if (hEvent2)
+        CloseHandle(hEvent2);
+
+    if (hEvent1)
+        CloseHandle(hEvent1);
+
+    if (hParentProcessMutex)
+        CloseHandle(hParentProcessMutex);
 }
 
 
@@ -2300,6 +2356,8 @@ void ComServer::QueryBlanketSlave(void *_map, LIST *ObjectsList,
     } else
         buf->ServerPrincName[0] = L'\0';
 
+    pMap->BufferLength = sizeof(COM_QUERY_BLANKET_RPL);
+
 #ifdef DEBUG_COMSERVER
     WCHAR txt[256]; wsprintf(txt, L"(%04d) QueryBlanketSlave objidx=%08X\n",
         List_Count(ObjectsList), obj->objidx); OutputDebugString(txt);
@@ -2333,6 +2391,14 @@ void ComServer::SetBlanketSlave(void *_map, LIST *ObjectsList,
     //
 
     COM_SET_BLANKET_REQ *buf = (COM_SET_BLANKET_REQ *)pMap->Buffer;
+    if ((! buf->DefaultServerPrincName) &&
+            (! ComServer_HasWcharTerminator(
+                buf->ServerPrincName,
+                sizeof(buf->ServerPrincName) / sizeof(WCHAR)))) {
+        *exc = RPC_S_INVALID_TAG;
+        *hr = E_ABORT;
+        return;
+    }
 
     WCHAR *pServerPrincName = buf->ServerPrincName;
     if (buf->DefaultServerPrincName)

@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-051-dns-filter-csaddr-alignment.schema.json",
+  "title": "SREV-051 DNS filter CSADDR_INFO alignment contract",
+  "id": "DNS_FILTER_CSADDR_ALIGNMENT",
+  "api": "WSA_FillResponseStructure",
+  "owner": "Sandboxie/core/dll/dns_filter.c",
+  "type": "object",
+  "properties": {
+    "lpcsaBuffer": {
+      "type": "string",
+      "description": "WSAQUERYSETW pointer to packed CSADDR_INFO array"
+    },
+    "csaddr_info": {
+      "type": "string",
+      "description": "Pointer-bearing Winsock CSADDR_INFO structure"
+    },
+    "alignment": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Pointer-size alignment used before packing pointer-bearing structures"
+    }
+  },
+  "required": [
+    "lpcsaBuffer",
+    "csaddr_info",
+    "alignment"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "WSAQUERYSETW.lpcsaBuffer points to a CSADDR_INFO array",
+    "CSADDR_INFO contains pointer-bearing SOCKET_ADDRESS members",
+    "The packed buffer cursor must be aligned to sizeof(void*) before assigning lpcsaBuffer",
+    "The required-size formula must include the same CSADDR_INFO alignment padding",
+    "Runtime cursor alignment and size calculation alignment must use one schema"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsock2/ns-winsock2-wsaquerysetw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/ws2def/ns-ws2def-csaddr_info"
+  ]
+}

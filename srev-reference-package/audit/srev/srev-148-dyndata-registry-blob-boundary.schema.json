@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-148-dyndata-registry-blob-boundary.schema.json",
+  "title": "SREV-148 DynData registry blob boundary",
+  "id": "DYNDATA_REGISTRY_BLOB_BOUNDARY",
+  "owner": "Sandboxie/core/drv/dyn_data.c",
+  "type": "object",
+  "properties": {
+    "registry_blob": {
+      "type": "string",
+      "description": "counted DynData registry value bytes"
+    },
+    "table_schema": {
+      "type": "string",
+      "description": "SBIE_DYNDATA header, config offsets, and SBIE_DYNCONFIG entries"
+    },
+    "consumer_gate": {
+      "type": "string",
+      "description": "Dyndata_Config becomes visible only when Dyndata_Active is set"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows driver build and malformed DynData runtime proof"
+    }
+  },
+  "required": [
+    "registry_blob",
+    "table_schema",
+    "consumer_gate",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "GetRegValue returns counted registry bytes; those bytes are not a legal SBIE_DYNDATA table until the local table shape is validated",
+    "The table must contain the fixed SBIE_DYNDATA header before any header field read",
+    "The Configs offset array must fit inside the counted blob before iteration",
+    "Each nonzero config offset must start after the offset array and its Dyndata->Size bytes must fit inside the counted blob without overflow",
+    "Dyndata->Size must be at least the current SBIE_DYNCONFIG size before the current driver reads current fields such as OsBuild_min and OsBuild_max",
+    "Built-in default table allocation must be checked before clearing or writing the allocated buffer"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwqueryvaluekey",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_key_value_partial_information"
+  ]
+}

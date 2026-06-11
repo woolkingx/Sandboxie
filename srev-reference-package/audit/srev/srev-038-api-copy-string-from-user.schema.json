@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-038-api-copy-string-from-user.schema.json",
+  "title": "SREV-038 api copy string from user",
+  "id": "API_COPY_STRING_FROM_USER_COUNTED_STRING",
+  "owner": "Sandboxie/core/drv/api.c",
+  "type": "object",
+  "properties": {
+    "audit_contract": {
+      "type": "string",
+      "description": "API: Api_CopyStringFromUser | data: {\"input\": \"UNICODE_STRING64* from user mode\", \"output\": \"Driver_Pool-owned NUL-terminated WCHAR string plus byte length\"} | callers: Sandboxie/core/drv/conf.c:Conf_Api_Update"
+    },
+    "validation_invariants": {
+      "type": "string",
+      "description": "All contracts listed in the contracts metadata must hold before any data is trusted past the validation boundary"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate proves contracts hold under normal and malformed inputs"
+    }
+  },
+  "required": [
+    "audit_contract",
+    "validation_invariants",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "UNICODE_STRING64.Length is a byte count and must be aligned to sizeof(WCHAR)",
+    "UNICODE_STRING64.Length must be <= MaximumLength",
+    "nonzero Length requires a non-NULL Buffer",
+    "the copied string is locally NUL-terminated after the counted payload",
+    "embedded NUL in the counted payload is invalid before returning a C-string view",
+    "allocation failure returns STATUS_INSUFFICIENT_RESOURCES without modifying ownership"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/ntdef/ns-ntdef-_unicode_string",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-probeforread"
+  ]
+}

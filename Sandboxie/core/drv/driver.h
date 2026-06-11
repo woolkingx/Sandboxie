@@ -26,7 +26,8 @@
 
 
 #pragma optimize("y", off)
-// HACK ALERT we must fix this 32 vs. 64 bit handle problem.
+// SREV-074: shared warning suppressions cover legacy pointer/HANDLE casts.
+// Driver API current-process sentinels must use api.h's width-exact predicate.
 #pragma warning(disable : 4311)     //  warning C4311: 'type cast': pointer truncation from 'HANDLE' to 'ULONG'
 #pragma warning(disable : 4312)     //  warning C4312: 'type cast': conversion from 'ULONG' to 'HANDLE' of greater size
 #pragma warning(disable : 4477)     //  warning C4477: 'swprintf' : format string '%s' requires an argument of type 'unsigned short *', but variadic argument 2 has type ''

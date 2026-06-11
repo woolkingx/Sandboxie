@@ -46,6 +46,14 @@ typedef struct _OPEN_PACKET {
 } OPEN_PACKET;
 
 
+typedef char File_XpOpenPacket_CreateOptions_Offset[
+    (FIELD_OFFSET(OPEN_PACKET, CreateOptions) == 0x20) ? 1 : -1];
+typedef char File_XpOpenPacket_Options_Offset[
+    (FIELD_OFFSET(OPEN_PACKET, Options) == 0x30) ? 1 : -1];
+typedef char File_XpOpenPacket_CreateDisposition_Offset[
+    (FIELD_OFFSET(OPEN_PACKET, CreateDisposition) == 0x34) ? 1 : -1];
+
+
 //---------------------------------------------------------------------------
 // Functions
 //---------------------------------------------------------------------------
@@ -166,19 +174,12 @@ _FX BOOLEAN File_CreateMyContext(
     if (Context && ((OPEN_PACKET *)Context)->Type == IO_TYPE_OPEN_PACKET) {
 
         //
-        // in Windows Vista, there are extra eight bytes in the Context
-        // structure which cause both CreateOptions and CreateDisposition
-        // fields to be offset by eight bytes
-        //
-        // the code tries to access offsets 0x20, 0x30 and 0x34 for XP, but
-        // the eight byte offset makes this 0x28, 0x38 and 0x3C which works
-        // for 32-bit Windows Vista, Windows 7, and Windows 8
+        // This legacy XP/2003 parse-procedure path depends on the private
+        // 32-bit OPEN_PACKET offsets gated above. Vista and later use the
+        // minifilter path instead of this hook.
         //
 
         MyContext->HaveContext = TRUE;
-
-        /*if (Driver_OsVersion >= DRIVER_WINDOWS_VISTA)
-            ((UCHAR *)Context) += 8;*/
 
         MyContext->CreateDisposition =
                                 ((OPEN_PACKET *)Context)->CreateDisposition;
@@ -270,9 +271,21 @@ _FX NTSTATUS File_Device_MyParseProc(OBJ_PARSE_PROC_ARGS)
         status = STATUS_SUCCESS;
         if (AccessMode == KernelMode) {
             BOOLEAN bSetDirty = FALSE;
+            FILE_FONT_TOKEN_SWAP *FontTokenSwap = NULL;
             DEVICE_OBJECT *device_object = (DEVICE_OBJECT *)ParseObject;
-            File_ReplaceTokenIfFontRequest(
+            FontTokenSwap = File_ReplaceTokenIfFontRequest(
                 AccessState, ParseObject, RemainingName, &bSetDirty);
+
+            if (NT_SUCCESS(status) && File_Device_NtParseProc) {
+                status = File_Device_NtParseProc(
+                    ParseObject, ObjectType, AccessState, AccessMode,
+                    Attributes, CompleteName, RemainingName, Context,
+                    SecurityQos, Object);
+            }
+
+            File_RestoreTokenIfFontRequest(FontTokenSwap);
+
+            return status;
         }
     }
     OBJ_CALL_SYSTEM_PARSE_PROC(File_Device_NtParseProc);

@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "GUIMSG_DISPATCH_STUB_OPCODE_COMMENT",
+  "title": "GuiMsg DispatchMessage stub opcode comment",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/guimsg.c",
+  "stage": "schema -> boundary -> topology -> verify",
+  "source_function": "Gui_Hook_DispatchMessage8",
+  "contracts": [
+    "SREV-062 owns DispatchMessage8 stub parser behavior",
+    "the source opcode comment uses rel8 and rel32 parser terms",
+    "DispatchMessage export executable bytes are a Sandboxie-local compatibility schema not a Microsoft API contract",
+    "unknown DispatchMessage stub opcodes still fail closed",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-dispatchmessagea",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-dispatchmessagew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getprocaddress"
+  ],
+  "local_edges": [
+    "DispatchMessageA export address -> A prefix and EB rel8 or E9 rel32 parser",
+    "DispatchMessageW export address -> W prefix and EB rel8 or E9 rel32 parser",
+    "A derived target equals W derived target -> DispatchMessage8 hook install",
+    "SREV-062 -> behavior owner",
+    "SREV-295 -> comment owner"
+  ],
+  "runtime_gate": "Inherited SREV-062 Windows x64 DispatchMessageA/W short-stub runtime proof",
+  "status": "patched-comment-topology-after-srev-062-stub-parser-review-no-behavior-change"
+}

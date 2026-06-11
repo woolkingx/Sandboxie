@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "GUI_CLIPBOARD_INTEGRITY_BRIDGE",
+  "title": "GUI clipboard integrity bridge",
+  "type": "object",
+  "owner": "Sandboxie/core/drv/gui.c",
+  "stage": "schema -> topology -> verify",
+  "source_functions": [
+    "Gui_Api_Clipboard",
+    "Gui_InitClipboard",
+    "Gui_FixClipboard",
+    "GuiServer::CloseClipboardSlave"
+  ],
+  "contracts": [
+    "The public clipboard API owns open close ownership delayed rendering and format enumeration",
+    "The window station owns the documented clipboard container",
+    "Gui_Api_Clipboard is service-only because the driver does not own clipboard locking",
+    "Gui_InitClipboard owns only the private runtime-probed clipboard item layout",
+    "Gui_FixClipboard rewrites only known MIC integrity label slots after the layout probe succeeds",
+    "win32k FindClipFormat names private observation evidence and not public API contract",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/clipboard",
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/clipboard-operations",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setclipboarddata",
+    "https://learn.microsoft.com/en-us/windows/win32/winstation/window-stations",
+    "https://learn.microsoft.com/en-us/windows/win32/winstation/window-station-security-and-access-rights",
+    "https://learn.microsoft.com/en-us/windows/win32/secauthz/mandatory-integrity-control",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-changewindowmessagefilterex"
+  ],
+  "local_edges": [
+    "Gui_CloseClipboard -> CloseClipboardSlave -> OpenClipboard -> API_GUI_CLIPBOARD",
+    "API_GUI_CLIPBOARD -> Vista+ gate -> service-only caller gate -> Gui_InitClipboard or Gui_FixClipboard",
+    "Gui_InitClipboard -> Dyndata_Config.Clipboard_offset -> sentinel formats -> item length and integrity index",
+    "Gui_FixClipboard -> known MIC labels -> integrity slot rewrite",
+    "CloseClipboardSlave -> EnumClipboardFormats/GetClipboardData -> delayed rendering drain"
+  ],
+  "runtime_gate": "Windows clipboard matrix for UAC/UIPI on/off, sandbox-to-host copy/paste, host-to-sandbox copy/paste, delayed rendering, Office WM_RENDERFORMAT, multiple formats, and changed private item layouts",
+  "status": "patched-comment-topology-after-official-clipboard-window-station-mic-review-no-behavior-change"
+}

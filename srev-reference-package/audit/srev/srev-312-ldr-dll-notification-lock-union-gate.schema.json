@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "LDR_DLL_NOTIFICATION_LOCK_UNION_GATE",
+  "owner": "Sandboxie/core/dll/ldr.c",
+  "stage": "data -> schema -> topology -> logic -> action -> verify",
+  "contracts": [
+    "Ldr_LdrDllNotification owns Windows loader notification reason dispatch",
+    "LDR_DLL_NOTIFICATION_REASON_LOADED routes only through NotificationData->Loaded",
+    "LDR_DLL_NOTIFICATION_REASON_UNLOADED routes only through NotificationData->Unloaded",
+    "LdrLockLoaderLock status must be tested with NT_SUCCESS before unlocking its cookie",
+    "SREV-312 changes only notification dispatch and lock gating, not Ldr_Dlls callback table policy"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/devnotes/ldrregisterdllnotification",
+    "https://learn.microsoft.com/en-us/windows/win32/devnotes/ldrdllnotification",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-ntstatus-values"
+  ],
+  "runtime_gate": "Windows 8.1+ DLL load/unload smoke plus ARM64/ARM64EC loader notification regression proof"
+}

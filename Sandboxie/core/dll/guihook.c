@@ -97,6 +97,7 @@ static LIST Gui_Hooks;
 static DWORD Gui_HookHelperThreadId = 0;
 static int Gui_HookCount = 0;
 static BOOLEAN Gui_HookInit = FALSE;
+static UCHAR Gui_WisptisBlockedHook;
 
 //---------------------------------------------------------------------------
 // Gui_InitWinHooks
@@ -250,8 +251,8 @@ _FX HHOOK Gui_SetWindowsHookExW(
 
         if (idHook == WH_MOUSE_LL && Dll_ImageType == DLL_IMAGE_WISPTIS) {
 
-            // hack:  block hook by Microsoft WISPTIS (tablet input program)
-            hhook = (HHOOK)(ULONG_PTR)0x12345678;
+            // WISPTIS low-level mouse hook is locally suppressed.
+            hhook = (HHOOK)&Gui_WisptisBlockedHook;
 
         } else {
 
@@ -561,6 +562,10 @@ _FX BOOL Gui_UnhookWindowsHookEx(HHOOK hhk)
         return TRUE;
     }
 
+    if (hhk == (HHOOK)&Gui_WisptisBlockedHook) {
+        return TRUE;
+    }
+
 #ifdef _WIN64
     if ((ULONG_PTR)hhk % 8) {
 #else
@@ -636,4 +641,3 @@ _FX LRESULT Gui_NotifyWinHooks()
 
     return 0;
 }
-

@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-151-namedpipe-read-reply-actual-length.schema.json",
+  "title": "SREV-151 named pipe read reply actual length",
+  "id": "NAMEDPIPE_READ_REPLY_ACTUAL_LENGTH",
+  "owner": "Sandboxie/core/svc/namedpipewire.h",
+  "type": "object",
+  "properties": {
+    "request_length": {
+      "type": "string",
+      "description": "caller requested byte count and NtReadFile buffer length"
+    },
+    "actual_transfer_length": {
+      "type": "string",
+      "description": "IO_STATUS_BLOCK.Information completed transfer count"
+    },
+    "reply_tail": {
+      "type": "string",
+      "description": "NAMED_PIPE_READ_RPL flexible-tail payload bytes"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows named pipe short-read, cancel, and malformed-reply proof"
+    }
+  },
+  "required": [
+    "request_length",
+    "actual_transfer_length",
+    "reply_tail",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "read_len is the maximum requested byte count and caller buffer size",
+    "IO_STATUS_BLOCK.Information is the completed read transfer count",
+    "NAMED_PIPE_READ_RPL.data_len is the actual number of bytes present in the reply tail, not the requested maximum",
+    "Completed read replies must satisfy data_len <= read_len and FIELD_OFFSET(NAMED_PIPE_READ_RPL, data) + data_len <= h.length, even when the completion status is a warning such as a partial message transfer",
+    "Timeout or cancelled read replies force data_len = 0",
+    "The DLL copy gate must prove data_len <= Length and data_len fits inside the received reply before copying"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntreadfile",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_io_status_block",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/i-o-status-blocks"
+  ]
+}

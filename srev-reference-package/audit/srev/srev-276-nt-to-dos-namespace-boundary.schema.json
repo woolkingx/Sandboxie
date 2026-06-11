@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "NT_TO_DOS_NAMESPACE_BOUNDARY",
+  "title": "NT-to-DOS namespace boundary",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/file.c",
+  "stage": "schema -> boundary -> verify",
+  "source_function": "SbieDll_TranslateNtToDosPath",
+  "contracts": [
+    "SbieDll_TranslateNtToDosPath owns caller-visible path presentation for known NT to DOS mappings",
+    "MS-DOS device names are object-namespace junctions and can be local or global",
+    "drive-letter and DOS-device mappings must come from known namespace links, not arbitrary textual replacement",
+    "hidden Sandboxie NT box roots may be projected to the configured caller-visible DOS box root",
+    "MUP NT paths may be projected to UNC-like caller-visible paths",
+    "generic NT device paths must not be rewritten to Win32 device paths without a proven DOS-device mapping",
+    "the disabled Device-to-dot-device fallback remains disabled",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-querydosdevicea",
+    "https://learn.microsoft.com/en-us/windows/win32/fileio/defining-an-ms-dos-device-name",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/local-and-global-ms-dos-device-names"
+  ],
+  "local_edges": [
+    "\\??\\ prefix -> strip prefix",
+    "File_Mup prefix -> UNC-like path projection",
+    "Dll_BoxFilePath -> Dll_BoxFileDosPath",
+    "File_GetDriveForPath / File_GetDriveForUncPath -> drive or UNC presentation",
+    "unmapped \\Device\\ path -> no generic fallback"
+  ],
+  "runtime_gate": "Windows path-presentation matrix for DOS-prefix, MUP/UNC, hidden box-root, drive-letter, unmapped NT device, and Chrome crash-handler cases",
+  "status": "patched-comment-topology-after-official-nt-dos-namespace-review-no-behavior-change"
+}

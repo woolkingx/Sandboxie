@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "MEMMEM_BOUNDED_SEARCH_CONTRACT",
+  "owner": "Sandboxie/core/drv/util.h",
+  "implementation": "Sandboxie/core/drv/util.c",
+  "status": "patched-source-level-after-official-buffer-compare-shape-review-needs-windows-runtime-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/memcmp-wmemcmp?view=msvc-170",
+    "https://learn.microsoft.com/en-us/windows/win32/secbp/avoiding-buffer-overruns"
+  ],
+  "contracts": [
+    "util.h declares the shared driver memmem helper contract",
+    "util.c owns the memmem implementation",
+    "Search and pattern pointers must be validated before any pointer arithmetic or dereference",
+    "Zero-length search or pattern requests return NULL",
+    "A pattern larger than the search buffer returns NULL before endpoint calculation",
+    "memcmp may only run after the bounded search window is proven legal"
+  ],
+  "runtime_gate": "Windows driver build plus a kernel/unit probe or equivalent source-level test for NULL zero-length oversized-pattern no-match and match cases"
+}

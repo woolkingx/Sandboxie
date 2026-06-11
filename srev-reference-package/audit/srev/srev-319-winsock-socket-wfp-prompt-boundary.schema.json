@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-319-winsock-socket-wfp-prompt-boundary.schema.json",
+  "title": "SREV-319 Winsock socket WFP prompt boundary contract",
+  "id": "WINSOCK_SOCKET_WFP_PROMPT_BOUNDARY",
+  "owner": "Sandboxie/core/dll/net.c",
+  "stage": "data -> schema -> topology -> logic -> action -> verify",
+  "contracts": [
+    "WSASocketW creation result remains provider-owned",
+    "PromptForInternetAccess may request a manual bypass before socket creation",
+    "SbieApi_CheckInternetAccess owns the driver internet-access state query",
+    "File_InternetBlockade_ManualBypass owns the interactive box-manager request",
+    "WFP driver filtering owns blocked-traffic enforcement after socket creation",
+    "SREV-319 changes comments and proof only, not socket creation, prompt, bypass, provider-call, or driver enforcement behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-wsasocketw",
+    "https://learn.microsoft.com/en-us/windows/win32/fwp/about-windows-filtering-platform",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/network/filter-engine",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/network/callout-driver"
+  ],
+  "runtime_gate": "Windows WFP-enabled socket creation, denied traffic block, prompt/manual-bypass path-list refresh, and no repeated prompt after allowed bypass"
+}

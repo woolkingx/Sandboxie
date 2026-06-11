@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-119-low-init-protect-write-gate.schema.json",
+  "title": "SREV-119 Low init protect write gate",
+  "id": "LOW_INIT_PROTECT_WRITE_GATE",
+  "owner": "Sandboxie/core/low/init.c",
+  "type": "object",
+  "properties": {
+    "protect_shape": {
+      "type": "string",
+      "description": "Page protection changes are checked before local code/data writes"
+    },
+    "source_change": {
+      "type": "string",
+      "description": "init.c fail-closed gates around NtProtectVirtualMemory writes"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows bootstrap and protection-failure proof"
+    }
+  },
+  "required": [
+    "protect_shape",
+    "source_change",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "init.c code or data patches that request PAGE_EXECUTE_READWRITE through NtProtectVirtualMemory must check NTSTATUS before writing",
+    "OldProtect is initialized before each writable-protection attempt",
+    "OldProtect is restored only after the writable-protection call succeeds",
+    "WriteMemorySafe fails closed when the protection change fails",
+    "InitSyscalls skips the current syscall export when the target stub cannot be made writable",
+    "DisableCHPE returns before trampoline or target-detour byte writes when the relevant region cannot be made writable",
+    "this SREV does not change syscall selection detour bytes ARM64EC wrapper routing CHPE policy or instruction-cache flush placement"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualprotect",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-flushinstructioncache",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-nt-and-zw-versions-of-the-native-system-services-routines"
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "KEY_DRIVER_HEADER_TOPOLOGY_CONTRACT",
+  "owner": "Sandboxie/core/drv/key.h",
+  "related_owners": [
+    "Sandboxie/core/drv/key.c",
+    "Sandboxie/core/drv/key_flt.c",
+    "Sandboxie/core/drv/key_xp.c",
+    "Sandboxie/core/drv/driver.c",
+    "Sandboxie/core/drv/process.c"
+  ],
+  "status": "docs-only-source-topology-reviewed-needs-windows-driver-build-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/registering-for-notifications",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/filtering-registry-operations-on-application-hives",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/opening-a-handle-to-a-registry-key-object",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/object-handles"
+  ],
+  "contracts": [
+    "key.h is the driver registry module declaration header",
+    "The header may include driver.h and declare module lifecycle and process entry points that take or return local driver types",
+    "The header does not own registry filter registration parse-hook behavior registry path allow-deny policy hive load-unload sequencing app-hive handling service API handlers or key mount state",
+    "Runtime behavior changes belong to key.c key_flt.c key_xp.c driver.c or process.c depending on the transition",
+    "Future header changes must prove driver initialization and process lifecycle topology before behavior claims"
+  ],
+  "runtime_gate": "Windows driver build continues to compile key.h and the registry module lifecycle still initializes through driver.c; registry runtime behavior remains covered by existing and future concrete-owner SREV Windows gates."
+}

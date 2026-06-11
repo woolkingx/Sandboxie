@@ -3289,8 +3289,8 @@ static HRESULT WINAPI SH32_FakeApp_QI(SH32_FakeShellAppData *pThis, REFIID riid,
 {
     if (!ppv) return E_POINTER;
     // Only accept the interfaces whose vtable slots we actually implement.
-    // Returning self for IShellDispatch3/4/5/6 would be wrong: those interfaces
-    // add vtable slots beyond our 39-entry table, causing out-of-bounds access.
+    // SREV-082: do not accept IShellDispatch3/4/5/6 here. Those interfaces add
+    // vtable slots beyond this 39-entry IShellDispatch2 table.
     // IShellDispatch (without suffix) is safe: its 30 slots are a strict subset
     // of the 39 we expose for IShellDispatch2.
     if (memcmp(riid, &SH32_IID_IUnknown,           sizeof(GUID)) == 0 ||
@@ -3965,5 +3965,4 @@ _FX void SH32_IShellWindows_Hook(REFCLSID rclsid, REFIID riid, void *pUnknown)
 
     SH32_ComRelease(pIsw);
 }
-
 

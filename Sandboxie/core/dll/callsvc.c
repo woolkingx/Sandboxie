@@ -218,7 +218,9 @@ _FX MSG_HEADER *SbieDll_CallServer(MSG_HEADER *req)
         }
 
         if (!NT_SUCCESS(status)) {
-            if (!Dll_AppContainerToken && !Silent) // todo: fix me make service available for appcontainer processes
+            // AppContainer service-port access is owned by PipeServer's DACL;
+            // avoid noisy client logging here while SREV-081 remains runtime-gated.
+            if (!Dll_AppContainerToken && !Silent)
                 SbieApi_Log(2203, L"connect %08X (msg_id 0x%04X)", status, req->msgid);
             return NULL;
         }
@@ -472,6 +474,31 @@ _FX void SbieDll_FreeMem(void *data)
 
 
 //---------------------------------------------------------------------------
+// SbieDll_QueueCopyName
+//---------------------------------------------------------------------------
+
+
+static BOOLEAN SbieDll_QueueCopyName(WCHAR *dst, const WCHAR *QueueName)
+{
+    ULONG i;
+
+    if (! QueueName) {
+        dst[0] = L'\0';
+        return FALSE;
+    }
+
+    for (i = 0; i < QUEUE_NAME_MAXLEN; ++i) {
+        dst[i] = QueueName[i];
+        if (QueueName[i] == L'\0')
+            return TRUE;
+    }
+
+    dst[QUEUE_NAME_MAXLEN - 1] = L'\0';
+    return FALSE;
+}
+
+
+//---------------------------------------------------------------------------
 // SbieDll_QueueCreate
 //---------------------------------------------------------------------------
 
@@ -485,7 +512,9 @@ _FX ULONG SbieDll_QueueCreate(const WCHAR *QueueName,
 
     req.h.length = sizeof(QUEUE_CREATE_REQ);
     req.h.msgid  = MSGID_QUEUE_CREATE;
-    wcscpy(req.queue_name, QueueName);
+    if (! SbieDll_QueueCopyName(req.queue_name, QueueName))
+        return STATUS_INVALID_PARAMETER;
+
     req.event_handle =
         (ULONG64)(ULONG_PTR)CreateEvent(NULL, FALSE, FALSE, NULL);
 
@@ -531,7 +560,8 @@ _FX ULONG SbieDll_QueueGetReq(const WCHAR *QueueName,
 
     req.h.length = sizeof(QUEUE_GETREQ_REQ);
     req.h.msgid  = MSGID_QUEUE_GETREQ;
-    wcscpy(req.queue_name, QueueName);
+    if (! SbieDll_QueueCopyName(req.queue_name, QueueName))
+        return STATUS_INVALID_PARAMETER;
 
     rpl = (QUEUE_GETREQ_RPL *)SbieDll_CallServer(&req.h);
     if (! rpl)
@@ -590,9 +620,16 @@ _FX ULONG SbieDll_QueuePutRpl(const WCHAR *QueueName,
 
     req_len = sizeof(QUEUE_PUTRPL_REQ) + DataLen;
     req = Dll_Alloc(req_len);
+    if (! req)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
     req->h.length = req_len;
     req->h.msgid  = MSGID_QUEUE_PUTRPL;
-    wcscpy(req->queue_name, QueueName);
+    if (! SbieDll_QueueCopyName(req->queue_name, QueueName)) {
+        Dll_Free(req);
+        return STATUS_INVALID_PARAMETER;
+    }
+
     req->req_id = RequestId;
     req->data_len = DataLen;
     memcpy(req->data, DataPtr, DataLen);
@@ -627,18 +664,26 @@ _FX ULONG SbieDll_QueuePutReqImpl(const WCHAR *QueueName,
     ULONG req_len;
     QUEUE_PUTREQ_REQ *req;
     QUEUE_PUTREQ_RPL *rpl;
+    HANDLE EventHandle = NULL;
 
     req_len = sizeof(QUEUE_PUTREQ_REQ) + DataLen;
     req = Dll_Alloc(req_len);
+    if (! req)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
     req->h.length = req_len;
     req->h.msgid  = MSGID_QUEUE_PUTREQ;
-    wcscpy(req->queue_name, QueueName);
+    if (! SbieDll_QueueCopyName(req->queue_name, QueueName)) {
+        Dll_Free(req);
+        return STATUS_INVALID_PARAMETER;
+    }
+
     req->data_len = DataLen;
     memcpy(req->data, DataPtr, DataLen);
 
-    req->event_handle =
-        (ULONG64)(ULONG_PTR)CreateEvent(NULL, FALSE, FALSE, NULL);
-    if (! req->event_handle)
+    EventHandle = CreateEvent(NULL, FALSE, FALSE, NULL);
+    req->event_handle = (ULONG64)(ULONG_PTR)EventHandle;
+    if (! EventHandle)
         status = STATUS_UNSUCCESSFUL;
     else {
 
@@ -652,8 +697,10 @@ _FX ULONG SbieDll_QueuePutReqImpl(const WCHAR *QueueName,
 
                 if (out_RequestId)
                     *out_RequestId = rpl->req_id;
-                if (out_EventHandle)
-                    *out_EventHandle = (HANDLE)(ULONG_PTR)req->event_handle;
+                if (out_EventHandle) {
+                    *out_EventHandle = EventHandle;
+                    EventHandle = NULL;
+                }
             }
 
             Dll_Free(rpl);
@@ -664,14 +711,14 @@ _FX ULONG SbieDll_QueuePutReqImpl(const WCHAR *QueueName,
 
     if (! NT_SUCCESS(status)) {
 
-        if(req->event_handle)
-            CloseHandle((HANDLE)req->event_handle);
-
         if (out_RequestId)
             *out_RequestId = 0;
         if (out_EventHandle)
             *out_EventHandle = NULL;
     }
+
+    if (EventHandle)
+        CloseHandle(EventHandle);
 
     return status;
 }
@@ -690,7 +737,9 @@ _FX ULONG SbieDll_StartProxy(const WCHAR *QueueName)
 
     req.h.length = sizeof(QUEUE_CREATE_REQ);
     req.h.msgid  = MSGID_QUEUE_STARTUP;
-    wcscpy(req.queue_name, QueueName);
+    if (! SbieDll_QueueCopyName(req.queue_name, QueueName))
+        return STATUS_INVALID_PARAMETER;
+
     req.event_handle =
         (ULONG64)(ULONG_PTR)CreateEvent(NULL, FALSE, FALSE, NULL);
 
@@ -758,7 +807,9 @@ _FX ULONG SbieDll_QueueGetRpl(const WCHAR *QueueName,
 
     req.h.length = sizeof(QUEUE_GETRPL_REQ);
     req.h.msgid  = MSGID_QUEUE_GETRPL;
-    wcscpy(req.queue_name, QueueName);
+    if (! SbieDll_QueueCopyName(req.queue_name, QueueName))
+        return STATUS_INVALID_PARAMETER;
+
     req.req_id = RequestId;
 
     rpl = (QUEUE_GETRPL_RPL *)SbieDll_CallServer(&req.h);
@@ -1094,4 +1145,3 @@ _FX BOOL SbieDll_RunSandboxed(
     SetLastError(err);
     return ok;
 }
-

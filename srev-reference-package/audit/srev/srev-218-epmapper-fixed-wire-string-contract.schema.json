@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "EPMAPPER_FIXED_WIRE_STRING_CONTRACT",
+  "owner": "Sandboxie/core/svc/EpMapperWire.h",
+  "callers": [
+    "Sandboxie/core/dll/rpcrt.c",
+    "Sandboxie/core/svc/EpMapperServer.cpp",
+    "Sandboxie/core/drv/ipc_port.c"
+  ],
+  "status": "patched-source-level-after-official-rpc-string-binding-and-msvc-fixed-string-review-needs-windows-runtime-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/strcpy-s-wcscpy-s-mbscpy-s?view=msvc-170",
+    "https://learn.microsoft.com/en-us/windows/win32/rpc/string-binding",
+    "https://learn.microsoft.com/en-us/windows/win32/midl/ncalrpc"
+  ],
+  "contracts": [
+    "EpMapperWire.h owns the fixed service wire fields for MSGID_EPMAPPER_GET_PORT_NAME",
+    "wszPortId is a fixed WCHAR[DYNAMIC_PORT_ID_CHARS] wire string and must be non-empty and null-terminated inside the field before any string API consumes it",
+    "wszPortName is a fixed WCHAR[DYNAMIC_PORT_NAME_CHARS] wire string and must be null-terminated inside the field before it crosses back to the DLL",
+    "The DLL bounded-copies port ids and cached port names before storing them in fixed IPC_DYNAMIC_PORT fields or sending them through the service wire",
+    "The service copies req->wszPortId into a bounded local portId before policy lookup or driver calls",
+    "RpcBindingToStringBindingW output is parsed as a validated ncalrpc:[endpoint] string binding before the endpoint is copied",
+    "The service does not use magic offsets or hard-coded example endpoint lengths as the endpoint parser",
+    "The driver API_OPEN_DYNAMIC_PORT path keeps its fixed user-string copy gate before IPC_DYNAMIC_PORT storage"
+  ],
+  "runtime_gate": "Windows service and DLL build, dynamic spooler resolution, configured RpcPortBindingIfId resolution, configured RpcPortBindingSvc resolution, long and empty RpcPortBinding tag negative tests, malformed service message negative test, and repeated endpoint cache lookup proving valid dynamic ports still resolve and malformed fixed-wire strings fail cleanly."
+}

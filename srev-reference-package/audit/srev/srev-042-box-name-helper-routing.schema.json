@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-042-box-name-helper-routing.schema.json",
+  "title": "SREV-042 box name helper routing",
+  "id": "BOX_NAME_HELPER_ROUTING",
+  "owner": [
+    "Sandboxie/core/drv/session.c",
+    "Sandboxie/core/drv/process_api.c"
+  ],
+  "type": "object",
+  "properties": {
+    "audit_contract": {
+      "type": "string",
+      "description": "API: Session_Api_ForceChildren, Process_Api_Enum | data: {\"input\": \"user WCHAR* explicit box name\", \"schema_owner\": \"Api_CopyBoxNameFromUser\", \"output\": \"kernel-owned validated BOXNAME_COUNT WCHAR buffer\"} | related_schema: docs/plan/srev-041-api-copy-box-name.schema.json"
+    },
+    "validation_invariants": {
+      "type": "string",
+      "description": "All contracts listed in the contracts metadata must hold before any data is trusted past the validation boundary"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate proves contracts hold under normal and malformed inputs"
+    }
+  },
+  "required": [
+    "audit_contract",
+    "validation_invariants",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "explicit user box names must route through Api_CopyBoxNameFromUser",
+    "session/process APIs must not duplicate ProbeForRead plus wcsncpy box-name copying",
+    "overlong unterminated box names must be rejected instead of truncated",
+    "Process_Api_Enum keeps proc-owned box names when proc is present",
+    "Session_Api_ForceChildren requires a valid explicit box name before Process_FcpInsert"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-probeforread"
+  ]
+}

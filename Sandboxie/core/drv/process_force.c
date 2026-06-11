@@ -1826,6 +1826,11 @@ _FX BOOLEAN Process_DfpInsert(HANDLE ParentId, HANDLE ProcessId)
         Process_DfpDelete(ProcessId);
 
         proc = Mem_Alloc(Driver_Pool, sizeof(FORCE_PROCESS_2));
+        if (! proc) {
+            ExReleaseResourceLite(Process_ListLock);
+            KeLowerIrql(irql);
+            return FALSE;
+        }
         proc->pid = ProcessId;
         proc->silent = FALSE;
 
@@ -1850,6 +1855,8 @@ _FX BOOLEAN Process_DfpInsert(HANDLE ParentId, HANDLE ProcessId)
         if (proc) {
 
             proc = Mem_Alloc(Driver_Pool, sizeof(FORCE_PROCESS_2));
+            if (! proc)
+                return FALSE;
             proc->pid = ProcessId;
             proc->silent = FALSE;
 
@@ -1929,6 +1936,11 @@ _FX VOID Process_FcpInsert(HANDLE ProcessId, const WCHAR* boxname)
     Process_FcpDelete(ProcessId);
 
     proc = Mem_Alloc(Driver_Pool, sizeof(FORCE_PROCESS_3));
+    if (! proc) {
+        ExReleaseResourceLite(Process_ListLock);
+        KeLowerIrql(irql);
+        return;
+    }
     proc->pid = ProcessId;
     wmemcpy(proc->boxname, boxname, BOXNAME_COUNT);
 

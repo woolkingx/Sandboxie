@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-245-cred-ansi-enumeration-domain-read-boundary.schema.json",
+  "id": "CRED_ANSI_ENUM_DOMAIN_BOUNDARY",
+  "title": "Credential ANSI enumeration and domain read boundary",
+  "type": "object",
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/cred.c"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 6
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 5
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/dll/cred.c",
+  "contracts": [
+    "cred.c owns local credential virtualization before a credential enumerate or domain-read result leaves the sandboxed process",
+    "CredEnumerateA and CredReadDomainCredentialsA return ANSI credential-array output slots, not opaque native passthrough buffers",
+    "The official ANSI result is an array of PCREDENTIALA pointers in one allocated return block that the caller frees with CredFree",
+    "A future source patch must convert ANSI inputs to the wide local owner path and preserve the W path merge policy",
+    "A future source patch must return a valid ANSI single-block result and must not return PCREDENTIALW data through an ANSI API",
+    "Until an ANSI credential-array conversion owner exists, the current direct ANSI passthrough remains a documented boundary gap"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/wincred/nf-wincred-credenumeratea",
+    "https://learn.microsoft.com/en-us/windows/win32/api/wincred/nf-wincred-credenumeratew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/wincred/nf-wincred-credreaddomaincredentialsa",
+    "https://learn.microsoft.com/en-us/windows/win32/api/wincred/nf-wincred-credreaddomaincredentialsw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/wincred/nf-wincred-credfree"
+  ],
+  "runtime_gate": "Windows credential smoke proving sandboxed ANSI-written simple/domain credentials are visible through CredEnumerateA and CredReadDomainCredentialsA while returned ANSI arrays preserve the CredFree-compatible single-block ownership shape"
+}

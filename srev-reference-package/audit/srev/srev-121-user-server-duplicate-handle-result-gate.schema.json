@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-121-user-server-duplicate-handle-result-gate.schema.json",
+  "title": "SREV-121 UserServer DuplicateHandle result gate",
+  "id": "USER_SERVER_DUPLICATE_HANDLE_RESULT_GATE",
+  "owner": "Sandboxie/core/svc/UserServer.cpp",
+  "type": "object",
+  "properties": {
+    "win32_result_shape": {
+      "type": "string",
+      "description": "DuplicateHandle returns Win32 BOOL success, not NTSTATUS"
+    },
+    "worker_apc_gate": {
+      "type": "string",
+      "description": "StartWorker queues APC only after duplicate-handle success and closes the duplicate on APC failure"
+    },
+    "open_file_reply_gate": {
+      "type": "string",
+      "description": "OpenFile returns a zero handle and error if caller-side duplication fails"
+    }
+  },
+  "required": [
+    "win32_result_shape",
+    "worker_apc_gate",
+    "open_file_reply_gate"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "DuplicateHandle returns a Win32 BOOL not an NTSTATUS",
+    "DuplicateHandle success is nonzero and failure is zero",
+    "StartWorker must not use NT_SUCCESS around DuplicateHandle",
+    "StartWorker queues UserServer__APC only after DuplicateHandle succeeds",
+    "StartWorker closes the duplicate handle if QueueUserAPC fails",
+    "OpenFile initializes USER_OPEN_FILE_RPL FileHandle to zero before duplication",
+    "OpenFile reports STATUS_UNSUCCESSFUL when DuplicateHandle into the caller process fails",
+    "user-worker token selection event security file-policy path matching requested access NtCreateFile arguments and queue routing are unchanged"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-duplicatehandle",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-queueuserapc",
+    "https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-closehandle",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openprocess"
+  ]
+}

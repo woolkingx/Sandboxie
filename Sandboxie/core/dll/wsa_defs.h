@@ -19,22 +19,26 @@
 #ifndef _WSA_DEFS_H
 #define _WSA_DEFS_H
 
+#ifndef WSAAPI
+#define WSAAPI WINAPI
+#endif
+
 //---------------------------------------------------------------------------
 // Prototypes
 //---------------------------------------------------------------------------
 
-typedef int (*P_WSAStartup)(
+typedef int (WSAAPI *P_WSAStartup)(
     WORD wVersionRequested,
     void* lpWSAData);
     
-typedef int (*P_WSACleanup)(void);
+typedef int (WSAAPI *P_WSACleanup)(void);
 
-typedef int (*P_socket)(
+typedef SOCKET (WSAAPI *P_socket)(
   int af,
   int type,
   int protocol);
 
-typedef int (*P_WSAIoctl)(
+typedef int (WSAAPI *P_WSAIoctl)(
     SOCKET                             s,
     DWORD                              dwIoControlCode,
     LPVOID                             lpvInBuffer,
@@ -45,36 +49,36 @@ typedef int (*P_WSAIoctl)(
     LPWSAOVERLAPPED                    lpOverlapped,
     LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine);
 
-typedef int (*P_ioctlsocket)(
+typedef int (WSAAPI *P_ioctlsocket)(
     SOCKET  s,
     long    cmd,
     ULONG*  argp);
 
-typedef int (*P_select)(
+typedef int (WSAAPI *P_select)(
     int nfds,
     void *readfds,
     void *writefds,
     void *exceptfds,
     const void *timeout);
 
-typedef int (*P_WSAAsyncSelect)(
+typedef int (WSAAPI *P_WSAAsyncSelect)(
     SOCKET  s,
     HWND    hWnd,
     UINT    wMsg,
     long    lEvent);
 
-typedef int (*P_WSAEventSelect)(
+typedef int (WSAAPI *P_WSAEventSelect)(
     SOCKET  s,
     void*   hEventObject,
     long    lNetworkEvents);
 
-typedef int (*P_WSAEnumNetworkEvents)(
+typedef int (WSAAPI *P_WSAEnumNetworkEvents)(
     SOCKET  s,
     void*   hEventObject,
     void*   lpNetworkEvents
 );
 
-typedef int (*P_WSANSPIoctl)(
+typedef int (WSAAPI *P_WSANSPIoctl)(
     HANDLE          hLookup,
     DWORD           dwControlCode,
     LPVOID          lpvInBuffer,
@@ -84,7 +88,7 @@ typedef int (*P_WSANSPIoctl)(
     LPDWORD         lpcbBytesReturned,
     LPWSACOMPLETION lpCompletion);
 
-typedef int (*P_WSASocketW)(
+typedef SOCKET (WSAAPI *P_WSASocketW)(
     int                 af,
     int                 type,
     int                 protocol,
@@ -92,30 +96,30 @@ typedef int (*P_WSASocketW)(
     unsigned int        g,
     DWORD               dwFlags);
 
-typedef int (*P_WSAGetLastError)();
+typedef int (WSAAPI *P_WSAGetLastError)();
 
-typedef int (*P_WSASetLastError)(int err);
+typedef void (WSAAPI *P_WSASetLastError)(int err);
 
-typedef int (*P_bind)(
+typedef int (WSAAPI *P_bind)(
     SOCKET         s,
     const void     *name,
     int            namelen);
 
-typedef int (*P_getsockname)(
+typedef int (WSAAPI *P_getsockname)(
     SOCKET         s,
-    const void     *name,
+    void           *name,
     int            *namelen);
 
-typedef int (*P_WSAFDIsSet)(
+typedef int (WSAAPI *P_WSAFDIsSet)(
   SOCKET unnamedParam1,
   void *unnamedParam2);
 
-typedef int (*P_connect)(
+typedef int (WSAAPI *P_connect)(
     SOCKET         s,
     const void     *name,
     int            namelen);
 
-typedef int (*P_WSAConnect)(
+typedef int (WSAAPI *P_WSAConnect)(
     SOCKET         s,
     const void     *name,
     int            namelen,
@@ -124,7 +128,7 @@ typedef int (*P_WSAConnect)(
     LPQOS          lpSQOS,
     LPQOS          lpGQOS);
 
-typedef int (*P_ConnectEx) (
+typedef BOOL (WSAAPI *P_ConnectEx) (
     SOCKET          s,
     const void      *name,
     int             namelen,
@@ -133,23 +137,23 @@ typedef int (*P_ConnectEx) (
     LPDWORD         lpdwBytesSent,
     LPOVERLAPPED    lpOverlapped);
 
-typedef int (*P_listen)(
+typedef int (WSAAPI *P_listen)(
     SOCKET         s,
     int            backlog);
 
-typedef SOCKET (*P_accept)(
+typedef SOCKET (WSAAPI *P_accept)(
     SOCKET   s,
     void     *addr,
     int      *addrlen);
 
-typedef SOCKET (*P_WSAAccept)(
+typedef SOCKET (WSAAPI *P_WSAAccept)(
     SOCKET          s,
     void            *addr,
     LPINT           addrlen,
     LPCONDITIONPROC lpfnCondition,
     DWORD_PTR       dwCallbackData);
 
-typedef int (*P_AcceptEx)(
+typedef BOOL (WSAAPI *P_AcceptEx)(
     SOCKET       sListenSocket,
     SOCKET       sAcceptSocket,
     PVOID        lpOutputBuffer,
@@ -159,19 +163,19 @@ typedef int (*P_AcceptEx)(
     LPDWORD      lpdwBytesReceived,
     LPOVERLAPPED lpOverlapped);
 
-typedef int (*P_recv)(
+typedef int (WSAAPI *P_recv)(
     SOCKET      s,
     char*       buf,
     int         len,
     int         flags);
 
-typedef int (*P_send)(
+typedef int (WSAAPI *P_send)(
     SOCKET      s,
     const char* buf,
     int         len,
     int         flags);
 
-typedef int (*P_sendto)(
+typedef int (WSAAPI *P_sendto)(
     SOCKET         s,
     const char     *buf,
     int            len,
@@ -179,7 +183,7 @@ typedef int (*P_sendto)(
     const void     *to,
     int            tolen);
 
-typedef int (*P_WSASendTo)(
+typedef int (WSAAPI *P_WSASendTo)(
     SOCKET                             s,
     LPWSABUF                           lpBuffers,
     DWORD                              dwBufferCount,
@@ -190,7 +194,7 @@ typedef int (*P_WSASendTo)(
     LPWSAOVERLAPPED                    lpOverlapped,
     LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine);
 
-typedef int (*P_recvfrom)(
+typedef int (WSAAPI *P_recvfrom)(
     SOCKET   s,
     char     *buf,
     int      len,
@@ -198,7 +202,7 @@ typedef int (*P_recvfrom)(
     void     *from,
     int      *fromlen);
 
-typedef int (*P_WSARecvFrom)(
+typedef int (WSAAPI *P_WSARecvFrom)(
     SOCKET                             s,
     LPWSABUF                           lpBuffers,
     DWORD                              dwBufferCount,
@@ -209,9 +213,9 @@ typedef int (*P_WSARecvFrom)(
     LPWSAOVERLAPPED                    lpOverlapped,
     LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine);
 
-typedef int (*P_shutdown)(SOCKET s, int how);
+typedef int (WSAAPI *P_shutdown)(SOCKET s, int how);
 
-typedef int (*P_closesocket)(SOCKET s);
+typedef int (WSAAPI *P_closesocket)(SOCKET s);
 
 
 
@@ -276,18 +280,18 @@ struct  hostent {
 
 typedef struct hostent HOSTENT;
 
-typedef int (*P_WSALookupServiceBeginW)(
+typedef int (WSAAPI *P_WSALookupServiceBeginW)(
     LPWSAQUERYSETW  lpqsRestrictions,
     DWORD           dwControlFlags,
     LPHANDLE        lphLookup);
 
-typedef int (*P_WSALookupServiceNextW)(
+typedef int (WSAAPI *P_WSALookupServiceNextW)(
     HANDLE          hLookup,
     DWORD           dwControlFlags,
     LPDWORD         lpdwBufferLength,
     LPWSAQUERYSETW  lpqsResults);
 
-typedef int (*P_WSALookupServiceEnd)(HANDLE  hLookup);
+typedef int (WSAAPI *P_WSALookupServiceEnd)(HANDLE  hLookup);
 
 typedef struct addrinfoW {
     int     ai_flags;
@@ -300,22 +304,22 @@ typedef struct addrinfoW {
     struct addrinfoW *ai_next;
 } ADDRINFOW, *PADDRINFOW;
 
-typedef int (*P_GetAddrInfoW)(
+typedef int (WSAAPI *P_GetAddrInfoW)(
     PCWSTR          pNodeName,
     PCWSTR          pServiceName,
     const ADDRINFOW *pHints,
     PADDRINFOW      *ppResult);
 
-typedef void (*P_FreeAddrInfoW)(
+typedef void (WSAAPI *P_FreeAddrInfoW)(
     PADDRINFOW      pAddrInfo);
 
-typedef PCSTR (*P_inet_ntop)(
+typedef PCSTR (WSAAPI *P_inet_ntop)(
     int            family,
     const void     *pAddr,
     PSTR           pStringBuf,
     size_t         StringBufSize);
 
-typedef ULONG (*P_GetAdaptersAddresses)(
+typedef ULONG (WINAPI *P_GetAdaptersAddresses)(
     ULONG Family,
     ULONG Flags,
     PVOID Reserved,

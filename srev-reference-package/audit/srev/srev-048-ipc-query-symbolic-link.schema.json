@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:sandboxie:srev-048-ipc-query-symbolic-link",
+  "title": "SREV-048 IPC query symbolic-link buffer contract",
+  "type": "object",
+  "id": "IPC_QUERY_SYMBOLIC_LINK_BUFFER",
+  "api": "Ipc_Api_QuerySymbolicLink",
+  "owner": "Sandboxie/core/drv/ipc.c",
+  "data": {
+    "input": [
+      "API_QUERY_SYMBOLIC_LINK_ARGS name_buf",
+      "API_QUERY_SYMBOLIC_LINK_ARGS name_len"
+    ],
+    "output": "name_buf receives the symbolic-link target when it fits with a local NUL terminator"
+  },
+  "contracts": [
+    "name_len is the shared user buffer capacity in bytes and must be even, non-empty, and within the local 4096-WCHAR cap",
+    "name_buf input is a NUL-terminated symbolic-link object name inside the shared buffer capacity",
+    "empty input name and unterminated input are invalid",
+    "kernel object-name copy stops at the first input NUL and does not copy unused output capacity bytes as name payload",
+    "ZwQuerySymbolicLinkObject receives an initialized UNICODE_STRING with MaximumLength set to the shared buffer capacity",
+    "query output writes use ProbeForWrite and require room for a synthesized NUL terminator"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwopensymboliclinkobject",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwquerysymboliclinkobject"
+  ],
+  "required": [
+    "name_len",
+    "input_name",
+    "query_output"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "name_len": {
+      "type": "object",
+      "required": [
+        "unit",
+        "alignment",
+        "max"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "unit": { "const": "bytes" },
+        "alignment": { "const": "even WCHAR byte count" },
+        "max": { "const": "4096 WCHARs" }
+      }
+    },
+    "input_name": {
+      "type": "object",
+      "required": [
+        "owner",
+        "terminator",
+        "empty"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "owner": { "const": "kernel copy before object open" },
+        "terminator": { "const": "first NUL inside shared capacity" },
+        "empty": { "const": "invalid" }
+      }
+    },
+    "query_output": {
+      "type": "object",
+      "required": [
+        "capacity",
+        "write_probe",
+        "terminator"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "capacity": { "const": "name_len bytes" },
+        "write_probe": { "const": "ProbeForWrite" },
+        "terminator": { "const": "requires one WCHAR beyond returned target" }
+      }
+    }
+  }
+}

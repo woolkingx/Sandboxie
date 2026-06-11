@@ -31,7 +31,9 @@ _FX BOOLEAN Scm_DllHack(HMODULE module, const WCHAR *svcname)
     SERVICE_QUERY_RPL *rpl;
 
     //
-    // hack:  make sure the given service is running
+    // SREV-315: service-start compatibility shim. StartServiceW
+    // only proves the SCM accepted the start request, not that the
+    // service reached SERVICE_RUNNING.
     //
 
     if (! module)
@@ -73,7 +75,7 @@ _FX BOOLEAN Scm_OsppcDll(HMODULE module)
     Custom_OsppcDll(module);
 
     //
-    // hack for Office 2010 osppc.dll:  make sure osppsvc service is running
+    // Office 2010 osppc.dll compatibility shim for osppsvc startup.
     //
 
     return Scm_DllHack(module, L"osppsvc");
@@ -88,7 +90,7 @@ _FX BOOLEAN Scm_OsppcDll(HMODULE module)
 _FX BOOLEAN Scm_DWriteDll(HMODULE module)
 {
     //
-    // hack for IE 9 DWrite.dll:  make sure FontCache service is running
+    // DirectWrite/IE 9 compatibility shim for FontCache startup.
     //
 
     return Scm_DllHack(module, L"FontCache");
@@ -107,7 +109,7 @@ _FX int Scm_Start_Sppsvc()
     int rc = 0;
 
     if (handle1) {
-        SC_HANDLE handle2 = Scm_OpenServiceWImpl(handle1, L"sppsvc", SERVICE_START);
+        handle2 = Scm_OpenServiceWImpl(handle1, L"sppsvc", SERVICE_START);
         if (handle2) {
             SERVICE_STATUS lpServiceStatus;
             int count = 0;

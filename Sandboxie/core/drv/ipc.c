@@ -870,7 +870,8 @@ _FX BOOLEAN Ipc_IsComServer(PROCESS *proc)
     if (proc->image_from_box)
         return FALSE;
 
-    // $Workaround$ - 3rd party fix
+    // SREV-335: driver-side forced COM server classifier for the
+    // brokered SbieSvc handoff owned by Custom_ComServer/SREV-256.
     if (_wcsicmp(proc->image_name, L"iexplore.exe") != 0 &&
         _wcsicmp(proc->image_name, L"wmplayer.exe") != 0 &&
         _wcsicmp(proc->image_name, L"winamp.exe")   != 0 &&
@@ -1158,7 +1159,8 @@ _FX NTSTATUS Ipc_CheckGenericObject(
         else
             letter = 0;
 
-        // $Workaround$ - 3rd party fix
+        // SREV-336: suppress DBWIN/DebugView transport objects from IPC
+        // trace noise; the objects remain governed by the default open list.
         if (letter) {
             //
             // sysinternals dbgview
@@ -1605,6 +1607,118 @@ _FX NTSTATUS Ipc_CheckObjectName(HANDLE handle, KPROCESSOR_MODE mode)
 //---------------------------------------------------------------------------
 
 
+static BOOLEAN Ipc_Api_CreateDirOrLinkContainsWChar(
+    const WCHAR *text, ULONG byte_len, WCHAR ch)
+{
+    ULONG i;
+    ULONG count = byte_len / sizeof(WCHAR);
+
+    for (i = 0; i < count; ++i) {
+        if (text[i] == ch)
+            return TRUE;
+    }
+
+    return FALSE;
+}
+
+
+static NTSTATUS Ipc_Api_CreateDirOrLinkCopyString(
+    PROCESS *proc, UNICODE_STRING64 *user_uni, WCHAR **out_buf, ULONG *out_len)
+{
+    WCHAR *user_buf;
+    WCHAR *buf;
+    ULONG user_len;
+
+    *out_buf = NULL;
+    *out_len = 0;
+
+    if (! user_uni)
+        return STATUS_INVALID_PARAMETER;
+
+    ProbeForRead(user_uni, sizeof(UNICODE_STRING64), sizeof(ULONG_PTR));
+    user_len = user_uni->Length;
+    user_buf = (WCHAR *)(ULONG_PTR)user_uni->Buffer;
+
+    if ((! user_buf) || (user_len < sizeof(WCHAR)) || (user_len >= 2048) ||
+        (user_len & (sizeof(WCHAR) - 1)) ||
+        (user_uni->MaximumLength < user_len))
+        return STATUS_INVALID_PARAMETER;
+
+    ProbeForRead(user_buf, user_len, sizeof(WCHAR));
+
+    buf = Mem_Alloc(proc->pool, user_len + sizeof(WCHAR));
+    if (! buf)
+        return STATUS_INSUFFICIENT_RESOURCES;
+
+    memcpy(buf, user_buf, user_len);
+    if (Ipc_Api_CreateDirOrLinkContainsWChar(buf, user_len, L'\0')) {
+        Mem_Free(buf, user_len + sizeof(WCHAR));
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    buf[user_len / sizeof(WCHAR)] = L'\0';
+    *out_buf = buf;
+    *out_len = user_len;
+    return STATUS_SUCCESS;
+}
+
+
+static BOOLEAN Ipc_Api_CreateDirOrLinkIsBnolinksPath(
+    BOX *box, UNICODE_STRING *uni)
+{
+    static const WCHAR *suffix = L"\\BNOLINKS";
+    ULONG suffix_len = 9;
+    ULONG ipc_len;
+    ULONG parent_len;
+    ULONG uni_len;
+
+    if (! box || ! box->ipc_path || ! uni || ! uni->Buffer)
+        return FALSE;
+
+    if (uni->Length & (sizeof(WCHAR) - 1))
+        return FALSE;
+
+    ipc_len = box->ipc_path_len / sizeof(WCHAR);
+    if (ipc_len == 0)
+        return FALSE;
+
+    --ipc_len;                         // remove final NUL
+    if (ipc_len == 0)
+        return FALSE;
+
+    parent_len = ipc_len;
+    while (parent_len && box->ipc_path[parent_len] != L'\\')
+        --parent_len;
+    if (! parent_len)
+        return FALSE;
+
+    uni_len = uni->Length / sizeof(WCHAR);
+    if (uni_len < parent_len + suffix_len)
+        return FALSE;
+
+    if (Box_NlsStrCmp(uni->Buffer, box->ipc_path, parent_len) != 0)
+        return FALSE;
+
+    if (Box_NlsStrCmp(uni->Buffer + parent_len, suffix, suffix_len) != 0)
+        return FALSE;
+
+    if (uni_len == parent_len + suffix_len)
+        return TRUE;
+
+    return (uni->Buffer[parent_len + suffix_len] == L'\\');
+}
+
+
+static BOOLEAN Ipc_Api_CreateDirOrLinkIsBoxedPath(
+    BOX *box, UNICODE_STRING *uni)
+{
+    if (Box_IsBoxedPath(box, ipc, uni))
+        return TRUE;
+
+    return Ipc_Api_CreateDirOrLinkIsBnolinksPath(box, uni);
+}
+
+
 _FX NTSTATUS Ipc_Api_CreateDirOrLink(PROCESS *proc, ULONG64 *parms)
 {
     API_CREATE_DIR_OR_LINK_ARGS *args =
@@ -1612,8 +1726,8 @@ _FX NTSTATUS Ipc_Api_CreateDirOrLink(PROCESS *proc, ULONG64 *parms)
     NTSTATUS status;
     HANDLE handle;
     UNICODE_STRING64 *user_uni;
-    WCHAR *user_buf, *objname_buf = NULL, *target_buf;
-    ULONG user_len,  objname_len,  target_len;
+    WCHAR *objname_buf = NULL, *target_buf;
+    ULONG objname_len, target_len;
     OBJECT_ATTRIBUTES objattrs;
     UNICODE_STRING objname, target;
 
@@ -1632,24 +1746,8 @@ _FX NTSTATUS Ipc_Api_CreateDirOrLink(PROCESS *proc, ULONG64 *parms)
     //
 
     user_uni = (UNICODE_STRING64 *)args->objname.val;
-    ProbeForRead(user_uni, sizeof(UNICODE_STRING64), sizeof(ULONG_PTR));
-    user_len = user_uni->Length;
-    user_buf = (WCHAR *)(ULONG_PTR)user_uni->Buffer;
-
-    if (user_len >= sizeof(WCHAR) && user_len < 2048 && user_buf) {
-
-        objname_len = user_len & ~1;
-        ProbeForRead(user_buf, objname_len, sizeof(WCHAR));
-        objname_buf = Mem_Alloc(proc->pool, objname_len + sizeof(WCHAR));
-        if (! objname_buf)
-            status = STATUS_INSUFFICIENT_RESOURCES;
-        else {
-            memcpy(objname_buf, user_buf, objname_len);
-            objname_buf[objname_len / sizeof(WCHAR)] = L'\0';
-        }
-
-    } else
-        status = STATUS_INVALID_PARAMETER;
+    status = Ipc_Api_CreateDirOrLinkCopyString(
+        proc, user_uni, &objname_buf, &objname_len);
 
     if (! NT_SUCCESS(status))
         return status;
@@ -1666,24 +1764,8 @@ _FX NTSTATUS Ipc_Api_CreateDirOrLink(PROCESS *proc, ULONG64 *parms)
     user_uni = (UNICODE_STRING64 *)args->target.val;
     if (user_uni) {
 
-        ProbeForRead(user_uni, sizeof(UNICODE_STRING64), sizeof(ULONG_PTR));
-        user_len = user_uni->Length;
-        user_buf = (WCHAR *)(ULONG_PTR)user_uni->Buffer;
-
-        if (user_len >= sizeof(WCHAR) && user_len < 2048 && user_buf) {
-
-            target_len = user_len & ~1;
-            ProbeForRead(user_buf, target_len, sizeof(WCHAR));
-            target_buf = Mem_Alloc(proc->pool, target_len + sizeof(WCHAR));
-            if (! target_buf)
-                status = STATUS_INSUFFICIENT_RESOURCES;
-            else {
-                memcpy(target_buf, user_buf, target_len);
-                target_buf[target_len / sizeof(WCHAR)] = L'\0';
-            }
-
-        } else
-            status = STATUS_INVALID_PARAMETER;
+        status = Ipc_Api_CreateDirOrLinkCopyString(
+            proc, user_uni, &target_buf, &target_len);
     }
 
     if (! NT_SUCCESS(status)) {
@@ -1701,13 +1783,13 @@ _FX NTSTATUS Ipc_Api_CreateDirOrLink(PROCESS *proc, ULONG64 *parms)
         NULL, Driver_PublicSd);
 
     RtlInitUnicodeString(&objname, objname_buf);
-    if (! Box_IsBoxedPath(proc->box, ipc, &objname))
+    if (! Ipc_Api_CreateDirOrLinkIsBoxedPath(proc->box, &objname))
         status = STATUS_ACCESS_DENIED;
 
     else if (target_buf) {
 
         RtlInitUnicodeString(&target, target_buf);
-        if (! Box_IsBoxedPath(proc->box, ipc, &target))
+        if (! Ipc_Api_CreateDirOrLinkIsBoxedPath(proc->box, &target))
             status = STATUS_ACCESS_DENIED;
         else {
 
@@ -1741,8 +1823,13 @@ _FX NTSTATUS Ipc_Api_CreateDirOrLink(PROCESS *proc, ULONG64 *parms)
         ExAcquireResourceExclusiveLite(Ipc_DirLock, TRUE);
 
         DIR_OBJ_HANDLE *obj_handle = Mem_Alloc(Driver_Pool, sizeof(DIR_OBJ_HANDLE));
-        obj_handle->handle = handle;
-        List_Insert_After(&Ipc_ObjDirs, NULL, obj_handle);
+        if (obj_handle) {
+            obj_handle->handle = handle;
+            List_Insert_After(&Ipc_ObjDirs, NULL, obj_handle);
+        } else {
+            ZwClose(handle);
+            status = STATUS_INSUFFICIENT_RESOURCES;
+        }
 
         ExReleaseResourceLite(Ipc_DirLock);
         KeLowerIrql(irql);
@@ -1828,6 +1915,7 @@ _FX NTSTATUS Ipc_Api_QuerySymbolicLink(PROCESS *proc, ULONG64 *parms)
     WCHAR *buf;
     WCHAR *user_buf;
     ULONG user_len;
+    ULONG i;
     NTSTATUS status;
 
     //
@@ -1842,6 +1930,9 @@ _FX NTSTATUS Ipc_Api_QuerySymbolicLink(PROCESS *proc, ULONG64 *parms)
     //
 
     user_buf = args->name_buf.val;
+    if (args->name_len.val & 1)
+        return STATUS_INVALID_PARAMETER;
+
     user_len = args->name_len.val / sizeof(WCHAR);
     if ((! user_buf) || (! user_len) || (user_len > 4096))
         return STATUS_INVALID_PARAMETER;
@@ -1850,12 +1941,20 @@ _FX NTSTATUS Ipc_Api_QuerySymbolicLink(PROCESS *proc, ULONG64 *parms)
     // copy user object name into kernel buffer
     //
 
-    buf = Mem_Alloc(proc->pool, (user_len + 8) * sizeof(WCHAR));
+    buf = Mem_Alloc(proc->pool, (user_len + 1) * sizeof(WCHAR));
     if (! buf)
         return STATUS_INSUFFICIENT_RESOURCES;
     ProbeForRead(user_buf, sizeof(WCHAR) * user_len, sizeof(WCHAR));
-    wmemcpy(buf, user_buf, user_len);
-    buf[user_len] = L'\0';
+
+    for (i = 0; i < user_len; ++i) {
+        buf[i] = user_buf[i];
+        if (buf[i] == L'\0')
+            break;
+    }
+    if ((! i) || (i == user_len)) {
+        status = STATUS_INVALID_PARAMETER;
+        goto finish;
+    }
 
     RtlInitUnicodeString(&objname, buf);
 
@@ -1873,8 +1972,8 @@ _FX NTSTATUS Ipc_Api_QuerySymbolicLink(PROCESS *proc, ULONG64 *parms)
 
     if (NT_SUCCESS(status)) {
 
-        objname.Length = (USHORT)(user_len * sizeof(WCHAR));
-        objname.MaximumLength = objname.Length;
+        objname.Length = 0;
+        objname.MaximumLength = (USHORT)(user_len * sizeof(WCHAR));
         objname.Buffer = buf;
         status = ZwQuerySymbolicLinkObject(handle, &objname, NULL);
 
@@ -1890,11 +1989,11 @@ _FX NTSTATUS Ipc_Api_QuerySymbolicLink(PROCESS *proc, ULONG64 *parms)
         __try {
 
             ULONG len = objname.Length / sizeof(WCHAR);
-            if (len >= user_len - 1)
+            if (len >= user_len)
                 status = STATUS_BUFFER_TOO_SMALL;
             else {
                 buf[len] = L'\0';
-                ProbeForRead(
+                ProbeForWrite(
                     user_buf, sizeof(WCHAR) * (len + 1), sizeof(WCHAR));
                 wmemcpy(user_buf, buf, len + 1);
             }
@@ -1906,7 +2005,9 @@ _FX NTSTATUS Ipc_Api_QuerySymbolicLink(PROCESS *proc, ULONG64 *parms)
 
     // DbgPrint("Process %06d ||| Status <%08X>\n", PsGetCurrentProcessId(), status);
 
-    Mem_Free(buf, (user_len + 8) * sizeof(WCHAR));
+finish:
+
+    Mem_Free(buf, (user_len + 1) * sizeof(WCHAR));
 
     return status;
 }
@@ -1918,17 +2019,39 @@ _FX NTSTATUS Ipc_Api_QuerySymbolicLink(PROCESS *proc, ULONG64 *parms)
 
 _FX void Ipc_Unload(void)
 {
-    if (Ipc_Dynamic_Ports.pPortLock)
+    if (Ipc_Dynamic_Ports.pPortLock) {
+        KeEnterCriticalRegion();
+        ExAcquireResourceExclusiveLite(Ipc_Dynamic_Ports.pPortLock, TRUE);
+
+        IPC_DYNAMIC_PORT *port = List_Head(&Ipc_Dynamic_Ports.Ports);
+        while (port) {
+            IPC_DYNAMIC_PORT *next_port = List_Next(port);
+            ULONG port_len = sizeof(IPC_DYNAMIC_PORT)
+                           + sizeof(UCHAR) * port->FilterCount;
+            List_Remove(&Ipc_Dynamic_Ports.Ports, port);
+            Mem_Free(port, port_len);
+            port = next_port;
+        }
+        Ipc_Dynamic_Ports.pSpoolerPort = NULL;
+
+        ExReleaseResourceLite(Ipc_Dynamic_Ports.pPortLock);
+        KeLeaveCriticalRegion();
+
         Mem_FreeLockResource(&Ipc_Dynamic_Ports.pPortLock);
+    }
 
     if (Ipc_DirLock == NULL)
         return; // Early driver initialization failed
 
     DIR_OBJ_HANDLE* obj_handle = List_Head(&Ipc_ObjDirs);
     while (obj_handle) {
+        DIR_OBJ_HANDLE* next_obj_handle = List_Next(obj_handle);
 
         ZwClose(obj_handle->handle);
-        obj_handle = List_Next(obj_handle);
+        List_Remove(&Ipc_ObjDirs, obj_handle);
+        Mem_Free(obj_handle, sizeof(DIR_OBJ_HANDLE));
+
+        obj_handle = next_obj_handle;
     }
 
     Mem_FreeLockResource(&Ipc_DirLock);

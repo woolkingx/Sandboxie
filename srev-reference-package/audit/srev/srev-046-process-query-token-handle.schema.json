@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:sandboxie:srev-046-process-query-token-handle",
+  "title": "SREV-046 process query token handle contract",
+  "type": "object",
+  "id": "PROCESS_QUERY_TOKEN_HANDLE",
+  "api": "Process_Api_QueryInfo",
+  "owner": "Sandboxie/core/drv/process_api.c",
+  "data": {
+    "input": [
+      "API_QUERY_PROCESS_INFO info_type ptok/itok/ttok",
+      "info_data user ULONG64* output pointer",
+      "primary or impersonation token object"
+    ],
+    "output": "caller receives a token handle or token-present flag only after safe writeback"
+  },
+  "contracts": [
+    "info_data is a user ULONG64* output pointer and must be written through a try/except helper",
+    "opened token handle ownership remains driver-owned until info_data writeback succeeds",
+    "if token handle writeback fails, the opened token handle must be closed with NtClose and cleared",
+    "thread token object lookup under proc->threads_lock may only reference the token object or snapshot a boolean",
+    "user output writeback and token handle creation must happen after proc->threads_lock is released and IRQL is lowered",
+    "ptok and itok token handles use the same handle writeback helper"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-probeforwrite",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntclose"
+  ],
+  "required": [
+    "info_data",
+    "token_handle",
+    "thread_token_lookup"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "info_data": {
+      "type": "object",
+      "required": [
+        "kind",
+        "alignment",
+        "writeback"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "user ULONG64* output pointer" },
+        "alignment": { "const": "sizeof(ULONG64)" },
+        "writeback": { "const": "try/except protected" }
+      }
+    },
+    "token_handle": {
+      "type": "object",
+      "required": [
+        "owner_until",
+        "on_writeback_failure"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "owner_until": { "const": "successful info_data writeback" },
+        "on_writeback_failure": { "const": "NtClose and clear" }
+      }
+    },
+    "thread_token_lookup": {
+      "type": "object",
+      "required": [
+        "inside_lock",
+        "outside_lock"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "inside_lock": { "const": "reference token object or snapshot boolean only" },
+        "outside_lock": { "const": "open token handle and write user output" }
+      }
+    }
+  }
+}

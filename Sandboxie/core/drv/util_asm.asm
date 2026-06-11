@@ -325,7 +325,7 @@ Sbie_InvokeSyscall_asm PROC FRAME
     .endprolog
      
     ; quick sanity check
-    cmp         rdx, 13h ; if count > 19
+    cmp         edx, 13h ; if count > 19
     jle         arg_count_ok
     mov         rax, 0C000001Ch ; return STATUS_INVALID_SYSTEM_SERVICE
     jmp         func_return
@@ -333,19 +333,19 @@ arg_count_ok:
 
     ; save our 3 relevant arguments to spare registers
     mov         r11, r8  ; args
-    mov         r10, rdx ; count
+    mov         r10d, edx ; count
     mov         rax, rcx ; func
 
     ; check if we have higher arguments and if not skip 
-    cmp         r10, 4
+    cmp         r10d, 4
     jle         copy_reg_args
     ; copy arguments 5-19
     mov         rsi, r11 ; source
     add         rsi, 20h
     mov         rdi, rsp ; destination
     add         rdi, 20h
-    mov         rcx, r10 ; arg count
-    sub         rcx, 4   ; skip the register passed args
+    mov         ecx, r10d ; arg count
+    sub         ecx, 4    ; skip the register passed args
     rep movsq
 
 copy_reg_args:

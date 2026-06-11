@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "SYSCALL_OPEN_THREAD_WOW64_CLIENT_ID_PROBE",
+  "title": "Syscall OpenThread WOW64 ClientId probe",
+  "type": "object",
+  "owner": "Sandboxie/core/drv/syscall_open.c",
+  "stage": "schema -> boundary -> topology -> action -> verify",
+  "source_functions": [
+    "Syscall_OpenHandle",
+    "Syscall_Api_Invoke",
+    "Process_IsSameBox"
+  ],
+  "contracts": [
+    "Syscall_OpenHandle owns the OpenThread THREAD_GET_CONTEXT plus THREAD_SET_CONTEXT compatibility downgrade",
+    "The downgrade applies only to the exact THREAD_GET_CONTEXT | THREAD_SET_CONTEXT access mask",
+    "The caller supplied CLIENT_ID pointer must be probed before reading UniqueProcess",
+    "ProbeForRead and the UniqueProcess read must stay inside a local try/except block",
+    "Invalid CLIENT_ID access returns the exception code before native syscall dispatch",
+    "Process_IsSameBox receives a captured process id not a user pointer",
+    "This SREV does not change handle replacement object validation or restored-handle writeback topology"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openthread",
+    "https://learn.microsoft.com/en-us/windows/win32/procthread/thread-security-and-access-rights",
+    "https://learn.microsoft.com/en-us/windows/win32/winprog64/wow64-implementation-details",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-probeforread"
+  ],
+  "local_edges": [
+    "Syscall_Api_Invoke -> ProbeForRead(user_args)",
+    "Syscall_OpenHandle -> OpenThread exact access-mask gate",
+    "PCLIENT_ID user_args[3] -> ProbeForRead(CLIENT_ID) -> ClientProcessId",
+    "ClientProcessId -> Process_IsSameBox -> optional THREAD_SET_CONTEXT removal",
+    "Syscall_OpenHandle -> Syscall_Invoke -> Syscall_CheckObject -> Syscall_WriteRestoredHandleToUser"
+  ],
+  "runtime_gate": "Windows x64 WOW64 OpenThread smoke for host thread read-context same-box preservation outside-box downgrade null or invalid ClientId and Driver Verifier user-buffer observation",
+  "status": "patched-source-level-after-official-openthread-thread-rights-wow64-probeforread-review-needs-windows-runtime-proof"
+}

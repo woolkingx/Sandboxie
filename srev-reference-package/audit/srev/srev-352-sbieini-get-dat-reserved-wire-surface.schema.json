@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "SBIEINI_GET_DAT_RESERVED_WIRE_SURFACE",
+  "title": "SbieIni GET_DAT reserved wire surface",
+  "type": "object",
+  "owner": "Sandboxie/core/svc/sbieiniserver.cpp",
+  "stage": "schema -> boundary -> topology -> verify",
+  "source_scope": "SbieIniServer MSGID_SBIE_INI_GET_DAT reserved route",
+  "contracts": [
+    "MSGID_SBIE_INI_SET_DAT remains the active Sandboxie home-directory dat write/delete route",
+    "MSGID_SBIE_INI_GET_DAT remains reserved and unrouted until a read reply schema exists",
+    "sbieiniwire.h currently has no dat-file read reply shape with file size byte count or partial-read contract",
+    "SetDatFile remains gated to the session leader and to terminated *.dat names without parent traversal",
+    "a future GET_DAT route must define max read size EOF behavior reply buffer shape and caller authorization before code is wired",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntcreatefile",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntreadfile"
+  ],
+  "local_edges": [
+    "Handler2 -> MSGID_SBIE_INI_SET_DAT -> SetDatFile",
+    "SetDatFile -> session leader gate",
+    "SetDatFile -> terminated *.dat name without .. gate",
+    "SetDatFile -> SbieApi_GetHomePath target path",
+    "SetDatFile -> NtDeleteFile for value_len == 0",
+    "SetDatFile -> NtCreateFile FILE_GENERIC_WRITE FILE_OVERWRITE_IF",
+    "SetDatFile -> NtWriteFile request value bytes",
+    "MSGID_SBIE_INI_GET_DAT -> reserved id with no active handler"
+  ],
+  "runtime_gate": "none for comment-only classification; future GET_DAT implementation requires Windows broker read smoke",
+  "status": "patched-comment-classification-after-native-file-read-schema-review-no-behavior-change"
+}

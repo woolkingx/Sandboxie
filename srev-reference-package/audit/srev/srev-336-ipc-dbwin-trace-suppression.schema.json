@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "IPC_DBWIN_TRACE_SUPPRESSION",
+  "title": "IPC DBWIN trace suppression",
+  "type": "object",
+  "owner": "Sandboxie/core/drv/ipc.c",
+  "stage": "schema -> topology -> verify",
+  "source_functions": [
+    "Ipc_InitPaths",
+    "Ipc_CheckGenericObject"
+  ],
+  "contracts": [
+    "Windows OutputDebugString owns debugger output emission",
+    "Sysinternals DebugView owns tool-level capture of OutputDebugString and DbgPrint",
+    "DBWIN object names are observed local transport objects and not public Windows API schema",
+    "Sandboxie default IPC open list governs DBWIN object access policy",
+    "Ipc_CheckGenericObject suppresses only monitor trace noise by clearing the trace letter",
+    "The suppression block must not alter the already computed IPC access status",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/debugapi/nf-debugapi-outputdebugstringw",
+    "https://learn.microsoft.com/en-us/sysinternals/downloads/debugview"
+  ],
+  "local_edges": [
+    "Ipc_InitPaths -> default open list -> DBWIN transport objects",
+    "Ipc_CheckGenericObject -> policy status -> trace letter",
+    "DBWIN final path component -> letter = 0 -> no monitor IPC event",
+    "non-DBWIN object -> existing monitor IPC trace path"
+  ],
+  "runtime_gate": "Windows DebugView OutputDebugString and Sandboxie IPC trace matrix proving DBWIN chatter suppression without changing DBWIN access policy or non-DBWIN trace records",
+  "status": "patched-comment-topology-after-official-debug-output-debugview-review-no-behavior-change"
+}

@@ -27,6 +27,16 @@
 
 #define METHOD_FROM_CTL_CODE(ctrlCode)          ((ULONG)(ctrlCode & 3))
 
+
+static NTSTATUS File_DenyDeviceIoControlFile(PIO_STATUS_BLOCK IoStatusBlock)
+{
+    ProbeForWrite(IoStatusBlock, sizeof(IO_STATUS_BLOCK), sizeof(ULONG_PTR));
+    IoStatusBlock->Status = STATUS_ACCESS_DENIED;
+    IoStatusBlock->Information = 0;
+    return STATUS_ACCESS_DENIED;
+}
+
+
 _FX NTSTATUS Syscall_DeviceIoControlFile(
     PROCESS *proc, SYSCALL_ENTRY *syscall_entry, ULONG_PTR *user_args)
 {
@@ -45,7 +55,7 @@ _FX NTSTATUS Syscall_DeviceIoControlFile(
             function == 6 ||        // IOCTL_MOUNTMGR_VOLUME_MOUNT_POINT_CREATED
             function == 7 ||        // IOCTL_MOUNTMGR_VOLUME_MOUNT_POINT_DELETED
             function == 9)          // IOCTL_MOUNTMGR_KEEP_LINKS_WHEN_OFFLINE
-            return STATUS_ACCESS_DENIED;
+            return File_DenyDeviceIoControlFile((PIO_STATUS_BLOCK)user_args[4]);
     }
     
     if (DEVICE_TYPE_FROM_CTL_CODE(IoControlCode) == 0x47)    //CMApi(?)CONTROLTYPE 0x47   \Device\DeviceApi\CMApi
@@ -129,7 +139,7 @@ _FX NTSTATUS Syscall_DeviceIoControlFile(
             }
 
             if(filter)
-                return STATUS_ACCESS_DENIED;
+                return File_DenyDeviceIoControlFile((PIO_STATUS_BLOCK)user_args[4]);
         }
     }
 

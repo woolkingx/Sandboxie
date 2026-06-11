@@ -21,7 +21,13 @@
 LOG_BUFFER* log_buffer_init(SIZE_T buffer_size)
 {
 	//LOG_BUFFER* ptr_buffer = (LOG_BUFFER*)malloc(sizeof(LOG_BUFFER) + buffer_size);
-	LOG_BUFFER* ptr_buffer = (LOG_BUFFER*)ExAllocatePoolWithTag(PagedPool, sizeof(LOG_BUFFER) + buffer_size, tzuk);
+	SIZE_T alloc_size;
+
+	if (buffer_size == 0 || buffer_size > (SIZE_T)-1 - sizeof(LOG_BUFFER))
+		return NULL;
+
+	alloc_size = sizeof(LOG_BUFFER) + buffer_size;
+	LOG_BUFFER* ptr_buffer = (LOG_BUFFER*)ExAllocatePoolWithTag(PagedPool, alloc_size, tzuk);
 	if (ptr_buffer != NULL)
 	{
 		ptr_buffer->seq_counter = 0;

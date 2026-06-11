@@ -330,7 +330,8 @@ _FX HRESULT IEServer_IOleCommandTarget_Exec(
 
     if (! IsEqualIID(pguidCmdGroup, &CGID_Explorer))
         return OLECMDERR_E_UNKNOWNGROUP;
-    if (nCmdID != 0x2D || (! pvaIn) || pvaOut || pvaIn->vt != VT_BSTR)
+    if (nCmdID != 0x2D || (! pvaIn) || pvaOut ||
+            pvaIn->vt != VT_BSTR || (! pvaIn->bstrVal))
         return OLECMDERR_E_NOTSUPPORTED;
 
     IEServer_RestartProgram(pvaIn->bstrVal);
@@ -416,6 +417,9 @@ _FX HRESULT IEServer_ITargetFramePriv_NavigateHack(
 #ifdef COMSERVER_DEBUG
     OutputDebugString(L"ITargetFramePriv::NavigateHack\n");
 #endif
+    if (! pszUrl)
+        return E_INVALIDARG;
+
     if (pszLocation) {
         ULONG len = (wcslen(pszUrl) + wcslen(pszLocation) + 4)
                   * sizeof(WCHAR);
@@ -456,14 +460,18 @@ _FX HRESULT IEServer_ITargetFramePriv2_AggregatedNavigation2(
     LPCWSTR pszTargetName, IUri *pUri, LPCWSTR pszLocation)
 {
     HRESULT hr;
-    BSTR pszUrl;
+    BSTR pszUrl = NULL;
 #ifdef COMSERVER_DEBUG
     OutputDebugString(L"ITargetFramePriv2::AggregatedNavigation2\n");
 #endif
+    if (! pUri)
+        return E_INVALIDARG;
+
     hr = IUri_GetRawUri(pUri, &pszUrl);
     if (SUCCEEDED(hr)) {
         hr = ITargetFramePriv2_NavigateHack(
             This, grfHLNF, pbc, pibsc,pszTargetName, pszUrl, pszLocation);
+        SysFreeString(pszUrl);
     }
     return hr;
 }
@@ -493,6 +501,9 @@ _FX HRESULT IEServer_IWebBrowser2_Navigate(
     BSTR url, VARIANT *Flags, VARIANT *TargetFrameName,
     VARIANT *PostData, VARIANT *Headers)
 {
+    if (! url)
+        return E_INVALIDARG;
+
     IEServer_RestartProgram(url);
     return S_OK;
 }
@@ -522,6 +533,9 @@ _FX HRESULT IEServer_IWebBrowser2_Navigate2(
     VARIANT *URL, VARIANT *Flags, VARIANT *TargetFrameName,
     VARIANT *PostData, VARIANT *Headers)
 {
+    if ((! URL) || URL->vt != VT_BSTR || (! URL->bstrVal))
+        return E_INVALIDARG;
+
     IEServer_RestartProgram(URL->bstrVal);
     return S_OK;
 }
@@ -561,6 +575,9 @@ _FX HRESULT IEServer_ITargetFrame2_SetFrameName(
 _FX HRESULT IEServer_ITargetFrame2_SetFrameSrc(
     ITargetFrame2 *This, LPCWSTR pszFrameSrc)
 {
+    if (! pszFrameSrc)
+        return E_INVALIDARG;
+
     IEServer_RestartProgram(pszFrameSrc);
     return S_OK;
 }
@@ -685,6 +702,9 @@ _FX HRESULT IEServer_IHTMLWindow2_NotImpl(IHTMLWindow2 *This)
 
 _FX void IEServer_RestartProgram(const WCHAR *arg)
 {
+    if (! arg)
+        return;
+
 #ifdef COMSERVER_DEBUG
     OutputDebugString(L"IEServer Restart Command Line:\n");
     OutputDebugString(arg);

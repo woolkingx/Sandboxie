@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-012-reparse-buffer-spec.schema.json",
+  "title": "SREV-012 reparse buffer shape",
+  "id": "REPARSE_BUFFER_SHAPE",
+  "owner": "Sandboxie/core/dll/file_dir.c",
+  "type": "object",
+  "properties": {
+    "fsctl_set_shape": {
+      "type": "string",
+      "description": "FSCTL_SET_REPARSE_POINT takes a caller-allocated REPARSE_DATA_BUFFER or REPARSE_GUID_DATA_BUFFER; invalid input returns STATUS_IO_REPARSE_DATA_INVALID"
+    },
+    "kernel_validator_shape": {
+      "type": "string",
+      "description": "FsRtlValidateReparsePointBuffer is the kernel-only helper; user-mode parsing must not read fields that the helper would reject"
+    },
+    "name_range_shape": {
+      "type": "string",
+      "description": "Mount-point and symlink tags carry SubstituteNameOffset/PrintNameOffset (byte offsets from byte 0 of PathBuffer) and SubstituteNameLength/PrintNameLength (byte lengths); strings may appear in any order; the documented lengths do not include a trailing Unicode null"
+    },
+    "tag_specific_overhead": {
+      "type": "string",
+      "description": "Symlink reparse data length covers the path buffer plus 12 bytes after the common header; mount-point reparse data length covers the path buffer plus 8 bytes"
+    },
+    "range_check_owner": {
+      "type": "string",
+      "description": "File_CheckReparseNameRange validates DataLen >= header, ReparseDataLength <= DataLen-header, PathBufferOffset within header, WCHAR alignment, NameOffset and NameLength within PathBuffer"
+    },
+    "print_name_copy_invariant": {
+      "type": "string",
+      "description": "Print name copy uses only PrintNameLength bytes from caller and synthesizes the output terminator"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate: malformed reparse payloads fail closed; valid symlink and mount-point reparse points still set"
+    }
+  },
+  "required": [
+    "fsctl_set_shape",
+    "kernel_validator_shape",
+    "name_range_shape",
+    "tag_specific_overhead",
+    "range_check_owner",
+    "print_name_copy_invariant",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "DataLen must cover UFIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer) before tag-specific fields are trusted",
+    "ReparseDataLength must fit inside DataLen - header length",
+    "PathBufferOffset must lie inside the reparse header and within ReparseDataLength",
+    "SubstituteNameOffset/Length and PrintNameOffset/Length must be WCHAR-aligned and fully within PathBuffer",
+    "Print name copy must not assume a trailing Unicode null is part of the source payload"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ifs/fsctl-set-reparse-point",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_reparse_data_buffer",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-fsrtlvalidatereparsepointbuffer",
+    "https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/b41f1cbf-10df-4a47-98d4-1c52a833d913",
+    "https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/ca069dad-ed16-42aa-b057-b6b207f447cc"
+  ]
+}

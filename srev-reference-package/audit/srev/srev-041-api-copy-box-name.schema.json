@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-041-api-copy-box-name.schema.json",
+  "title": "SREV-041 api copy box name",
+  "id": "API_COPY_BOX_NAME_FIXED_STRING",
+  "owner": "Sandboxie/core/drv/api.c",
+  "type": "object",
+  "properties": {
+    "audit_contract": {
+      "type": "string",
+      "description": "API: Api_CopyBoxNameFromUser | data: {\"input\": \"user WCHAR* box name\", \"output\": \"kernel-owned BOXNAME_COUNT WCHAR buffer\"} | callers: Process_Api_Start, Process_Api_QueryInfo, Conf_Api_IsBoxEnabled"
+    },
+    "validation_invariants": {
+      "type": "string",
+      "description": "All contracts listed in the contracts metadata must hold before any data is trusted past the validation boundary"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate proves contracts hold under normal and malformed inputs"
+    }
+  },
+  "required": [
+    "audit_contract",
+    "validation_invariants",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "box name input is a user pointer and must be copied before Box_IsValidName reads it",
+    "box name must be readable as BOXNAME_COUNT - 2 WCHARs with WCHAR alignment",
+    "box name must contain a NUL terminator before the BOXNAME_COUNT - 2 payload cap",
+    "empty box name is invalid",
+    "overlong unterminated box name is invalid and must not be truncated",
+    "local copied box name must pass Box_IsValidName before use"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-probeforread"
+  ]
+}

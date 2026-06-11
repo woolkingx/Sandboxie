@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "TRACE_HEADER_TOPOLOGY_CONTRACT",
+  "owner": "Sandboxie/core/dll/trace.h",
+  "related_owners": [
+    "Sandboxie/core/dll/trace.c",
+    "Sandboxie/core/dll/dllmain.c",
+    "Sandboxie/core/dll/dllhook.c",
+    "Sandboxie/core/dll/rpcrt.c",
+    "Sandboxie/core/dll/file_misc.c",
+    "Sandboxie/core/dll/sbieapi.c",
+    "Sandboxie/core/dll/callsvc.c"
+  ],
+  "status": "docs-only-source-topology-reviewed-needs-windows-dll-build-proof",
+  "official_references": [],
+  "contracts": [
+    "trace.h is the DLL trace helper declaration header",
+    "The header may declare trace lifecycle helpers address lookup helpers formatting helpers and externally consumed trace flags",
+    "The header does not own hook installation OutputDebugString or RtlSetLastWin32Error interception private ProcessInstrumentationCallback setup architecture-specific trampoline ABI monitor log record shape API service GUI id lookup-table completeness or module export parsing behavior",
+    "Runtime behavior changes belong to trace.c dllmain.c dllhook.c rpcrt.c file_misc.c sbieapi.c or callsvc.c depending on the transition",
+    "Future header changes must prove caller topology and concrete runtime owner before behavior claims"
+  ],
+  "runtime_gate": "Windows SboxDll build continues to compile trace.h and wire trace callers to trace.c; trace runtime behavior remains covered by existing and future concrete-owner SREV Windows gates."
+}

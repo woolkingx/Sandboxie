@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-182-driver-hook-header-guard-boundary.schema.json",
+  "title": "SREV-182 Driver hook header guard boundary",
+  "id": "DRIVER_HOOK_HEADER_GUARD_BOUNDARY",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/drv/hook.h"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 7
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 2
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/drv/hook.h",
+  "contracts": [
+    "drv/hook.h owns driver-side hook declarations",
+    "dll/hook.h owns shared trampoline and instruction-analysis declarations",
+    "drv/hook.h has a driver-owned include guard independent from dll/hook.h",
+    "drv/hook.h may include dll/hook.h for shared types but must not rely on dll/hook.h to define the driver guard",
+    "including dll/hook.h before drv/hook.h must not suppress driver-only prototypes",
+    "driver-only prototypes remain Hook_GetService Hook_GetNtServiceInternal Hook_GetZwServiceInternal and Hook_Api_Tramp",
+    "this SREV does not change hook implementation syscall service lookup trampoline layout or instruction decoding"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/cpp/cpp/header-files-cpp?view=msvc-170",
+    "https://learn.microsoft.com/en-us/cpp/preprocessor/once?view=msvc-170"
+  ],
+  "runtime_gate": "Windows driver build proving hook-related driver translation units still compile and hook lookup smoke proving service index and Zw/Nt service resolution behavior is unchanged"
+}

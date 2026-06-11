@@ -72,6 +72,25 @@ typedef struct _BLOCKED_DLL {
 
 } BLOCKED_DLL;
 
+typedef enum _FILE_FONT_TOKEN_MODE {
+
+    FileFontTokenMode_Off,
+    FileFontTokenMode_Scoped,
+    FileFontTokenMode_Legacy
+
+} FILE_FONT_TOKEN_MODE;
+
+typedef struct _FILE_FONT_TOKEN_SWAP {
+
+    ACCESS_STATE *AccessState;
+    PACCESS_TOKEN OldClientToken;
+    PACCESS_TOKEN OldPrimaryToken;
+    SECURITY_IMPERSONATION_LEVEL OldImpersonationLevel;
+    PACCESS_TOKEN ReferencedToken;
+    BOOLEAN Changed;
+
+} FILE_FONT_TOKEN_SWAP;
+
 
 
 //---------------------------------------------------------------------------
@@ -99,9 +118,11 @@ static NTSTATUS File_Generic_MyParseProc(
 static NTSTATUS File_CreatePagingFile(
     PROCESS *proc, SYSCALL_ENTRY *syscall_entry, ULONG_PTR *user_args);
 
-static void File_ReplaceTokenIfFontRequest(
+static FILE_FONT_TOKEN_SWAP *File_ReplaceTokenIfFontRequest(
     ACCESS_STATE *AccessState,
     PDEVICE_OBJECT DeviceObject, UNICODE_STRING *FileName, BOOLEAN* pbSetDirty);
+
+static void File_RestoreTokenIfFontRequest(FILE_FONT_TOKEN_SWAP *Swap);
 
 static NTSTATUS File_Api_SetShortName2(
     PROCESS *proc, OBJECT_ATTRIBUTES *objattrs,
@@ -1781,7 +1802,35 @@ _FX NTSTATUS File_CreatePagingFile(
 //---------------------------------------------------------------------------
 
 
-_FX void File_ReplaceTokenIfFontRequest(
+static FILE_FONT_TOKEN_MODE File_GetFontTokenMode(PROCESS *proc)
+{
+    FILE_FONT_TOKEN_MODE mode = FileFontTokenMode_Scoped;
+    const WCHAR *value;
+
+    if (!proc || !proc->box)
+        return mode;
+
+    Conf_AdjustUseCount(TRUE);
+
+    value = Conf_Get(proc->box->name, L"FontTokenMode", 0);
+    if (value) {
+
+        if (_wcsicmp(value, L"legacy") == 0)
+            mode = FileFontTokenMode_Legacy;
+        else if (_wcsicmp(value, L"off") == 0 ||
+                 _wcsicmp(value, L"strict") == 0)
+            mode = FileFontTokenMode_Off;
+        else
+            mode = FileFontTokenMode_Scoped;
+    }
+
+    Conf_AdjustUseCount(FALSE);
+
+    return mode;
+}
+
+
+_FX FILE_FONT_TOKEN_SWAP *File_ReplaceTokenIfFontRequest(
     ACCESS_STATE *AccessState,
     PDEVICE_OBJECT DeviceObject, UNICODE_STRING *FileName, BOOLEAN* pbSetDirty)
 {
@@ -1799,11 +1848,15 @@ _FX void File_ReplaceTokenIfFontRequest(
     // we use font creation helper hooks, win32k!bCreateSection can still
     // execute at any random time.
     //
-    // to work around this, we check if a kernel mode caller is running
-    // in the context of a non-impersonated thread, which belongs to a
-    // process in the sandbox, and if this is read-only access to a font
-    // file.  if true, we replace the PrimaryToken in the ACCESS_STATE
-    // structure for the call, to make sure the request is successful.
+    // SREV-022: this compatibility path handles delayed kernel-mode font
+    // opens from win32k for a sandboxed process. When the caller is not
+    // impersonating, and the request is limited to read/execute font access,
+    // the path substitutes the sandbox process's saved original token into the
+    // subject context for this access check.
+    //
+    // ACCESS_STATE and SECURITY_SUBJECT_CONTEXT fields are system-owned DDI
+    // internals, so this remains a runtime-gated compatibility path rather
+    // than a supported ownership contract.
     //
     // (note that win32k!bCreateSection uses DesiredAccess = 0x001200A9)
     //
@@ -1812,29 +1865,35 @@ _FX void File_ReplaceTokenIfFontRequest(
                                | FILE_READ_ATTRIBUTES | FILE_EXECUTE
                                | FILE_READ_EA | FILE_READ_DATA;
     PROCESS *proc;
+    FILE_FONT_TOKEN_MODE mode;
+    FILE_FONT_TOKEN_SWAP *Swap = NULL;
     WCHAR *ptr;
     ULONG len, i;
 
     if (AccessState->SubjectSecurityContext.ClientToken)
-        return;                                 // if active impersonation
+        return NULL;                            // if active impersonation
 
     if (AccessState->OriginalDesiredAccess & (~_DesiredAccess))
-        return;                                 // if not specific rights
+        return NULL;                            // if not specific rights
 
     proc = Process_Find(PsGetCurrentProcessId(), NULL);
     if (! proc)
-        return;                                 // if not sandboxed
+        return NULL;                            // if not sandboxed
     if (! proc->primary_token)
-        return;                                 // if not restricted token
+        return NULL;                            // if not restricted token
+
+    mode = File_GetFontTokenMode(proc);
+    if (mode == FileFontTokenMode_Off)
+        return NULL;                            // if unsupported fallback disabled
 
     //
     // check if the path references the Fonts folder
     //
 
     if (! FileName)
-        return;
+        return NULL;
     if (! FileName->Buffer)
-        return;
+        return NULL;
 
     ptr = FileName->Buffer;
     len = FileName->Length / sizeof(WCHAR);
@@ -1875,16 +1934,35 @@ _FX void File_ReplaceTokenIfFontRequest(
         }
 
         if (! IsBoxedPath)
-            return;
+            return NULL;
     }
 
     //
-    // Using impersonation token in ClientToken if it is available
-    // Replacing the primary token caused BSOD with Digital Guardian when dereferencing the token
+    // SREV-022: default to a scoped compatibility fallback. The normal path
+    // remains no subject-context rewrite; once the exact font gates require
+    // the fallback, keep an owner-local swap record so minifilter post-create
+    // or the XP parse-proc wrapper can restore and dereference it. Explicit
+    // FontTokenMode=legacy keeps the old unscoped behavior as a regression
+    // escape hatch.
     //
-    
-    // $Workaround$ - 3rd party fix
-    ObReferenceObject(proc->primary_token); // HACK ALERT! this causes a resource leak!!!
+
+    if (mode == FileFontTokenMode_Scoped) {
+
+        Swap = Mem_Alloc(Driver_Pool, sizeof(FILE_FONT_TOKEN_SWAP));
+        if (!Swap)
+            return NULL;
+
+        memzero(Swap, sizeof(FILE_FONT_TOKEN_SWAP));
+        Swap->AccessState = AccessState;
+        Swap->OldClientToken = AccessState->SubjectSecurityContext.ClientToken;
+        Swap->OldPrimaryToken = AccessState->SubjectSecurityContext.PrimaryToken;
+        Swap->OldImpersonationLevel =
+            AccessState->SubjectSecurityContext.ImpersonationLevel;
+        Swap->ReferencedToken = proc->primary_token;
+        Swap->Changed = TRUE;
+    }
+
+    ObReferenceObject(proc->primary_token);
 
     if (!AccessState->SubjectSecurityContext.ClientToken)
     {
@@ -1901,12 +1979,56 @@ _FX void File_ReplaceTokenIfFontRequest(
     }
 
     *pbSetDirty = TRUE;
+
+    return Swap;
+}
+
+
+//---------------------------------------------------------------------------
+// File_RestoreTokenIfFontRequest
+//---------------------------------------------------------------------------
+
+
+_FX void File_RestoreTokenIfFontRequest(FILE_FONT_TOKEN_SWAP *Swap)
+{
+    if (!Swap)
+        return;
+
+    if (Swap->Changed && Swap->AccessState) {
+
+        Swap->AccessState->SubjectSecurityContext.ClientToken =
+            Swap->OldClientToken;
+        Swap->AccessState->SubjectSecurityContext.PrimaryToken =
+            Swap->OldPrimaryToken;
+        Swap->AccessState->SubjectSecurityContext.ImpersonationLevel =
+            Swap->OldImpersonationLevel;
+    }
+
+    if (Swap->ReferencedToken)
+        ObDereferenceObject(Swap->ReferencedToken);
+
+    Mem_Free(Swap, sizeof(FILE_FONT_TOKEN_SWAP));
 }
 
 
 //---------------------------------------------------------------------------
 // File_Api_Rename
 //---------------------------------------------------------------------------
+
+
+static BOOLEAN File_Api_RenameContainsWChar(
+    const WCHAR *text, ULONG byte_len, WCHAR ch)
+{
+    ULONG i;
+    ULONG count = byte_len / sizeof(WCHAR);
+
+    for (i = 0; i < count; ++i) {
+        if (text[i] == ch)
+            return TRUE;
+    }
+
+    return FALSE;
+}
 
 
 _FX NTSTATUS File_Api_Rename(PROCESS *proc, ULONG64 *parms)
@@ -1948,8 +2070,10 @@ _FX NTSTATUS File_Api_Rename(PROCESS *proc, ULONG64 *parms)
     ProbeForRead(user_uni, sizeof(UNICODE_STRING64), sizeof(ULONG64));
 
     user_dir = (WCHAR *)user_uni->Buffer;
-    user_dir_len = user_uni->Length & ~1;
-    if ((! user_dir) || (! user_dir_len) || (user_dir_len > 32000))
+    user_dir_len = user_uni->Length;
+    if ((! user_dir) || (! user_dir_len) || (user_dir_len > 32000) ||
+        (user_dir_len & (sizeof(WCHAR) - 1)) ||
+        (user_uni->MaximumLength < user_dir_len))
         return STATUS_INVALID_PARAMETER;
     ProbeForRead(user_dir, user_dir_len, sizeof(WCHAR));
 
@@ -1959,8 +2083,10 @@ _FX NTSTATUS File_Api_Rename(PROCESS *proc, ULONG64 *parms)
     ProbeForRead(user_uni, sizeof(UNICODE_STRING64), sizeof(ULONG64));
 
     user_name = (WCHAR *)user_uni->Buffer;
-    user_name_len = user_uni->Length & ~1;
-    if ((! user_name) || (! user_name_len) || (user_name_len > 32000))
+    user_name_len = user_uni->Length;
+    if ((! user_name) || (! user_name_len) || (user_name_len > 32000) ||
+        (user_name_len & (sizeof(WCHAR) - 1)) ||
+        (user_uni->MaximumLength < user_name_len))
         return STATUS_INVALID_PARAMETER;
     ProbeForRead(user_name, user_name_len, sizeof(WCHAR));
 
@@ -1975,12 +2101,20 @@ _FX NTSTATUS File_Api_Rename(PROCESS *proc, ULONG64 *parms)
     memzero(path, path_len);
 
     memcpy(path, user_dir, user_dir_len);
-    name = path + wcslen(path);
+    if (File_Api_RenameContainsWChar(path, user_dir_len, L'\0')) {
+        Mem_Free(path, path_len);
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    name = path + (user_dir_len / sizeof(WCHAR));
     *name = L'\\';
     memcpy(&name[1], user_name, user_name_len);
 
-    if (wcschr(&name[1], L'\\'))
+    if (File_Api_RenameContainsWChar(&name[1], user_name_len, L'\0') ||
+        File_Api_RenameContainsWChar(&name[1], user_name_len, L'\\')) {
+        Mem_Free(path, path_len);
         return STATUS_INVALID_PARAMETER;
+    }
 
     //
     // check if the full target path is an open path, and stop if not
@@ -2112,9 +2246,9 @@ _FX NTSTATUS File_Api_Rename(PROCESS *proc, ULONG64 *parms)
 			ObDereferenceObject(object);
 		}
 
-        // FIXME, we may get STATUS_NOT_SAME_DEVICE, however, in most cases,
-        // this API call is used to rename a file inside a folder, rather
-        // than move files across folders, so that isn't a problem
+        // SREV-275: FileRenameInformation is an NT same-volume rename.
+        // Preserve STATUS_NOT_SAME_DEVICE so callers that own copy/delete
+        // fallback can decide whether to move across volumes.
 
         Mem_Free(info, info_len);
     }
@@ -2187,14 +2321,8 @@ _FX NTSTATUS File_Api_GetName(PROCESS *proc, ULONG64 *parms)
 
             type_buf = args->type_buf.val;
             if (type_buf) {
-
-                len = objectType->Name.Length + sizeof(WCHAR);
-
-                ProbeForWrite(type_buf, len, sizeof(WCHAR));
-
-                memcpy(type_buf, objectType->Name.Buffer, objectType->Name.Length);
-                type_buf += objectType->Name.Length / sizeof(wchar_t);
-                *type_buf = L'\0';
+                status = STATUS_INVALID_PARAMETER;
+                __leave;
             }
 
             name_buf = args->name_buf.val;

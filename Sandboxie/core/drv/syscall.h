@@ -35,6 +35,11 @@
 #define OBJ_OP_CREATE       1
 #define OBJ_OP_OPEN         2 // or duplicate
 
+#define SYSCALL_NAME_SLOT_ULONGS   16
+#define SYSCALL_NAME_SLOT_BYTES    (SYSCALL_NAME_SLOT_ULONGS * sizeof(ULONG))
+#define SYSCALL_NAME_MAX_CHARS     (SYSCALL_NAME_SLOT_BYTES - 1)
+#define SYSCALL_NAME_LOG_CHARS     (SYSCALL_NAME_SLOT_BYTES + 2)
+
 
 //---------------------------------------------------------------------------
 // Structures and Types

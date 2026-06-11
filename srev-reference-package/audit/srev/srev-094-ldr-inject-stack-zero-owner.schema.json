@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-094-ldr-inject-stack-zero-owner.schema.json",
+  "title": "SREV-094 Ldr inject stack-zero owner",
+  "id": "LDR_INJECT_STACK_ZERO_OWNER",
+  "owner": "Sandboxie/core/dll/util_32.asm; Sandboxie/core/dll/util_64.asm",
+  "type": "object",
+  "properties": {
+    "entry_stub": {
+      "type": "string",
+      "description": "Architecture-specific Ldr_Inject_Entry asm stub"
+    },
+    "entry_restore": {
+      "type": "string",
+      "description": "Ldr_Inject_Entry restore of original entrypoint bytes"
+    },
+    "stack_zero_range": {
+      "type": "string",
+      "description": "0x200-byte F-Secure compatibility zero range"
+    },
+    "stack_owner": {
+      "type": "string",
+      "description": "ESP/RSP allocation before writing stack memory"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows x86/x64 launch and third-party compatibility proof"
+    }
+  },
+  "required": [
+    "entry_stub",
+    "entry_restore",
+    "stack_zero_range",
+    "stack_owner",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Ldr_Inject_Entry restores original entrypoint bytes and returns the original entrypoint address",
+    "the asm entry stub may clear the 0x200-byte former injection frame for F-Secure compatibility",
+    "the stack-zero operation must first allocate that 0x200-byte range by moving ESP/RSP",
+    "the stack-zero operation must restore ESP/RSP before returning or jumping to the original entrypoint",
+    "the x86 stub keeps the stdcall-style return to the restored entrypoint path",
+    "the x64 stub keeps the existing jump-to-returned-entrypoint path",
+    "this SREV does not change the patched entrypoint bytes or the F-Secure compatibility policy"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/cpp/build/stack-usage",
+    "https://learn.microsoft.com/en-us/cpp/build/x64-calling-convention",
+    "https://learn.microsoft.com/en-us/cpp/build/prolog-and-epilog",
+    "https://learn.microsoft.com/en-us/cpp/cpp/argument-passing-and-naming-conventions",
+    "https://learn.microsoft.com/en-us/cpp/cpp/stdcall",
+    "https://learn.microsoft.com/en-us/cpp/cpp/naked-function-calls",
+    "https://learn.microsoft.com/en-us/cpp/cpp/rules-and-limitations-for-naked-functions"
+  ]
+}

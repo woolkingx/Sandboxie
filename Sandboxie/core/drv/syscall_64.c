@@ -401,7 +401,8 @@ _FX void *Syscall_GetMasterServiceTable(void)
         if (ofs32a >= 0x400000 || ofs32b >= 0x400000)
             return NULL;
 
-        // This code block is broken by KB4056892 (for Win 7-64 so far). This is the Intel Meltdown bug
+        // Historical spacing check disabled: KVA Shadow / KB4056892 changed
+        // x64 kernel-entry layout enough that this private invariant is not legal.
         //if (        (ofs32a - ofs32b != 0x40 && ofs32b - ofs32a != 0x40)
         //         && (ofs32a - ofs32b != 0xC0 && ofs32b - ofs32a != 0xC0))
         //    return NULL;
@@ -529,7 +530,8 @@ _FX void *Syscall_GetMasterServiceTableFilter(void)
 
     //TableFilter lookup for windows 11 on arm64
 
-	// TODO
+	// ARM64 filter-table lookup remains fail-closed until a version-gated
+	// KeAddSystemServiceTable pattern is proven on real Windows ARM64 builds.
 
 #else
 

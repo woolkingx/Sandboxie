@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "SBIEINI_TOKEN_ADMIN_MEMBERSHIP_HANDLE",
+  "type": "object",
+  "required": [
+    "owner",
+    "data",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/svc/sbieiniserver.h"
+    },
+    "data": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "SbieIniServer::TokenIsAdmin"
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "TokenIsAdmin must evaluate the supplied hToken instead of the service thread effective token"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 4
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-checktokenmembership",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winnt/ne-winnt-token_type",
+    "https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-duplicatetoken",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winnt/ne-winnt-token_elevation_type"
+  ],
+  "contracts": [
+    "sbieiniserver.h owns the exported service helper contract for TokenIsAdmin",
+    "TokenIsAdmin must evaluate the supplied hToken instead of the service thread effective token",
+    "primary tokens must be converted to an impersonation token before CheckTokenMembership",
+    "duplicate tokens created for membership checking must be closed",
+    "TokenElevationType remains queried from the original supplied token",
+    "PipeServer::IsCallerAdmin must open caller process tokens with TOKEN_QUERY and TOKEN_DUPLICATE",
+    "Linux source gate is not Windows service-token runtime proof"
+  ],
+  "owner": "Sandboxie/core/svc/sbieiniserver.h",
+  "data": [
+    "Sandboxie/core/svc/sbieiniserver.h",
+    "Sandboxie/core/svc/sbieiniserver.cpp",
+    "Sandboxie/core/svc/PipeServer.cpp",
+    "SbieIniServer::TokenIsAdmin",
+    "PipeServer::IsCallerAdmin",
+    "HANDLE hToken",
+    "CheckTokenMembership",
+    "GetTokenInformation",
+    "TOKEN_TYPE",
+    "TokenPrimary",
+    "TokenImpersonation",
+    "DuplicateToken",
+    "SecurityIdentification",
+    "TOKEN_DUPLICATE",
+    "TOKEN_QUERY",
+    "TokenElevationType"
+  ],
+  "runtime_gate": "Windows SbieSvc build, PipeServer IsCallerAdmin non-admin limited-admin full-admin smoke, INI EditAdminOnly impersonation smoke, quick UAC token path smoke, and service-account membership isolation regression"
+}

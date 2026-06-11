@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-084-dde-proxy-ack-lparam.schema.json",
+  "title": "SREV-084 DDE proxy ACK lParam forwarding",
+  "id": "DDE_PROXY_ACK_LPARAM_FORWARDING",
+  "owner": "Sandboxie/core/dll/guidde.c and Sandboxie/core/svc/GuiServer.cpp",
+  "type": "object",
+  "properties": {
+    "client": {
+      "type": "string",
+      "description": "External DDE client window"
+    },
+    "proxy": {
+      "type": "string",
+      "description": "SbieSvc DDE proxy window"
+    },
+    "server": {
+      "type": "string",
+      "description": "Sandboxed DDE server window"
+    },
+    "ack_lparam": {
+      "type": "string",
+      "description": "Packed lParam carried by the received server WM_DDE_ACK"
+    },
+    "forwarding": {
+      "type": "string",
+      "description": "Proxy forwarding of the received ACK payload"
+    }
+  },
+  "required": [
+    "client",
+    "proxy",
+    "server",
+    "ack_lparam",
+    "forwarding"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "the DDE proxy is a transport boundary, not the owner of ACK semantics",
+    "a received server WM_DDE_ACK carries its own official lParam shape",
+    "the proxy forwards the received ACK lParam unchanged to the real client",
+    "the proxy must not reuse the previous client EXECUTE/REQUEST lParam as ACK lParam",
+    "WM_COPYDATA bridge payloads are copied before later DDE posting"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/about-dynamic-data-exchange",
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/wm-dde-ack",
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/wm-dde-execute",
+    "https://learn.microsoft.com/en-us/windows/win32/api/dde/nf-dde-packddelparam",
+    "https://learn.microsoft.com/en-us/windows/win32/api/dde/nf-dde-unpackddelparam",
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/wm-copydata"
+  ]
+}

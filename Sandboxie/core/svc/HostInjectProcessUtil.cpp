@@ -43,6 +43,43 @@ using namespace std;
 
 set<wstring>        g_setSvcNames;
 
+
+BOOL WaitForServiceState(SC_HANDLE hService, DWORD dwDesiredState, DWORD dwTimeout)
+{
+    DWORD dwElapsed = 0;
+
+    while (dwElapsed <= dwTimeout)
+    {
+        SERVICE_STATUS_PROCESS stServiceStatus;
+        DWORD dwBytesNeeded = 0;
+        BOOL res = QueryServiceStatusEx(hService, SC_STATUS_PROCESS_INFO, (LPBYTE)&stServiceStatus,
+            sizeof(stServiceStatus), &dwBytesNeeded);
+        if (!res)
+            return FALSE;
+
+        if (stServiceStatus.dwCurrentState == dwDesiredState)
+            return TRUE;
+
+        DWORD dwWait = stServiceStatus.dwWaitHint / 10;
+        if (dwWait < 100)
+            dwWait = 100;
+        else if (dwWait > 1000)
+            dwWait = 1000;
+
+        if (dwElapsed + dwWait > dwTimeout)
+            dwWait = dwTimeout - dwElapsed;
+
+        if (!dwWait)
+            break;
+
+        Sleep(dwWait);
+        dwElapsed += dwWait;
+    }
+
+    return FALSE;
+}
+
+
 // build a map of all services that are HosInjectProcess'es
 
 void BuildSvcSet()
@@ -110,6 +147,7 @@ void RestartService(SC_HANDLE hScm, WCHAR *wszServiceName)
 {
     SC_HANDLE hService;
     BOOL res;
+    BOOL canStart = TRUE;
 
     hService = OpenService(hScm, wszServiceName, SERVICE_ALL_ACCESS);
     res = GetLastError();
@@ -117,7 +155,21 @@ void RestartService(SC_HANDLE hScm, WCHAR *wszServiceName)
     {
         SERVICE_STATUS stServiceStatus;
         res = ControlService(hService, SERVICE_CONTROL_STOP, &stServiceStatus);
-        res = StartServiceW(hService, 0, NULL);
+        if (res)
+            canStart = WaitForServiceState(hService, SERVICE_STOPPED, 30000);
+        else
+        {
+            DWORD dwError = GetLastError();
+            if (dwError == ERROR_SERVICE_NOT_ACTIVE)
+                canStart = TRUE;
+            else if (dwError == ERROR_SERVICE_CANNOT_ACCEPT_CTRL)
+                canStart = WaitForServiceState(hService, SERVICE_STOPPED, 30000);
+            else
+                canStart = FALSE;
+        }
+
+        if (canStart)
+            res = StartServiceW(hService, 0, NULL);
         CloseServiceHandle(hService);
     }
 }
@@ -168,6 +220,5 @@ void RestartHostInjectedSvcs()
     }
 
     CloseServiceHandle(hScm);
-    delete pProcBuf;
+    delete[] pProcBuf;
 }
-

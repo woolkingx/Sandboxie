@@ -499,23 +499,12 @@ _FX BOOLEAN Key_ShouldNotMerge(const WCHAR *TruePath, const WCHAR *CopyPath)
     BOOLEAN hklm;
 
     //
-    // hack:  there can be a large number of subkeys below the registry key
-    //      HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\
-    //                                  Internet Settings\ZoneMap\Domains
-    //
-    // these are typically created by the Immunize feature of SpyBot S&D
-    // and cause the SHLWAPI!ZoneCheckUrlEx function to take a long time
-    // to enumerate all these keys because all those registry keys have
-    // to be merged every time they are used.
-    //
-    // to work around this problem, we check just once if the Domains key
-    // exists in the sandbox, in the normal case it does not and then we
-    // can short-circuit the merge process.
-    //
-    // we use SbieSvc to check if the key exists because in the case of
-    // Adobe Reader X, the NtOpenKey function in OpenForMerge is hooked
-    // and sent to the Adobe Reader broker process and will succeed even
-    // if there is no sandboxed registry key.
+    // SREV-310: ZoneMap\Domains merge short-circuit. This path avoids
+    // repeatedly materializing a very large true-host Domains subtree
+    // when the sandbox has no copy key to merge. SbieSvc owns the box-key
+    // existence probe because in-process NtOpenKey may be brokered by
+    // applications such as Adobe Reader X. Probe failure must preserve
+    // normal merge behavior instead of treating absence as proven.
     //
 
     ptr = TruePath;
@@ -551,10 +540,12 @@ _FX BOOLEAN Key_ShouldNotMerge(const WCHAR *TruePath, const WCHAR *CopyPath)
         req_len = sizeof(FILE_CHECK_KEY_EXISTS_REQ)
                 + path_len * sizeof(WCHAR);
         req = Dll_AllocTemp(req_len);
+        if (! req)
+            return FALSE;
 
         req->h.length = req_len;
         req->h.msgid = MSGID_FILE_CHECK_KEY_EXISTS;
-        req->KeyPath_len = path_len;
+        req->KeyPath_len = path_len * sizeof(WCHAR);
         wmemcpy(req->KeyPath, Dll_BoxKeyPath, Dll_BoxKeyPathLen);
         ptr = req->KeyPath + Dll_BoxKeyPathLen;
         if (hklm) {
@@ -721,6 +712,8 @@ _FX NTSTATUS Key_MergeCacheDummys(KEY_MERGE *merge, const WCHAR *TruePath)
     ULONG len;
     KEY_MERGE_SUBKEY *subkey, *subkey2;
     NTSTATUS status;
+    KEY_BASIC_INFORMATION info;
+    ULONG info_len;
 
     //
     // create a dummy key
@@ -773,6 +766,10 @@ _FX NTSTATUS Key_MergeCacheDummys(KEY_MERGE *merge, const WCHAR *TruePath)
 
                 if (NT_SUCCESS(status)) {
 
+                    status = __sys_NtQueryKey(
+                        KeyHandle, KeyBasicInformation,
+                        &info, sizeof(KEY_BASIC_INFORMATION), &info_len);
+
                     File_NtCloseImpl(KeyHandle);
 
                     name_len *= sizeof(WCHAR);
@@ -784,7 +781,10 @@ _FX NTSTATUS Key_MergeCacheDummys(KEY_MERGE *merge, const WCHAR *TruePath)
                     memcpy(subkey->name, ptr, subkey->name_len);
                     subkey->name[subkey->name_len / sizeof(WCHAR)] = L'\0';
 
-                    subkey->LastWriteTime.QuadPart = 0; // todo: fix-me
+                    if (NT_SUCCESS(status) || status == STATUS_BUFFER_OVERFLOW)
+                        subkey->LastWriteTime = info.LastWriteTime;
+                    else
+                        subkey->LastWriteTime.QuadPart = 0;
 
                     subkey->TitleOrClass = FALSE;
 

@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-018-dynamic-rpc-port-policy.schema.json",
+  "title": "SREV-018 dynamic RPC port policy entry shape",
+  "id": "DYNAMIC_RPC_PORT_POLICY_SHAPE",
+  "owner": "Sandboxie/core/drv/ipc.c",
+  "type": "object",
+  "properties": {
+    "rpc_endpoint_shape": {
+      "type": "string",
+      "description": "Dynamic RPC endpoints are endpoint-map entries keyed by interface UUID/version, binding handle, and optional object UUID; RpcEpRegister replaces server address information for matching entries"
+    },
+    "policy_entry_layout": {
+      "type": "string",
+      "description": "IPC_DYNAMIC_PORT carries wstrPortId (policy identity), wstrPortName (current \\RPC Control\\... endpoint name), FilterCount/FilterIDs[] message-id deny list"
+    },
+    "replacement_atomicity": {
+      "type": "string",
+      "description": "Re-registration with the same wstrPortId constructs a full replacement entry from new endpoint name and filter list, verifies the filter payload before taking the global port lock, then atomically swaps the list node under the existing exclusive lock"
+    },
+    "free_invariant": {
+      "type": "string",
+      "description": "The old flexible-array entry is freed with its original allocation size"
+    },
+    "policy_scope_invariant": {
+      "type": "string",
+      "description": "Only SbieSvc can call API_OPEN_DYNAMIC_PORT; sandboxed callers cannot reach the driver API directly; Process_AddPath behavior is unchanged; spooler cache pointer follows the replaced entry"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate: register id with filter A, re-register same id with filter B, verify only filter B is enforced for the current port"
+    }
+  },
+  "required": [
+    "rpc_endpoint_shape",
+    "policy_entry_layout",
+    "replacement_atomicity",
+    "free_invariant",
+    "policy_scope_invariant",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "IPC_DYNAMIC_PORT is immutable after publication",
+    "Re-registration replaces both wstrPortName and FilterIDs[] in one swap",
+    "Old entry is freed using the original allocation size, not the new entry size",
+    "Filter payload is probed/copied before the new entry is published",
+    "API_OPEN_DYNAMIC_PORT remains restricted to SbieSvc"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/rpcdce/nf-rpcdce-rpcepregister",
+    "https://learn.microsoft.com/en-us/windows/win32/rpc/specifying-endpoints",
+    "https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rpce/ff7e452a-8d7e-447f-affc-67dc43cf7a61",
+    "https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rpce/68123428-ebee-4a30-842e-6c9212afe931"
+  ]
+}

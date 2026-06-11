@@ -127,6 +127,7 @@ typedef struct _TERMINAL_GET_PROPERTY_RPL {
 struct tagGET_USER_TOKEN_REQ
 {
     MSG_HEADER h;
+    ULONG session_id;
 };
 
 struct tagGET_USER_TOKEN_RPL

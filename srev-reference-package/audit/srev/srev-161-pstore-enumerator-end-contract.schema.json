@@ -1,0 +1,81 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "PSTORE_ENUMERATOR_END_CONTRACT",
+  "type": "object",
+  "required": [
+    "owner",
+    "data",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/svc/pstoreserver.cpp"
+    },
+    "data": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "Sandboxie/core/dll/pstore.h"
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "Next(1, ..., &fetched) yields exactly one item only when hr == S_OK and fetched == 1"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 5
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/devnotes/ipstore",
+    "https://learn.microsoft.com/en-us/windows/win32/devnotes/ipstore-enumitems",
+    "https://learn.microsoft.com/en-us/windows/win32/devnotes/ipstore-enumsubtypes",
+    "https://learn.microsoft.com/en-us/windows/win32/api/oaidl/nf-oaidl-ienumvariant-next",
+    "https://learn.microsoft.com/en-us/windows/win32/api/bits3_0/nf-bits3_0-ienumbitspeers-next"
+  ],
+  "contracts": [
+    "pstore.h is the ABI/schema evidence for the PStore COM interfaces",
+    "pstoreserver.cpp owns the service-side PStore enumeration broker",
+    "IPStore::EnumTypes IPStore::EnumSubtypes and IPStore::EnumItems produce COM enumerator interfaces",
+    "successful factory calls must produce non-null enumerator interface pointers",
+    "Next(1, ..., &fetched) yields exactly one item only when hr == S_OK and fetched == 1",
+    "S_FALSE local ERROR_NO_MORE_ITEMS or any successful result with fetched == 0 is end-of-enumeration not another item",
+    "end-of-enumeration is normalized to S_OK in the Sandboxie reply after all fetched items have been copied",
+    "unexpected successful Next result with neither one fetched item nor a recognized end shape fails as E_UNEXPECTED",
+    "EnumTypes returns the LONG_REPLY packet pointer not an HRESULT value",
+    "does not change PStore read write policy current-user versus local-machine lookup order wire struct layout prompt suppression or local sandboxed PStore merge behavior",
+    "Linux source gate is not Windows runtime proof"
+  ],
+  "owner": "Sandboxie/core/svc/pstoreserver.cpp",
+  "data": [
+    "Sandboxie/core/dll/pstore.h",
+    "Sandboxie/core/svc/pstorewire.h",
+    "Sandboxie/core/svc/pstoreserver.cpp",
+    "IPStore::EnumTypes",
+    "IPStore::EnumSubtypes",
+    "IPStore::EnumItems",
+    "IEnumPStoreTypes::Next",
+    "IEnumPStoreItems::Next",
+    "PSTORE_ENUM_TYPES_RPL",
+    "PSTORE_ENUM_ITEMS_RPL"
+  ],
+  "runtime_gate": "Windows SbieSvc build, host pstorec.dll enumeration smoke, empty enumeration smoke, and sandboxed credential/PStore merge smoke"
+}

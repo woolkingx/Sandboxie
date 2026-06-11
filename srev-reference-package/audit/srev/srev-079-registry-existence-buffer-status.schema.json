@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-079-registry-existence-buffer-status.schema.json",
+  "title": "SREV-079 Registry existence buffer status contract",
+  "id": "REGISTRY_EXISTENCE_BUFFER_STATUS",
+  "owner": "Sandboxie/core/drv/util.c",
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "Registry key path and value name"
+    },
+    "buffer": {
+      "type": "string",
+      "description": "Initialized non-NULL UNICODE_STRING dummy buffer"
+    },
+    "status": {
+      "type": "string",
+      "description": "RtlQueryRegistryValues direct-query NTSTATUS"
+    },
+    "result": {
+      "type": "string",
+      "description": "Boolean existence projection"
+    }
+  },
+  "required": [
+    "query",
+    "buffer",
+    "status",
+    "result"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "probe supplies an initialized non-NULL UNICODE_STRING buffer",
+    "STATUS_SUCCESS means the value exists and fit the dummy buffer",
+    "STATUS_OBJECT_TYPE_MISMATCH means the value exists but has a different type shape",
+    "STATUS_BUFFER_TOO_SMALL means the value exists but did not fit the dummy buffer",
+    "missing-key and other failure statuses remain false"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtlqueryregistryvalues"
+  ]
+}

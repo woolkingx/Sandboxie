@@ -23,6 +23,7 @@
 
 #include "DriverAssist.h"
 #include <ntsecapi.h>
+#include <strsafe.h>
 #include "common/lsalookupi_ddk.h"
 #include "common/my_Version.h"
 
@@ -155,12 +156,15 @@ bool DriverAssist::GetSandboxieSID(const WCHAR* boxname, UCHAR* pSID, DWORD dwSi
 	WCHAR szUserName[256], szDomainName[256];
 	DWORD dwDomainSize = ARRAYSIZE(szDomainName);
     SID_NAME_USE snu = SidTypeInvalid;
+    HRESULT hr;
 
-    wcscpy(szUserName, SANDBOXIE);
-    if (boxname) {
-        wcscat(szUserName, L"\\");
-        wcscat(szUserName, boxname);
-    }
+    if (boxname)
+        hr = StringCchPrintfW(szUserName, ARRAYSIZE(szUserName), L"%s\\%s", SANDBOXIE, boxname);
+    else
+        hr = StringCchPrintfW(szUserName, ARRAYSIZE(szUserName), L"%s", SANDBOXIE);
+
+    if (FAILED(hr))
+        return false;
 
     if (LookupAccountName(NULL, szUserName, pSID, &dwSidSize, szDomainName, &dwDomainSize, &snu))
         return true;
@@ -171,7 +175,9 @@ bool DriverAssist::GetSandboxieSID(const WCHAR* boxname, UCHAR* pSID, DWORD dwSi
 
     UNICODE_STRING Name;
     RtlInitUnicodeString(&Name, boxname ? boxname : SANDBOXIE);
-    RtlCreateVirtualAccountSid(&Name, SBIE_RID, pSID, &dwSidSize);
+    NTSTATUS status = RtlCreateVirtualAccountSid(&Name, SBIE_RID, pSID, &dwSidSize);
+    if (! NT_SUCCESS(status))
+        return false;
 
     return NT_SUCCESS(AddSidName(pSID, SANDBOXIE, boxname));
 }

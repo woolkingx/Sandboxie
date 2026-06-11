@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-009-session0-token-spec.schema.json",
+  "title": "SREV-009 session-0 CreateProcessAsUser token shape",
+  "id": "SESSION0_PRIMARY_TOKEN_SHAPE",
+  "owner": "Sandboxie/core/svc/ProcessServer.cpp",
+  "type": "object",
+  "properties": {
+    "createprocessasuser_shape": {
+      "type": "string",
+      "description": "CreateProcessAsUserW requires a primary token with TOKEN_QUERY, TOKEN_DUPLICATE, TOKEN_ASSIGN_PRIMARY; the new process runs in the session specified in the token"
+    },
+    "duplicate_token_shape": {
+      "type": "string",
+      "description": "DuplicateToken creates an impersonation token that cannot be used with CreateProcessAsUser; DuplicateTokenEx(TokenPrimary) creates a primary token"
+    },
+    "session0_topology": {
+      "type": "string",
+      "description": "Session-0 path opens SbieSvc's process token into a separate Session0PrimaryTokenHandle owner with TOKEN_ASSIGN_PRIMARY|TOKEN_DUPLICATE|TOKEN_IMPERSONATE|TOKEN_QUERY|STANDARD_RIGHTS_READ, points PrimaryTokenHandle at it, then duplicates a separate ImpersonationTokenHandle for thread impersonation"
+    },
+    "lifetime_invariant": {
+      "type": "string",
+      "description": "The selected PrimaryTokenHandle stays alive until after CreateProcessAsUser; only the local Session0PrimaryTokenHandle is closed before function return"
+    },
+    "failure_topology": {
+      "type": "string",
+      "description": "OpenProcessToken failure is fail-closed and preserves GetLastError"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows session-0 launch smoke proves the child process token/session matches the intended SbieSvc SYSTEM token path"
+    }
+  },
+  "required": [
+    "createprocessasuser_shape",
+    "duplicate_token_shape",
+    "session0_topology",
+    "lifetime_invariant",
+    "failure_topology",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "CreateProcessAsUserW requires a primary token; impersonation tokens are not accepted",
+    "Session-0 path must not close/nul the selected primary token before CreateProcessAsUser",
+    "Local Session0PrimaryTokenHandle owns the temporary SbieSvc primary token",
+    "DuplicateToken(SecurityImpersonation) produces a separate ImpersonationTokenHandle for SetThreadToken",
+    "OpenProcessToken failure preserves GetLastError and fails closed"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessasuserw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-duplicatetoken",
+    "https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-duplicatetokenex",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winnt/ne-winnt-token_type"
+  ]
+}

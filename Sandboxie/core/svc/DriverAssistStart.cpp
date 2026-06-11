@@ -481,27 +481,37 @@ void DriverAssist::InitClipboard()
     // core/drv/gui.c figure out the internal structure
     //
 
-    HANDLE hGlobal1 = GlobalAlloc(GMEM_MOVEABLE, 8 * sizeof(WCHAR));
-    HANDLE hGlobal2 = GlobalAlloc(GMEM_MOVEABLE, 8 * sizeof(WCHAR));
+    const UINT Formats[4] = { 0x111111, 0x222222, 0x333333, 0x444444 };
+    HGLOBAL hGlobal[4] = { NULL, NULL, NULL, NULL };
+    bool globals_ok = true;
 
-    if (hGlobal1 && hGlobal2) {
+    for (int index = 0; index < 4; ++index) {
 
-        WCHAR *pGlobal = (WCHAR *)GlobalLock(hGlobal1);
+        hGlobal[index] = GlobalAlloc(GMEM_MOVEABLE, 8 * sizeof(WCHAR));
+        if (! hGlobal[index]) {
+            globals_ok = false;
+            break;
+        }
+
+        WCHAR *pGlobal = (WCHAR *)GlobalLock(hGlobal[index]);
+        if (! pGlobal) {
+            globals_ok = false;
+            break;
+        }
+
         *pGlobal = L'\0';
-        GlobalUnlock(hGlobal1);
-        pGlobal = (WCHAR *)GlobalLock(hGlobal2);
-        *pGlobal = L'\0';
-        GlobalUnlock(hGlobal2);
+        GlobalUnlock(hGlobal[index]);
+    }
+
+    if (globals_ok) {
 
         for (int retry = 0; retry < 8 * (1000 / 250); ++retry) {
 
             if (OpenClipboard(NULL)) {
 
                 EmptyClipboard();
-                SetClipboardData(0x111111, hGlobal1);
-                SetClipboardData(0x222222, hGlobal1);
-                SetClipboardData(0x333333, hGlobal2);
-                SetClipboardData(0x444444, hGlobal2);
+                for (int index = 0; index < 4; ++index)
+                    SetClipboardData(Formats[index], hGlobal[index]);
 
                 SbieApi_Call(API_GUI_CLIPBOARD, 1, (ULONG_PTR)-1);
 
@@ -515,9 +525,8 @@ void DriverAssist::InitClipboard()
         }
     }
 
-    if (hGlobal1)
-        GlobalFree(hGlobal1);
-
-    if (hGlobal2)
-        GlobalFree(hGlobal2);
+    for (int index = 0; index < 4; ++index) {
+        if (hGlobal[index])
+            GlobalFree(hGlobal[index]);
+    }
 }

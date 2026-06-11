@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-061-gdi-printer-device-name.schema.json",
+  "title": "SREV-061 GDI printer retry device name contract",
+  "id": "GDI_PRINTER_RETRY_DEVICE_NAME",
+  "api": "Gdi_CreateDCW2",
+  "owner": "Sandboxie/core/dll/gdi.c",
+  "type": "object",
+  "properties": {
+    "printer_device_name": {
+      "type": "string",
+      "description": "CreateDCW pwszDevice/lpszDevice value identifying the printer"
+    },
+    "devmode_initialization": {
+      "type": "string",
+      "description": "CreateDCW pdm/lpInitData DEVMODEW pointer"
+    },
+    "spooler_retry": {
+      "type": "string",
+      "description": "OpenPrinter2W and DocumentProperties wake-up path before retrying CreateDCW"
+    }
+  },
+  "required": [
+    "printer_device_name",
+    "devmode_initialization",
+    "spooler_retry"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "CreateDCW pwszDevice is the printer device name for printer DC creation",
+    "CreateDCW pdm is DEVMODE initialization data and is not a printer-name string",
+    "OpenPrinter2W pPrinterName must receive the printer or print-server name",
+    "DocumentProperties pDeviceName must receive the device name",
+    "The WINSPOOL retry path must require lpszDevice before opening the spooler object"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-createdcw",
+    "https://learn.microsoft.com/en-us/windows/win32/printdocs/openprinter2",
+    "https://learn.microsoft.com/en-us/windows/win32/printdocs/documentproperties"
+  ]
+}

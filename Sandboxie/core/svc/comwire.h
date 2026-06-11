@@ -34,6 +34,9 @@
 
 
 #define COM_MAX_UNMARSHAL_BUF_LEN 2048
+#define COM_SLAVE_MAP_SIZE        (PAGE_SIZE * 512)
+#define COM_SLAVE_MAP_HEADER_LEN  (sizeof(ULONG) * 6)
+#define COM_MAX_INVOKE_BUF_LEN    (COM_SLAVE_MAP_SIZE - COM_SLAVE_MAP_HEADER_LEN)
 
 
 //---------------------------------------------------------------------------

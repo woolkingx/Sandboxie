@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "KEY_CREATEPROCESS_SRP_AUTHENTICODE_OWNER",
+  "title": "Key CreateProcess SRP Authenticode owner",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/key.c",
+  "stage": "data -> schema -> topology -> logic -> verify",
+  "source_functions": [
+    "Key_NtQueryValueKey",
+    "Key_NtQueryValueKeyFakeForCreateProcess"
+  ],
+  "contracts": [
+    "Key_NtQueryValueKeyFakeForCreateProcess owns only the CreateProcess-time AuthenticodeEnabled REG_DWORD fake value",
+    "ZwQueryValueKey owns the caller buffer, Length, ResultLength, and KeyValueInformationClass contract",
+    "KEY_VALUE_PARTIAL_INFORMATION requires Type, DataLength, and counted Data bytes",
+    "SRP certificate rules process Authenticode-signed EXE launch and may trigger CRL checks",
+    "SREV-308 changes comments and proof only; no CreateProcess SRP fake-value behavior changes"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwqueryvaluekey",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_key_value_partial_information",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw",
+    "https://learn.microsoft.com/en-us/windows-server/identity/software-restriction-policies/software-restriction-policies-technical-overview",
+    "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/security-policy-settings/system-settings-use-certificate-rules-on-windows-executables-for-software-restriction-policies"
+  ],
+  "local_edges": [
+    "CreateProcess path -> TlsData proc_create_process",
+    "KeyValuePartialInformation gate -> Key_NtQueryValueKeyFakeForCreateProcess",
+    "AuthenticodeEnabled -> synthetic REG_DWORD 0",
+    "non-match -> STATUS_BAD_INITIAL_PC -> normal merge/query path",
+    "AdvApi_EnableDisableSRP -> SaferComputeTokenFromLevel retry mitigation",
+    "Token_Restrict SANDBOX_INERT -> driver-side SRP/AppLocker inhibition"
+  ],
+  "runtime_gate": "Windows process-creation smoke with SRP/AppLocker certificate-rule policy enabled plus SandboxieCrypto/SandboxieRpcSs startup proof before any predicate change",
+  "status": "source-level classified after official ZwQueryValueKey, KEY_VALUE_PARTIAL_INFORMATION, CreateProcessW, and SRP certificate-rule shape; comment-only source clarification, no behavior change"
+}

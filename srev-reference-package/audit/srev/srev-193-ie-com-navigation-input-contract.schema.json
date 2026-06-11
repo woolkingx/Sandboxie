@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "IE_COM_NAVIGATION_INPUT_CONTRACT",
+  "title": "SREV-193 IE COM navigation input contract",
+  "owner": "Sandboxie/core/svc/comserver9_ie.c",
+  "supporting_owners": [
+    "Sandboxie/core/svc/comserver9.c",
+    "Sandboxie/core/svc/SboxSvc.vcxproj"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/previous-versions/aa752133(v=vs.85)",
+    "https://learn.microsoft.com/en-us/previous-versions/aa752134(v=vs.85)",
+    "https://learn.microsoft.com/en-us/previous-versions/windows/desktop/automat/variant-manipulation-functions",
+    "https://learn.microsoft.com/en-us/previous-versions/windows/internet-explorer/ie-developer/platform-apis/ms775030(v=vs.85)",
+    "https://learn.microsoft.com/en-us/windows/win32/api/oleauto/nf-oleauto-sysfreestring"
+  ],
+  "contracts": [
+    "IWebBrowser2::Navigate URL is a required BSTR",
+    "IWebBrowser2::Navigate2 URL is a VARIANT pointer",
+    "local Navigate2 support is VT_BSTR only",
+    "VARIANT vt must be checked before reading bstrVal",
+    "navigation string inputs must be non-NULL before restart",
+    "IUri_GetRawUri output BSTR is caller-owned",
+    "IUri_GetRawUri output is released with SysFreeString",
+    "SboxSvc links OleAut32.lib when SysFreeString is used"
+  ],
+  "type": "object",
+  "required": [
+    "navigate_url",
+    "navigate2_url_variant",
+    "iuri_raw_uri"
+  ],
+  "properties": {
+    "navigate_url": {
+      "type": "string",
+      "minLength": 1
+    },
+    "navigate2_url_variant": {
+      "type": "object",
+      "required": [
+        "vt",
+        "bstrVal"
+      ],
+      "properties": {
+        "vt": {
+          "const": "VT_BSTR"
+        },
+        "bstrVal": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "iuri_raw_uri": {
+      "type": "object",
+      "required": [
+        "owner",
+        "release"
+      ],
+      "properties": {
+        "owner": {
+          "const": "caller"
+        },
+        "release": {
+          "const": "SysFreeString"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

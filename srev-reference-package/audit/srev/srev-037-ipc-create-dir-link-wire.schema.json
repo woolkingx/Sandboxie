@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-037-ipc-create-dir-link-wire.schema.json",
+  "title": "SREV-037 ipc create dir link wire",
+  "id": "IPC_CREATE_DIR_OR_LINK_COUNTED_STRING",
+  "owner": "Sandboxie/core/drv/ipc.c",
+  "type": "object",
+  "properties": {
+    "audit_contract": {
+      "type": "string",
+      "description": "API: Ipc_Api_CreateDirOrLink / API_CREATE_DIR_OR_LINK | wire: {\"request\": \"API_CREATE_DIR_OR_LINK_ARGS\", \"fields\": [{\"name\": \"objname\", \"type\": \"UNICODE_STRING64*\", \"unit\": \"bytes\", \"required\": true, \"nul_terminated\": false}, {\"name\": \"target\", \"type\": \"UNICODE_STRING64*\", \"unit\": \"bytes\", \"required\": false, \"nul_terminated\": false}]}"
+    },
+    "validation_invariants": {
+      "type": "string",
+      "description": "All contracts listed in the contracts metadata must hold before any data is trusted past the validation boundary"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate proves contracts hold under normal and malformed inputs"
+    }
+  },
+  "required": [
+    "audit_contract",
+    "validation_invariants",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "UNICODE_STRING64.Length is a byte count and must be aligned to sizeof(WCHAR)",
+    "UNICODE_STRING64.Length must be at least one WCHAR, < 2048 bytes, and <= MaximumLength",
+    "objname and target are counted strings; embedded NUL is invalid before RtlInitUnicodeString",
+    "objname must be boxed before creating the directory or symbolic link object, except for the same-box BNOLINKS bootstrap auxiliary subtree",
+    "target must be boxed before creating a symbolic link object, except for the same-box BNOLINKS bootstrap auxiliary subtree",
+    "a successful directory or symbolic link handle is either stored in Ipc_ObjDirs or closed before return"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/ntdef/ns-ntdef-_unicode_string",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtlinitunicodestring",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwcreatedirectoryobject",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-iocreatesymboliclink"
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-088-dll-digitalguardian-module-flag.schema.json",
+  "title": "SREV-088 DLL Digital Guardian module flag",
+  "id": "DLL_DIGITALGUARDIAN_MODULE_FLAG",
+  "owner": "Sandboxie/core/dll/dll.h",
+  "type": "object",
+  "properties": {
+    "module_presence": {
+      "type": "string",
+      "description": "Loaded-module presence evidence from GetModuleHandleA"
+    },
+    "module_handle": {
+      "type": "string",
+      "description": "HMODULE value that does not own a reference count"
+    },
+    "loader_consumer": {
+      "type": "string",
+      "description": "DigitalGuardian_Init loader initialization consumer"
+    },
+    "policy_consumer": {
+      "type": "string",
+      "description": "File policy compatibility consumer"
+    }
+  },
+  "required": [
+    "module_presence",
+    "module_handle",
+    "loader_consumer",
+    "policy_consumer"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Dll_DigitalGuardian is loaded-module presence evidence, not module ownership",
+    "the value is populated from GetModuleHandleA in dllmain.c",
+    "the value must not be used as a FreeLibrary-owned reference",
+    "DigitalGuardian_Init remains the loader-owned initialization consumer",
+    "file.c remains the file-policy compatibility consumer",
+    "dll.h documents the shared data role rather than an anonymous workaround"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulehandlea",
+    "https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulehandleexa"
+  ]
+}

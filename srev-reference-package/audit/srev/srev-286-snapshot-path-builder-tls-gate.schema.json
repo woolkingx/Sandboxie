@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "SNAPSHOT_PATH_BUILDER_TLS_GATE",
+  "title": "Snapshot path builder TLS gate",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/file_snapshots.c",
+  "stage": "schema -> boundary -> topology -> logic -> action -> verify",
+  "source_function": "File_MakeSnapshotPath",
+  "contracts": [
+    "File_MakeSnapshotPath owns snapshot path assembly into TMPL_NAME_BUFFER",
+    "Dll_GetTlsNameBuffer output must be checked before wcsncpy or wcscpy writes into it",
+    "Cur_Snapshot null and missing boxed prefix remain fail-closed builder inputs",
+    "Callers may use the snapshot path only after the builder returns non-null",
+    "SREV-196 owns the local TLS name-buffer allocation failure contract",
+    "SREV-060 owns snapshot relocation copy-path conversion before this builder",
+    "this SREV does not change snapshot traversal relocation policy prefix selection or File_Delete_v2 behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/strcpy-wcscpy-mbscpy?view=msvc-170",
+    "https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/strncpy-strncpy-l-wcsncpy-wcsncpy-l-mbsncpy-mbsncpy-l?view=msvc-170"
+  ],
+  "local_edges": [
+    "File_GetPathFlagsEx -> File_MakeSnapshotPath",
+    "File_FindSnapshotPath -> File_MakeSnapshotPath",
+    "File_MakeSnapshotPath -> File_FindBoxPrefix",
+    "File_MakeSnapshotPath -> Dll_GetTlsNameBuffer(TMPL_NAME_BUFFER)",
+    "non-null TmplName -> wcsncpy/wcscpy snapshot path assembly",
+    "non-null TmplName -> caller RtlInitUnicodeString and File_GetFileType"
+  ],
+  "runtime_gate": "Windows snapshot matrix with active snapshot chain boxed copy path parent-snapshot hit prefix miss TMPL_NAME_BUFFER allocation failure injection relocation refresh and File_Delete_v2 true false",
+  "status": "patched-source-level-after-srev-196-tls-buffer-and-official-wide-string-review-needs-windows-runtime"
+}

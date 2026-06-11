@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "FILE_FLT_KASPERSKY_SWMON_SENTINEL",
+  "title": "File filter Kaspersky swmon sentinel",
+  "type": "object",
+  "owner": "Sandboxie/core/drv/file_flt.c",
+  "stage": "schema -> topology -> verify",
+  "source_functions": [
+    "File_CheckFileObject",
+    "Syscall_OpenHandle"
+  ],
+  "contracts": [
+    "File_CheckFileObject owns only the early x64 pre-SbieDll-loaded swmon_*_kl1 sentinel",
+    "The swmon sentinel preserves later SbieDll NtSetInformationThread topology and does not own NtSetInformationThread semantics",
+    "STATUS_BAD_INITIAL_PC remains the local non-canceling sentinel consumed by Syscall_OpenHandle",
+    "The name predicate remains scoped to a component prefix \\swmon_ and suffix _kl1",
+    "SREV-329 owns the adjacent SbieDll NtSetInformationThread pass-through guard",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddk/nf-ntddk-zwsetinformationthread",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-queueuserapc",
+    "https://learn.microsoft.com/en-us/windows/win32/winprog64/running-32-bit-applications",
+    "https://learn.microsoft.com/en-us/windows/win32/winprog64/wow64-implementation-details"
+  ],
+  "local_edges": [
+    "File_CheckFileObject -> _WIN64 -> !proc->sbiedll_loaded -> swmon_*_kl1 predicate -> STATUS_BAD_INITIAL_PC",
+    "STATUS_BAD_INITIAL_PC -> Syscall_OpenHandle non-canceling sentinel handling",
+    "SREV-329 -> SbieDll NtSetInformationThread pass-through guard -> Gui_ConnectToWindowStationAndDesktop change-notify-token path"
+  ],
+  "runtime_gate": "Windows Kaspersky/WOW64 matrix for pre/post SbieDll load, matching and non-matching swmon_*_kl1 names, Syscall_OpenHandle sentinel handling, and SREV-329 change-notify-token regression",
+  "status": "patched-comment-topology-after-official-apc-wow64-ntsetinformationthread-review-no-behavior-change"
+}

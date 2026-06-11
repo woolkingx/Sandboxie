@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-017-breakout-command-line-spec.schema.json",
+  "title": "SREV-017 breakout command-line argument shape",
+  "id": "BREAKOUT_COMMAND_LINE_SHAPE",
+  "owner": "Sandboxie/core/dll/proc.c",
+  "type": "object",
+  "properties": {
+    "createprocess_shape": {
+      "type": "string",
+      "description": "CreateProcessW lpCommandLine is mutable Unicode up to 32,767 characters including terminator; argv splitting (CommandLineToArgvW, MSVC CRT) does not bound individual argument length"
+    },
+    "scratch_buffer_shape": {
+      "type": "string",
+      "description": "SbieDll_GetHandlePath uses an 8192-WCHAR path output buffer; the breakout argument adaptation reuses this 8192-WCHAR scratch buffer for drive-qualified arguments"
+    },
+    "drive_qualified_gate": {
+      "type": "string",
+      "description": "Only drive-qualified arguments whose unquoted payload satisfies tmp_len >= 2 and tmp_len < 8192 are eligible for path remapping"
+    },
+    "copy_shape": {
+      "type": "string",
+      "description": "Copy uses wmemcpy(temp, tmp, tmp_len) followed by temp[tmp_len] = L'\\0'; no raw wcscpy(temp, tmp) remains in the breakout path"
+    },
+    "fallback_shape": {
+      "type": "string",
+      "description": "Oversized or malformed parsed arguments are preserved in the rebuilt command line without remapping; scratch allocation failure preserves the original argument tail"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate: overlong quoted drive-path argument preserved without overflow; ordinary breakout path remapping still works"
+    }
+  },
+  "required": [
+    "createprocess_shape",
+    "scratch_buffer_shape",
+    "drive_qualified_gate",
+    "copy_shape",
+    "fallback_shape",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Quoted-argument branch computes tmp_len = (len >= 2) ? len - 2 : 0; never underflows",
+    "Drive-qualified check requires tmp_len >= 2 and the first two WCHARs match a drive letter + colon",
+    "Copy into scratch is bounded by tmp_len < 8192",
+    "Terminator is written at temp[tmp_len], not at temp[len-2]",
+    "No raw wcscpy(temp, tmp) remains in the breakout argument adaptation path",
+    "Existing local parser and service validation boundary are unchanged; breakout policy is unchanged"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processenv/nf-processenv-getcommandlinew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-commandlinetoargvw",
+    "https://learn.microsoft.com/en-us/cpp/c-language/parsing-c-command-line-arguments?view=msvc-170"
+  ]
+}

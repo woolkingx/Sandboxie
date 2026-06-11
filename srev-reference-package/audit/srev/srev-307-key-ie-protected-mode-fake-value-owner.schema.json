@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "KEY_IE_PROTECTED_MODE_FAKE_VALUE_OWNER",
+  "title": "Key IE Protected Mode fake value owner",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/key.c",
+  "stage": "data -> schema -> topology -> logic -> verify",
+  "source_functions": [
+    "Key_NtQueryValueKey",
+    "Key_NtQueryValueKeyFakeForInternetExplorer"
+  ],
+  "contracts": [
+    "Key_NtQueryValueKeyFakeForInternetExplorer owns IE Protected Mode REG_DWORD fake values for KeyValuePartialInformation",
+    "ZwQueryValueKey owns the caller buffer, Length, ResultLength, and KeyValueInformationClass contract",
+    "KEY_VALUE_PARTIAL_INFORMATION requires Type, DataLength, and counted Data bytes",
+    "ProtectedModeOffForAllZones is a local exact-predicate compatibility value because public Microsoft documentation is sparse",
+    "SREV-307 changes comments and proof only; no IE Protected Mode fake-value behavior changes"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwqueryvaluekey",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_key_value_partial_information",
+    "https://learn.microsoft.com/en-us/windows/win32/win7appqual/protected-mode",
+    "https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-internetexplorer",
+    "https://learn.microsoft.com/en-us/dynamics365/unified-service-desk/admin/internet-explorer-settings-bpa?view=dynamics-usd-4.3",
+    "https://learn.microsoft.com/en-us/troubleshoot/developer/browsers/security-privacy/enhanced-security-configuration-faq"
+  ],
+  "local_edges": [
+    "NtQueryValueKey caller -> Key_NtQueryValueKey",
+    "Internet Explorer image -> Key_NtQueryValueKeyFakeForInternetExplorer",
+    "not rights-dropped -> Protected Mode fake-value predicates",
+    "Zones path plus 2500 -> synthetic REG_DWORD 3",
+    "ProtectedModeOffForAllZones -> synthetic REG_DWORD 1",
+    "NoProtectedModeBanner -> synthetic REG_DWORD 1",
+    "non-match -> STATUS_BAD_INITIAL_PC -> normal merge/query path"
+  ],
+  "runtime_gate": "Windows Internet Explorer Protected Mode smoke plus rights-dropped and value-name negative controls before any predicate change",
+  "status": "source-level classified after official ZwQueryValueKey, KEY_VALUE_PARTIAL_INFORMATION, and IE Protected Mode shape; comment-only source clarification, no behavior change"
+}

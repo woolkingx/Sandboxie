@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-152-pstore-timestamp-map-view-lifetime.schema.json",
+  "title": "SREV-152 PStore timestamp map view lifetime",
+  "id": "PSTORE_TIMESTAMP_MAP_VIEW_LIFETIME",
+  "owner": "Sandboxie/core/dll/ipstore_impl.cpp",
+  "type": "object",
+  "properties": {
+    "mapping_handle": {
+      "type": "string",
+      "description": "CreateFileMapping/OpenFileMapping section handle"
+    },
+    "mapped_view": {
+      "type": "string",
+      "description": "MapViewOfFile returned address stored as global_timestamp"
+    },
+    "lifetime": {
+      "type": "string",
+      "description": "owner destruction unmaps the view before closing the handle"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows PStore mapping success, failure, and leak proof"
+    }
+  },
+  "required": [
+    "mapping_handle",
+    "mapped_view",
+    "lifetime",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "section is a file mapping object handle, not a mapped address",
+    "global_timestamp is a mapped view address returned by MapViewOfFile",
+    "MapViewOfFile may fail and return NULL; the timestamp pointer is legal to dereference only after a non-null check",
+    "A successful mapped view must be unmapped with UnmapViewOfFile before or during owner destruction",
+    "Closing the file mapping handle does not replace unmapping the view"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createfilemappinga",
+    "https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-mapviewoffile",
+    "https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-unmapviewoffile"
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-057-file-init-box-root-path.schema.json",
+  "title": "SREV-057 box root DOS path publication boundary contract",
+  "id": "FILE_INIT_BOX_ROOT_PATH_PUBLICATION",
+  "api": "File_Init",
+  "owner": "Sandboxie/core/dll/file_init.c",
+  "type": "object",
+  "properties": {
+    "box_file_path": {
+      "type": "string",
+      "description": "Sandbox box root NT path"
+    },
+    "box_file_dos_path": {
+      "type": "string",
+      "description": "Translated DOS path projection"
+    },
+    "box_file_raw_path": {
+      "type": "string",
+      "description": "Raw root path returned by SbieApi_QueryProcessInfoStr fallback"
+    }
+  },
+  "required": [
+    "box_file_path",
+    "box_file_dos_path",
+    "box_file_raw_path"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "UNICODE_STRING lengths are byte lengths for the destination buffer",
+    "wcscpy requires a valid destination buffer and a null-terminated source string",
+    "NTSTATUS results must be tested with NT_SUCCESS before publishing fallback data",
+    "SbieApi_QueryProcessInfoStr passes inout_str_len as a UNICODE_STRING MaximumLength byte capacity",
+    "The raw-root fallback accepts only byte capacities that fit UNICODE_STRING.MaximumLength",
+    "Dll_BoxFileDosPath is published only after allocation and translation succeed",
+    "Dll_BoxFileRawPath is published only after allocation, query success, and non-empty string proof",
+    "A null global root path must have a zero length gate"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/ntdef/ns-ntdef-_unicode_string",
+    "https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/strcpy-wcscpy-mbscpy",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-ntstatus-values"
+  ]
+}

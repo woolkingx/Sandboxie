@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "DRIVERASSIST_SANDBOXIE_SID_ACCOUNT_NAME_BOUNDS",
+  "title": "SREV-157 DriverAssist Sandboxie SID Account Name Bounds",
+  "type": "object",
+  "owner": "Sandboxie/core/svc/DriverAssistSid.cpp",
+  "properties": {
+    "owner_files": {
+      "type": "array",
+      "items": { "type": "string" },
+      "contains": { "const": "Sandboxie/core/svc/DriverAssistSid.cpp" }
+    },
+    "contracts": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "official_references": {
+      "type": "array",
+      "items": { "type": "string", "format": "uri" }
+    },
+    "runtime_gates": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "required": [
+    "owner_files",
+    "contracts",
+    "official_references",
+    "runtime_gates"
+  ],
+  "additionalProperties": false,
+  "owner_files": [
+    "Sandboxie/core/svc/DriverAssist.h",
+    "Sandboxie/core/svc/DriverAssistSid.cpp"
+  ],
+  "contracts": [
+    "DriverAssist::GetSandboxieSID owns the service-side account string passed to LookupAccountNameW",
+    "LookupAccountNameW receives a null-terminated account string in Sandboxie or Sandboxie\\BoxName form",
+    "szUserName is a fixed WCHAR buffer and must be populated by a bounded API using ARRAYSIZE(szUserName)",
+    "failed or truncated account-name formatting returns false before LookupAccountNameW",
+    "RtlCreateVirtualAccountSid returns NTSTATUS and must succeed before AddSidName receives pSID",
+    "does not change SandboxieLogon policy LookupAccountNameW scope domain string or LSA mapping semantics",
+    "Linux source gate is not Windows runtime proof"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-lookupaccountnamew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/strsafe/nf-strsafe-stringcchprintfw",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtlinitunicodestring",
+    "https://microsoft.github.io/windows-docs-rs/doc/windows/Wdk/Storage/FileSystem/fn.RtlCreateVirtualAccountSid.html"
+  ],
+  "runtime_gates": [
+    "Windows service build for DriverAssistSid.cpp",
+    "SandboxieLogon-enabled long box name near the fixed account-name buffer limit fails closed without stack corruption",
+    "normal SandboxieLogon-enabled box still resolves through LookupAccountNameW or virtual SID fallback",
+    "LSA mapping smoke proves Sandboxie\\BoxName still resolves"
+  ]
+}

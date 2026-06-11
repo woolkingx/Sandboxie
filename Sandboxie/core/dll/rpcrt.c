@@ -512,14 +512,42 @@ _FX NTSTATUS RpcRt_FindModulePreset(
 //---------------------------------------------------------------------------
 
 
+static BOOLEAN RpcRt_CopyFixedWString(WCHAR *dst, ULONG dst_chars, const WCHAR *src)
+{
+    ULONG i;
+
+    if (!dst || !src || dst_chars == 0)
+        return FALSE;
+
+    wmemzero(dst, dst_chars);
+    for (i = 0; i < dst_chars; ++i) {
+        if (src[i] == L'\0')
+            return i != 0;
+        if (i == dst_chars - 1)
+            break;
+        dst[i] = src[i];
+    }
+
+    return FALSE;
+}
+
+
 WCHAR* StoreLpcPortName(const WCHAR* wszPortId, const WCHAR* wszPortName)
 {
+    WCHAR portId[DYNAMIC_PORT_ID_CHARS];
+    WCHAR portName[DYNAMIC_PORT_NAME_CHARS];
     IPC_DYNAMIC_PORT* port = List_Head(&Ipc_DynamicPortNames);
+
+    if (!RpcRt_CopyFixedWString(portId, DYNAMIC_PORT_ID_CHARS, wszPortId))
+        return NULL;
+    if (!RpcRt_CopyFixedWString(portName, DYNAMIC_PORT_NAME_CHARS, wszPortName))
+        return NULL;
+
     while (port)
     {
-        if (_wcsicmp(wszPortId, port->wstrPortId) == 0)
+        if (_wcsicmp(portId, port->wstrPortId) == 0)
         {
-            wmemcpy(port->wstrPortName, wszPortName, DYNAMIC_PORT_NAME_CHARS);
+            wmemcpy(port->wstrPortName, portName, DYNAMIC_PORT_NAME_CHARS);
             break;
         }
 
@@ -531,8 +559,8 @@ WCHAR* StoreLpcPortName(const WCHAR* wszPortId, const WCHAR* wszPortName)
         port = (IPC_DYNAMIC_PORT*)Dll_Alloc(sizeof(IPC_DYNAMIC_PORT));
         if (port)
         {
-            wmemcpy(port->wstrPortId, wszPortId, DYNAMIC_PORT_ID_CHARS);
-            wmemcpy(port->wstrPortName, wszPortName, DYNAMIC_PORT_NAME_CHARS);
+            wmemcpy(port->wstrPortId, portId, DYNAMIC_PORT_ID_CHARS);
+            wmemcpy(port->wstrPortName, portName, DYNAMIC_PORT_NAME_CHARS);
 
             List_Insert_After(&Ipc_DynamicPortNames, NULL, port);
         }
@@ -554,7 +582,8 @@ WCHAR* GetDynamicLpcPortName(const WCHAR* wszPortId)
     memset(&req, 0, sizeof(req));
     req.h.length = sizeof(EPMAPPER_GET_PORT_NAME_REQ);
     req.h.msgid = MSGID_EPMAPPER_GET_PORT_NAME;
-    wcscpy(req.wszPortId, wszPortId);
+    if (!RpcRt_CopyFixedWString(req.wszPortId, DYNAMIC_PORT_ID_CHARS, wszPortId))
+        return NULL;
 
     rpl = (EPMAPPER_GET_PORT_NAME_RPL*)SbieDll_CallServer(&req.h);
 
@@ -666,12 +695,10 @@ _FX ULONG RpcRt_RpcBindingFromStringBindingW(
     // the pre-Windows 8.1 behavior of a fixed endpoint port name.
     //
 
-    //StringBinding = 0x4 means a NULL value is set in the RpcBinding string
-    //Microsoft adds 0x4 to the RpcBinding string member resulting in 
-    //StringBinging = 0x4 if the RPCBindingString is NULL
-    //and will result in a crash if it is passed to the system function.
+    // SREV-323: reject the observed 0x4 binding-string sentinel locally.
+    // Official RpcBindingFromStringBinding owns valid string-binding errors.
 
-    if(0x4 == (ULONG_PTR)StringBinding) {   
+    if (!StringBinding || !OutBinding || 0x4 == (ULONG_PTR)StringBinding) {
         return RPC_S_INVALID_ARG;
     }
 
@@ -922,10 +949,8 @@ RPC_STATUS RPC_ENTRY RpcRt_RpcStringBindingComposeW(TCHAR *ObjUuid,TCHAR *ProtSe
         EndPoint = L"SPPCTransportEndpoint-00001";
         Scm_Start_Sppsvc();
     }
-    // we must block this in Win 10 to prevent r-click context menu hang in Explorer
-    // note: this breaks other things but we need it, 
-    // so instead we block the {470C0EBD-5D73-4D58-9CED-E91E22E23282} Pin To Start Screen verb handler;
-    // inside Com_CoCreateInstance
+    // SREV-324: keep the UserMgrCli RPC block inactive here.
+    // Pin To Start Screen is a COM ClosedClsid/template policy, not an RPC compose policy.
     //else if (ObjUuid && (!_wcsicmp(ObjUuid, UUID_UserMgrCli)))
     //{
     //    return STATUS_ACCESS_DENIED;

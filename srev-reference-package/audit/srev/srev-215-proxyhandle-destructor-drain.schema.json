@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "PROXYHANDLE_DESTRUCTOR_DRAIN",
+  "owner": "Sandboxie/core/svc/ProxyHandle.cpp",
+  "declaration": "Sandboxie/core/svc/ProxyHandle.h",
+  "status": "patched-source-level-after-official-heap-and-critical-section-lifetime-review-needs-windows-runtime-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heapalloc",
+    "https://learn.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heapfree",
+    "https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-initializecriticalsectionandspincount",
+    "https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-deletecriticalsection"
+  ],
+  "contracts": [
+    "ProxyHandle.cpp owns the lifetime of every PROXY_HANDLE allocated from m_heap",
+    "Every published PROXY_HANDLE is reachable from m_list until removed",
+    "Releasing a proxy entry calls m_close_callback exactly once before HeapFree releases the entry allocation",
+    "The destructor drains every remaining list entry before deleting m_lock",
+    "Normal Close Release and ReleaseProcess behavior remains unchanged"
+  ],
+  "runtime_gate": "Windows SbieSvc build plus service-shutdown smoke with outstanding ICMP and named-pipe proxy handles, proving each downstream close callback runs once, entries are freed, and no worker uses ProxyHandle after the destructor starts."
+}

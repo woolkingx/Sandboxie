@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "GUI_CLIPCURSOR_REPLY_CONTRACT",
+  "title": "GUI ClipCursor reply contract",
+  "type": "object",
+  "owner": "Sandboxie/core/svc/GuiWire.h",
+  "stage": "schema -> boundary -> topology -> action -> verify",
+  "source_functions": [
+    "Gui_ClipCursor",
+    "GuiServer::ClipCursorSlave",
+    "Gui_CallProxy"
+  ],
+  "contracts": [
+    "ClipCursor returns a Win32 BOOL and failure details are read through GetLastError",
+    "GUI_CLIP_CURSOR reply first ULONG is transport status and must remain zero for successful proxy transport",
+    "ClipCursor retval must be carried after status so Gui_CallProxy does not treat TRUE as an NTSTATUS failure",
+    "ClipCursorSlave executes the host-side ClipCursor call and captures retval plus error",
+    "Gui_ClipCursor returns the brokered retval and restores the brokered error with SetLastError",
+    "The DPI awareness context is temporarily applied in the service and restored after the call",
+    "Windows runtime proof is still required for brokered ClipCursor behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-clipcursor",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setthreaddpiawarenesscontext",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getthreaddpiawarenesscontext"
+  ],
+  "local_edges": [
+    "Gui_ClipCursor -> GUI_CLIP_CURSOR_REQ -> ClipCursorSlave",
+    "ClipCursorSlave -> SetThreadDpiAwarenessContext -> ClipCursor -> GUI_CLIP_CURSOR_RPL",
+    "GUI_CLIP_CURSOR_RPL status zero -> Gui_CallProxy returns reply",
+    "Gui_ClipCursor -> SetLastError reply error -> return reply retval"
+  ],
+  "runtime_gate": "Windows SbieSvc and DLL build with brokered ClipCursor success, failure, NULL-release, and DPI context restore smoke",
+  "status": "patched-source-level-after-official-clipcursor-reply-review-needs-windows-runtime-proof"
+}

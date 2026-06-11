@@ -792,6 +792,7 @@ _FX BOOL Terminal_WTSQueryUserToken(ULONG SessionId, HANDLE *pToken)
     req = (GET_USER_TOKEN_REQ *)Dll_AllocTemp(req_len);
     req->h.length = req_len;
     req->h.msgid = MSGID_TERMINAL_GET_USER_TOKEN;
+    req->session_id = SessionId;
 
     rpl = (GET_USER_TOKEN_RPL *)SbieDll_CallServer((MSG_HEADER *)req);
     Dll_Free(req);

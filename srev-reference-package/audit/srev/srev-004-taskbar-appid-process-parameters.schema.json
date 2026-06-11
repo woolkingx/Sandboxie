@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-004-taskbar-appid-process-parameters.schema.json",
+  "title": "SREV-004 taskbar AppUserModelID process-parameter workaround",
+  "id": "TASKBAR_APPID_PROCESS_PARAMETERS",
+  "owner": "Sandboxie/core/dll/taskbar.c",
+  "type": "object",
+  "properties": {
+    "appid_api_shape": {
+      "type": "string",
+      "description": "SetCurrentProcessExplicitAppUserModelID(PCWSTR AppID) returns HRESULT and must be called during initial startup before UI or Jump List manipulation"
+    },
+    "process_parameters_shape": {
+      "type": "string",
+      "description": "PEB and RTL_USER_PROCESS_PARAMETERS are internal OS structures; public shape exposes only ImagePathName and CommandLine; WindowFlags is not part of the public contract"
+    },
+    "workaround_owner": {
+      "type": "string",
+      "description": "Taskbar_SetCurrentProcessExplicitAppUserModelID_hack saves WindowFlags, clears 0x5000 across the real API call, restores only the saved 0x5000 bits"
+    },
+    "mutation_invariant": {
+      "type": "string",
+      "description": "No permanent ProcessParms->WindowFlags mutation remains after the workaround returns"
+    },
+    "preservation_invariant": {
+      "type": "string",
+      "description": "WindowFlags bits outside 0x5000 that the real API changes during the call are preserved"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate: process-level AppUserModelID still works, WindowTitle crash does not return, later process-parameter reads observe the original 0x5000 bits"
+    }
+  },
+  "required": [
+    "appid_api_shape",
+    "process_parameters_shape",
+    "workaround_owner",
+    "mutation_invariant",
+    "preservation_invariant",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "SetCurrentProcessExplicitAppUserModelID assigns an AppUserModelID to the current process and returns HRESULT S_OK on success",
+    "SetCurrentProcessExplicitAppUserModelID must be called during initial startup before UI or Jump List manipulation",
+    "RTL_USER_PROCESS_PARAMETERS layout outside ImagePathName/CommandLine is reserved for internal use",
+    "WindowFlags is not part of the public process-parameter contract and may change across OS versions",
+    "Hack must save WindowFlags before clearing the 0x5000 bits",
+    "Hack must clear only 0x5000 while calling the real Shell API",
+    "Hack must restore the saved 0x5000 bits after the call without overwriting other WindowFlags changes",
+    "Hack must fall back to the direct API call when Proc_GetRtlUserProcessParameters returns NULL"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-setcurrentprocessexplicitappusermodelid",
+    "https://learn.microsoft.com/en-us/windows/win32/shell/appids",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winternl/ns-winternl-peb",
+    "https://learn.microsoft.com/en-us/windows/win32/api/Winternl/ns-winternl-rtl_user_process_parameters"
+  ]
+}

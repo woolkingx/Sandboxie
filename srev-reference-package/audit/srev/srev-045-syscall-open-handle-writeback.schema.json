@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:sandboxie:srev-045-syscall-open-handle-writeback",
+  "title": "SREV-045 syscall open handle writeback contract",
+  "type": "object",
+  "id": "SYSCALL_OPEN_HANDLE_WRITEBACK",
+  "api": "Syscall_OpenHandle / Syscall_GetNextProcess / Syscall_DuplicateHandle",
+  "owner": "Sandboxie/core/drv/syscall_open.c",
+  "data": {
+    "input": [
+      "UserHandlePtr original user HANDLE* output pointer",
+      "NewHandle handle restored from the temporary TLS slot",
+      "OrigStatus original syscall status"
+    ],
+    "output": "caller receives NewHandle only after successful HANDLE* writeback"
+  },
+  "contracts": [
+    "UserHandlePtr is a user HANDLE* output pointer and must be probed for sizeof(HANDLE) with sizeof(HANDLE) alignment",
+    "NewHandle remains driver-owned after TLS restore until it is written back to UserHandlePtr",
+    "if UserHandlePtr writeback fails, NewHandle must be closed with NtClose",
+    "successful writeback returns the original syscall status",
+    "Syscall_OpenHandle, Syscall_GetNextProcess, and Syscall_DuplicateHandle use the same writeback helper"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-probeforwrite",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntclose"
+  ],
+  "required": [
+    "UserHandlePtr",
+    "NewHandle",
+    "OrigStatus"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "UserHandlePtr": {
+      "type": "object",
+      "required": [
+        "kind",
+        "alignment",
+        "writeback"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "user HANDLE* output pointer" },
+        "alignment": { "const": "sizeof(HANDLE)" },
+        "writeback": { "const": "try/except protected" }
+      }
+    },
+    "NewHandle": {
+      "type": "object",
+      "required": [
+        "owner_until",
+        "on_writeback_failure"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "owner_until": { "const": "successful UserHandlePtr writeback" },
+        "on_writeback_failure": { "const": "NtClose" }
+      }
+    },
+    "OrigStatus": {
+      "type": "object",
+      "required": [
+        "success_return"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "success_return": { "const": "preserved original syscall status" }
+      }
+    }
+  }
+}

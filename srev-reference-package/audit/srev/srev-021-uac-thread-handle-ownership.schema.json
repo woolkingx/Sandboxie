@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-021-uac-thread-handle-ownership.schema.json",
+  "title": "SREV-021 UAC slave thread handle ownership",
+  "id": "UAC_SLAVE_THREAD_HANDLE_OWNERSHIP",
+  "owner": "Sandboxie/core/svc/serviceserver2.cpp",
+  "type": "object",
+  "properties": {
+    "createthread_shape": {
+      "type": "string",
+      "description": "CreateThread returns a thread handle on success; CloseHandle on a thread handle does not terminate the thread"
+    },
+    "ownership_contract": {
+      "type": "string",
+      "description": "API contract is handle ownership, not worker lifetime; creators not needing to wait/signal/query the handle must close it; closing the handle is not a cancellation mechanism"
+    },
+    "fire_forget_topology": {
+      "type": "string",
+      "description": "RunUacSlave2Thread1 runs elevated ShellExecuteExW or fails closed then exits helper process; RunUacSlave2Thread2 watches caller process and exits helper when caller exits; no later code waits/signals/duplicates/queries the returned handles"
+    },
+    "close_invariant": {
+      "type": "string",
+      "description": "Both already-admin and dialog-confirmed branches store the CreateThread return into a local handle, check non-NULL, and CloseHandle immediately"
+    },
+    "scope_invariant": {
+      "type": "string",
+      "description": "Patch does not change UAC prompt flow, helper thread entry points, process lifetime, or suspended-caller thread behavior"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate: already-admin and dialog-confirmed paths both create workers without handle growth; elevation cancellation still routes through fail-closed; caller-process exit still terminates helper"
+    }
+  },
+  "required": [
+    "createthread_shape",
+    "ownership_contract",
+    "fire_forget_topology",
+    "close_invariant",
+    "scope_invariant",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Non-NULL thread handle returned by CreateThread must be closed when not retained for wait/signal/query",
+    "Both fire-and-forget CreateThread sites close the returned handle in their own branch",
+    "CloseHandle is not used as worker cancellation",
+    "Helper thread entry point and process lifetime are unchanged"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createthread",
+    "https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-closehandle",
+    "https://learn.microsoft.com/en-us/windows/win32/procthread/creating-threads"
+  ]
+}

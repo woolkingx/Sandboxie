@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "DRIVER_REGISTRY_PATH_COUNTED_COPY",
+  "owners": [
+    "Sandboxie/core/drv/mem.c",
+    "Sandboxie/core/drv/mem.h",
+    "Sandboxie/core/drv/driver.c"
+  ],
+  "status": "patched-source-level-after-official-driverentry-unicode-string-shape-review-needs-windows-driver-runtime-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nc-wdm-driver_initialize",
+    "https://learn.microsoft.com/en-us/windows/win32/api/subauth/ns-subauth-unicode_string"
+  ],
+  "contracts": [
+    "DriverEntry receives RegistryPath as a counted UNICODE_STRING",
+    "driver.c must save a copy of the registry path before DriverEntry returns",
+    "Mem_AllocStringEx remains the owner for NUL terminated WCHAR pointer sources",
+    "Mem_AllocUnicodeStringEx owns conversion from a counted UNICODE_STRING into a local NUL terminated pool string",
+    "The counted copy helper must validate even byte length non null buffer for non empty strings and allocation size overflow before copying",
+    "The counted copy helper copies exactly UNICODE_STRING Length bytes and synthesizes the local NUL terminator",
+    "The fix does not change driver registry key semantics, pool ownership, startup ordering, public security initialization, home path discovery, or Mem_AllocStringEx behavior for existing NUL terminated callers"
+  ],
+  "runtime_gate": "Windows driver build plus DriverEntry registry path counted-copy smokes."
+}

@@ -435,11 +435,18 @@ _FX BOOLEAN SbieDll_Mount(const WCHAR* BoxName, const WCHAR* BoxKey, BOOLEAN Pro
 
     req_len = sizeof(IMBOX_MOUNT_REQ) + file_path_len;
     req = Dll_Alloc(req_len);
+    memzero(req, req_len);
+
+    if (BoxKey && wcslen(BoxKey) >= ARRAYSIZE(req->password)) {
+        Dll_Free(req);
+        return FALSE;
+    }
 
     req->h.length = req_len;
     req->h.msgid = MSGID_IMBOX_MOUNT;
 
-    wcscpy(req->password, BoxKey);
+    if (BoxKey)
+        wcscpy(req->password, BoxKey);
     req->protect_root = Protect;
     req->auto_unmount = FALSE;
 
@@ -763,11 +770,10 @@ extern int __CRTDECL Sbie_snwprintf(wchar_t *_Buffer, size_t Count, const wchar_
 _FX ULONG SbieDll_FormatMessage_2(WCHAR **text_ptr, const WCHAR **ins)
 {
     //
-    // for right-to-left language text files (Hebrew and Arabic),
-    // the percent signs can make it difficult to edit the text files
-    // in Notepad.  as a workaround, also support for .N. in addition
-    // to %N as a parameter for FormatMessage.  this workaround is
-    // used only by the Hebrew and Arabic text files.
+    // SREV-077: for right-to-left language text files (Hebrew and Arabic),
+    // percent signs can make the files difficult to edit in Notepad.  This
+    // compatibility pass accepts .N. markers and rewrites them into
+    // FormatMessage insert markers only when an insert array exists.
     //
 
     const ULONG FormatFlags     = FORMAT_MESSAGE_FROM_STRING |
@@ -789,6 +795,9 @@ _FX ULONG SbieDll_FormatMessage_2(WCHAR **text_ptr, const WCHAR **ins)
     // then just quit.  this is not ideal, but not frequent either.
     // (fixed in version 4.05 build 012)
     //
+    if (! ins)
+        return 0;
+
     if (ins[1] && wcsstr(ins[1], _x2))
         return 0;
     if (ins[2] && wcsstr(ins[2], _x2))
@@ -850,7 +859,7 @@ _FX WCHAR *SbieDll_FormatMessage(ULONG code, const WCHAR **ins)
             WCHAR *path2 = (WCHAR *)si.lpReserved;
             SbieMsgDll =
                 LoadLibraryEx(path2, NULL, LOAD_LIBRARY_AS_DATAFILE);
-            HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, path2);
+            HeapFree(GetProcessHeap(), 0, path2);
         }
 
         if (! SbieMsgDll) {

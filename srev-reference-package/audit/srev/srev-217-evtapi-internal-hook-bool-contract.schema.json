@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "EVTAPI_INTERNAL_HOOK_BOOL_CONTRACT",
+  "owner": "Sandboxie/core/dll/event.c",
+  "declaration": "Sandboxie/core/dll/dll.h",
+  "status": "patched-source-level-after-official-getprocaddress-and-windows-data-type-review-needs-windows-runtime-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getprocaddress",
+    "https://learn.microsoft.com/en-us/windows/win32/winprog/windows-data-types"
+  ],
+  "contracts": [
+    "event.c owns the wevtapi.dll EvtIntAssertConfig hook",
+    "The internal export has no public Microsoft API page and local ABI evidence is the P_EvtIntAssertConfig typedef",
+    "The local typedef and detour both return BOOL",
+    "EvtApi_Init does not call SBIEDLL_HOOK unless GetProcAddress returned a non-null export pointer",
+    "The detour policy remains return success and clear last error"
+  ],
+  "runtime_gate": "Windows DLL build plus a wevtapi.dll load smoke on supported Windows versions proving EvtApi_Init succeeds when the export is present, fails cleanly when the export is absent, and the installed detour still returns success with GetLastError() == 0."
+}

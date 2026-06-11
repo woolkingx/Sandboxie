@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-325-secure-elevation-flags-fake-admin-allowlist.schema.json",
+  "title": "SREV-325 Secure elevation flags fake admin allowlist",
+  "id": "SECURE_ELEVATION_FLAGS_FAKE_ADMIN_ALLOWLIST",
+  "owner": "Sandboxie/core/dll/secure.c",
+  "stage": "data -> schema -> topology -> logic -> action -> verify",
+  "contracts": [
+    "official UAC and token documentation owns elevation semantics",
+    "RtlQueryElevationFlags is a local observed ntdll hook target, not a public Microsoft Win32 schema in this SREV",
+    "Secure_Init owns only the process and image allowlist for the RtlQueryElevationFlags hook",
+    "Secure_RtlQueryElevationFlags owns the local decision to return zero flags or forward to native",
+    "IE Protected Mode registry fake values remain owned by SREV-307 and key.c",
+    "SREV-325 changes comments and proof only, not elevation flag behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/security/application-security/application-control/user-account-control/how-it-works",
+    "https://learn.microsoft.com/en-us/windows/security/application-security/application-control/user-account-control/architecture",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winnt/ne-winnt-token_information_class",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winnt/ne-winnt-token_elevation_type"
+  ],
+  "runtime_gate": "IE Protected Mode / ActiveX install broker smoke, SbieSvc UAC elevator smoke, SandboxieRpcSs elevated COM smoke, Synaptics compatibility smoke if available, and negative control proving non-allowlisted callers still forward to native RtlQueryElevationFlags"
+}

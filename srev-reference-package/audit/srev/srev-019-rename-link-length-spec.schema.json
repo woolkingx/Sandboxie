@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-019-rename-link-length-spec.schema.json",
+  "title": "SREV-019 rename/link target length shape",
+  "id": "RENAME_LINK_LENGTH_SHAPE",
+  "owner": "Sandboxie/core/drv/file_flt.c",
+  "type": "object",
+  "properties": {
+    "rename_info_shape": {
+      "type": "string",
+      "description": "FILE_RENAME_INFORMATION and FILE_LINK_INFORMATION are variable-size; FileNameLength is ULONG byte count; FileName[1] starts a wide-character payload"
+    },
+    "flt_parameters_shape": {
+      "type": "string",
+      "description": "FLT_PARAMETERS.SetFileInformation.Length is the byte length of InfoBuffer; FltSetInformationFile Length is byte size; minifilters must use FltSetInformationFile and not ZwSetInformationFile for rename/link"
+    },
+    "unicode_string_carrier": {
+      "type": "string",
+      "description": "File_RenameOperation converts the target FileName into a UNICODE_STRING whose Length field is USHORT bytes; the ULONG name length must fit into USHORT"
+    },
+    "gate_inventory": {
+      "type": "string",
+      "description": "Reject FileNameLength==0, FileNameLength>MAXUSHORT, FileNameLength not WCHAR-aligned, and FIELD_OFFSET(...,FileName)+FileNameLength > SetFileInformation.Length before constructing the UNICODE_STRING"
+    },
+    "fail_closed_invariant": {
+      "type": "string",
+      "description": "Shapes this parser cannot represent as UNICODE_STRING fail closed via the existing minifilter policy path"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate: long rename/link attempts and malformed InfoBuffers fail closed; ordinary rename and hard-link operations still pass policy"
+    }
+  },
+  "required": [
+    "rename_info_shape",
+    "flt_parameters_shape",
+    "unicode_string_carrier",
+    "gate_inventory",
+    "fail_closed_invariant",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "ULONG FileNameLength must be range-checked before any cast to USHORT",
+    "Name bytes must fit inside SetFileInformation.InfoBuffer counted by SetFileInformation.Length",
+    "Odd byte lengths are rejected before the wide-character parser sees them",
+    "Zero-length name is rejected before UNICODE_STRING construction"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_rename_information",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_link_information",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ifs/flt-parameters-for-irp-mj-set-information",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/fltkernel/nf-fltkernel-fltsetinformationfile"
+  ]
+}

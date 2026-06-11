@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-149-kernel-time-hook-output-gate.schema.json",
+  "title": "SREV-149 Kernel time hook output gate",
+  "id": "KERNEL_TIME_HOOK_OUTPUT_GATE",
+  "owner": "Sandboxie/core/dll/kernel.c",
+  "type": "object",
+  "properties": {
+    "time_hook": {
+      "type": "string",
+      "description": "DLL-side UseChangeSpeed hook for Win32 time outputs"
+    },
+    "output_gate": {
+      "type": "string",
+      "description": "real API success and non-null output pointer are required before local mutation"
+    },
+    "ratio_arithmetic": {
+      "type": "string",
+      "description": "configured speed ratios preserve multiply-before-divide ordering"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows DLL build and UseChangeSpeed runtime proof"
+    }
+  },
+  "required": [
+    "time_hook",
+    "output_gate",
+    "ratio_arithmetic",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "UseChangeSpeed time hooks may transform only a successful real API output",
+    "A failed real API call must propagate the failure return without writing the output pointer in Sandboxie's hook",
+    "QueryUnbiasedInterruptTime reports failure when called with a null pointer; the hook must not dereference that pointer after failure",
+    "Fractional configured speed ratios must preserve multiply-before-divide arithmetic: value * AddTickSpeed / LowTickSpeed",
+    "Zero AddTickSpeed or zero LowTickSpeed follows the existing local fallback branch and is not redefined by this SREV"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/realtimeapiset/nf-realtimeapiset-queryunbiasedinterrupttime",
+    "https://learn.microsoft.com/en-us/windows/win32/api/profileapi/nf-profileapi-queryperformancecounter"
+  ]
+}

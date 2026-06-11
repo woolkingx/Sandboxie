@@ -590,14 +590,14 @@ _FX BOOLEAN Ipc_Init(void)
 _FX void Ipc_CreateObjects(void)
 {
     NTSTATUS status;
-    WCHAR *TruePath;
-    WCHAR *CopyPath;
+    WCHAR *TruePath = NULL;
+    WCHAR *CopyPath = NULL;
     WCHAR *backslash;
     WCHAR *buffer = NULL;
     WCHAR *BNOLINKS = NULL;
     WCHAR *GLOBAL = NULL;
     WCHAR *buffer2 = NULL;
-    HANDLE handle;
+    HANDLE handle = NULL;
     WCHAR str[64];
     ULONG errlvl = 0;
 
@@ -631,6 +631,7 @@ _FX void Ipc_CreateObjects(void)
     }
 
     NtClose(handle);
+    handle = NULL;
 
     //
     // create main directory, in case it isn't there yet
@@ -651,15 +652,30 @@ _FX void Ipc_CreateObjects(void)
         goto finish;
     }
 
-    // todo: fix-me: properly reparse symbolic links in IPC paths instead of creating dummy for everything
+    //
+    // SREV-299: the dummy event publishes the object-manager namespace path
+    // that Ipc_GetName maps into CopyPath. Symbolic-link reparse remains a
+    // separate design gate; this bootstrap owns allocation and handle cleanup
+    // before creating BNOLINKS, Global, Local, and Session object links.
+    //
 
     buffer = Dll_Alloc((wcslen(CopyPath) + 32) * sizeof(WCHAR));
+    if (!buffer) {
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        errlvl = 61;
+        goto finish;
+    }
 
     //
     // create BNOLINKS directory and symbolic links
     //
 
     BNOLINKS  = Dll_Alloc((wcslen(CopyPath) + 32) * sizeof(WCHAR));
+    if (!BNOLINKS) {
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        errlvl = 62;
+        goto finish;
+    }
 
     wcscpy(BNOLINKS, CopyPath);
 
@@ -695,6 +711,11 @@ _FX void Ipc_CreateObjects(void)
     //
 
     buffer2 = Dll_Alloc((Dll_BoxIpcPathLen + 32) * sizeof(WCHAR));
+    if (!buffer2) {
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        errlvl = 63;
+        goto finish;
+    }
 
     wcscpy(buffer2, Dll_BoxIpcPath);
     wcscat(buffer2, L"\\BaseNamedObjects");
@@ -710,6 +731,11 @@ _FX void Ipc_CreateObjects(void)
     wcscat(buffer, L"\\Global");
 
     GLOBAL  = Dll_Alloc((wcslen(buffer) + 32) * sizeof(WCHAR));
+    if (!GLOBAL) {
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        errlvl = 64;
+        goto finish;
+    }
 
     wcscpy(GLOBAL, buffer);
 
@@ -791,6 +817,11 @@ _FX void Ipc_CreateObjects(void)
 
 finish:
 
+    if (errlvl)
+        SbieApi_Log(2308, L"[%d / %08X]", errlvl, status);
+
+    if (handle)
+        NtClose(handle);
     if(buffer)
         Dll_Free(buffer);
     if(BNOLINKS)
@@ -800,8 +831,6 @@ finish:
     if(buffer2)
         Dll_Free(buffer2);
 
-    if (errlvl)
-        SbieApi_Log(2308, L"[%d / %08X]", errlvl, status);
 }
 
 
@@ -2426,7 +2455,7 @@ _FX NTSTATUS Ipc_ImpersonateSelf(PORT_MESSAGE *PortMsg)
     if (hOldToken)
         NtClose(hOldToken);
 
-    return STATUS_SUCCESS;
+    return status;
 }
 
 
@@ -2473,11 +2502,11 @@ _FX NTSTATUS Ipc_NtAlpcImpersonateClientOfPort(
     // will cause STATUS_BAD_IMPERSONATION_LEVEL in NtAlpcSendWaitReceive,
     // in NtQueryFullAttributesFile, and other cases as well.)
     //
-    // this workaround allows this to succeed by impersonating our own
-    // credentials, which is reasonable, because presumably everything in
-    // the sandbox is running with the same set of credentials anyway
-    // (even if some processes are running elevated tokens and others
-    // use split UAC tokens)
+    // SREV-300: if ALPC client impersonation fails or yields only
+    // SecurityIdentification, the local compatibility path duplicates this
+    // process primary token into a SecurityImpersonation thread token.
+    // Success must mean that Ipc_ImpersonateSelf actually installed that
+    // token or preserved an existing SecurityImpersonation token.
     //
 
     NTSTATUS status = __sys_NtAlpcImpersonateClientOfPort(
@@ -4298,11 +4327,12 @@ _FX NTSTATUS Ipc_NtMapViewOfSection(
 
                 if (NT_SUCCESS(status) &&  (sbi.AllocationAttributes & SEC_IMAGE) == 0) {
 
-                    // Not an image section, likely the thunk allocation
-					// Upgrade to RWX so that the SbieDll.dll in the child can install the required hooks
-                    // else NtProtectVirtualMemory will bug out with STATUS_SECTION_PROTECTION !
-
-                    //SbieApi_MonitorPutMsg(MONITOR_HOOK, L"BAM: Firefox NtMapViewOfSection hack");
+                    // SREV-301: Firefox 146+ maps this non-image execute
+                    // section into a child process so the child-side SbieDll
+                    // startup can write its local patch bytes. ZwMapViewOfSection
+                    // requires non-image view protection to stay compatible with
+                    // the section's creation protection; Windows runtime proof
+                    // owns the Firefox version and section-protection matrix.
 
                     Protect = PAGE_EXECUTE_READWRITE;
                 }
@@ -5364,6 +5394,9 @@ _FX NTSTATUS Ipc_ConnectProxyPort(
     ALPC_PORT_ATTRIBUTES *alpc_info;
     ULONG req_len;
     ULONG info_len;
+    ULONG rpl_info_offset;
+    ULONG rpl_info_len;
+    ULONG copy_len;
     ULONG err = 0;
 
     //
@@ -5393,17 +5426,21 @@ _FX NTSTATUS Ipc_ConnectProxyPort(
     }
 
     //
-    // if alpc, make sure specific (yet unknown) parameters are given
+    // SREV-015: if ALPC, accept only the locally named connection shape
+    // observed for the ntsvcs/plugplay proxy path. Microsoft does not publish
+    // a stable NtAlpcConnectPort flag contract; changing these accepted flags
+    // requires Windows ALPC ETW/debugger capture and the SREV-138 mirror
+    // header proof first.
     //
 
     if (AlpcConnectionFlags != -1) {
-        AlpcConnectionFlags &= ~0x40000000;     // turn off WOW64 flag
-        if (AlpcConnectionFlags != 0x20000) {   // sync-connection flag??
+        AlpcConnectionFlags &= ~PORT_INFO_WOW64_PROCESS;
+        if (AlpcConnectionFlags != ALPC_SYNC_CONNECTION) {
             err = 0x12;
             goto finish;
         }
         alpc_info = (ALPC_PORT_ATTRIBUTES *)MaximumMessageLengthOrAlpcInfo;
-        if (alpc_info->Flags != 0x10000) {      // can-impersonate flag??
+        if (alpc_info->Flags != PORT_INFO_CANIMPERSONATE) {
             err = 0x13;
             goto finish;
         }
@@ -5463,6 +5500,13 @@ _FX NTSTATUS Ipc_ConnectProxyPort(
     } else {
 
         status = rpl->h.status;
+        rpl_info_offset = FIELD_OFFSET(NAMED_PIPE_LPC_CONNECT_RPL, info_data);
+
+        if (NT_SUCCESS(status) && rpl->h.length < rpl_info_offset) {
+            status = STATUS_INVALID_PARAMETER;
+            err = 0x1A;
+        }
+
         if (NT_SUCCESS(status)) {
 
             status = File_AddProxyPipe(PortHandle, rpl->handle);
@@ -5474,16 +5518,27 @@ _FX NTSTATUS Ipc_ConnectProxyPort(
                 *(ULONG *)MaximumMessageLengthOrAlpcInfo = rpl->max_msg_len;
 
             if (info_len) {
-                if (rpl->info_len < info_len)
-                    info_len = info_len;
-                *ConnectionInfoLength = rpl->info_len;
-                memcpy(ConnectionInfo, rpl->info_data, info_len);
+
+                rpl_info_len = rpl->info_len;
+                if (rpl_info_len > rpl->h.length - rpl_info_offset) {
+                    status = STATUS_INVALID_PARAMETER;
+                    err = 0x1A;
+
+                } else {
+
+                    copy_len = rpl_info_len;
+                    if (copy_len > info_len)
+                        copy_len = info_len;
+
+                    *ConnectionInfoLength = rpl_info_len;
+                    memcpy(ConnectionInfo, rpl->info_data, copy_len);
+                }
             }
         }
 
         Dll_Free(rpl);
 
-        if (! NT_SUCCESS(status))
+        if ((! NT_SUCCESS(status)) && (! err))
             err = 0x19;
     }
 
@@ -5682,11 +5737,15 @@ _FX NTSTATUS Ipc_NtAlpcSendWaitReceivePort(
     // proxy channel processing, make sure we have valid input
     //
 
+    // SREV-015: ALPC message-view flags are private/local-observed shapes.
+    // Preserve the current unmap special case; changing accepted view flags
+    // requires Windows capture and SREV-138 mirror-header proof rather than
+    // numeric guesswork.
     if ((! SendMsg) || (! SendView) || (! ReceiveMsg) || (! ReceiveView)
             || (! ReceiveMsgSize)) {
 
-        SendFlags &= ~0x40000000;               // turn off WOW64 flag
-        if (SendFlags == 0 && SendView && SendView->SendFlags == 0x40000000
+        SendFlags &= ~PORT_INFO_WOW64_PROCESS;
+        if (SendFlags == 0 && SendView && SendView->SendFlags == ALPC_MESSAGE_FLAG_VIEW
                 && SendView->ReceiveFlags == SendView->SendFlags
                 && SendView->u.s2.ViewAttrs == MEM_FREE) {
 
@@ -5768,10 +5827,10 @@ _FX NTSTATUS Ipc_NtAlpcSendWaitReceivePort(
 
             ReceiveView->SendFlags = rpl->view[0];
             ReceiveView->ReceiveFlags = rpl->view[1];
-            if (ReceiveView->ReceiveFlags & 0x40000000) {
+            if (ReceiveView->ReceiveFlags & ALPC_MESSAGE_FLAG_VIEW) {
 
                 //
-                // flag 0x40000000 indicates that a section view was mapped
+                // ALPC_MESSAGE_FLAG_VIEW indicates that a section view was mapped
                 // with response data.  in this case SbieSvc copied the data
                 // from the mapped view into the reply buffer.  now we need
                 // to copy this data into a VirtualAlloc-ed area to emulate

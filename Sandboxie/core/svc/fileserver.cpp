@@ -50,6 +50,24 @@ const ULONG DIR_INFO_LENGTH = 10240;
 
 
 //---------------------------------------------------------------------------
+// Helpers
+//---------------------------------------------------------------------------
+
+
+static BOOLEAN FileServer_IsValidWireWString(
+    ULONG msg_len, ULONG offset, ULONG byte_len, const WCHAR *text)
+{
+    if ((! byte_len) || (byte_len > PIPE_MAX_DATA_LEN))
+        return FALSE;
+    if (byte_len & (sizeof(WCHAR) - 1))
+        return FALSE;
+    if (offset > msg_len || byte_len > msg_len - offset)
+        return FALSE;
+    return text[byte_len / sizeof(WCHAR) - 1] == L'\0';
+}
+
+
+//---------------------------------------------------------------------------
 // Variables
 //---------------------------------------------------------------------------
 
@@ -240,10 +258,9 @@ MSG_HEADER *FileServer::SetAttributes(MSG_HEADER *msg, HANDLE idProcess)
     FILE_SET_ATTRIBUTES_REQ *req = (FILE_SET_ATTRIBUTES_REQ *)msg;
     if (req->h.length < sizeof(FILE_SET_ATTRIBUTES_REQ))
         return SHORT_REPLY(STATUS_INVALID_PARAMETER);
-    if (req->path_len > PIPE_MAX_DATA_LEN)
-        return SHORT_REPLY(STATUS_INVALID_PARAMETER);
     ULONG offset = FIELD_OFFSET(FILE_SET_ATTRIBUTES_REQ, path);
-    if (offset + req->path_len > req->h.length)
+    if (! FileServer_IsValidWireWString(
+            req->h.length, offset, req->path_len, req->path))
         return SHORT_REPLY(STATUS_INVALID_PARAMETER);
 
     //
@@ -290,10 +307,9 @@ MSG_HEADER *FileServer::SetShortName(MSG_HEADER *msg, HANDLE idProcess)
         return SHORT_REPLY(STATUS_INVALID_PARAMETER);
     if (req->info.FileNameLength > sizeof(req->info.FileName))
         return SHORT_REPLY(STATUS_INVALID_PARAMETER);
-    if (req->path_len > PIPE_MAX_DATA_LEN)
-        return SHORT_REPLY(STATUS_INVALID_PARAMETER);
     ULONG offset = FIELD_OFFSET(FILE_SET_SHORT_NAME_REQ, path);
-    if (offset + req->path_len > req->h.length)
+    if (! FileServer_IsValidWireWString(
+            req->h.length, offset, req->path_len, req->path))
         return SHORT_REPLY(STATUS_INVALID_PARAMETER);
 
     //
@@ -337,7 +353,7 @@ NTSTATUS FileServer::OpenBoxFile(
 {
     NTSTATUS status = CheckBoxFilePath(idProcess, request_path, L"\\");
     if (! NT_SUCCESS(status))
-        SHORT_REPLY(status);
+        return status;
 
     UNICODE_STRING objname;
     RtlInitUnicodeString(&objname, request_path);
@@ -390,7 +406,7 @@ MSG_HEADER *FileServer::LoadKey(MSG_HEADER *msg, HANDLE idProcess)
     //
 
     BOOLEAN ok = FALSE;
-    req->KeyPath[127] = L'\0';
+    req->KeyPath[FILE_LOAD_KEY_PATH_CHARS - 1] = L'\0';
 
     if (_wcsicmp(req->KeyPath, L"\\REGISTRY\\MACHINE\\COMPONENTS") == 0)
         ok = TRUE;
@@ -409,7 +425,7 @@ MSG_HEADER *FileServer::LoadKey(MSG_HEADER *msg, HANDLE idProcess)
     WCHAR *MyFilePath2 = MyFilePath + wcslen(MyFilePath);
 
     ok = FALSE;
-    req->FilePath[127] = L'\0';
+    req->FilePath[FILE_LOAD_KEY_PATH_CHARS - 1] = L'\0';
 
     wcscpy(MyFilePath2, L"config\\COMPONENTS");
     if (_wcsicmp(req->FilePath, MyFilePath1) == 0)
@@ -952,13 +968,15 @@ MSG_HEADER *FileServer::OpenWow64Key(MSG_HEADER *msg, HANDLE idProcess)
     FILE_OPEN_WOW64_KEY_REQ *req = (FILE_OPEN_WOW64_KEY_REQ *)msg;
     if (req->h.length < sizeof(FILE_OPEN_WOW64_KEY_REQ))
         return SHORT_REPLY(STATUS_INVALID_PARAMETER);
-    if (req->KeyPath_len > PIPE_MAX_DATA_LEN)
-        return SHORT_REPLY(STATUS_INVALID_PARAMETER);
     ULONG offset = FIELD_OFFSET(FILE_OPEN_WOW64_KEY_REQ, KeyPath);
-    if (offset + req->KeyPath_len > req->h.length)
+    if (! FileServer_IsValidWireWString(
+            req->h.length, offset, req->KeyPath_len, req->KeyPath))
+        return SHORT_REPLY(STATUS_INVALID_PARAMETER);
+    if (req->KeyPath_len < (11 * sizeof(WCHAR)))
         return SHORT_REPLY(STATUS_INVALID_PARAMETER);
     if (req->Wow64DesiredAccess != KEY_WOW64_32KEY)
         return SHORT_REPLY(STATUS_INVALID_PARAMETER);
+    ULONG KeyPathChars = req->KeyPath_len / sizeof(WCHAR);
 
     //
     // convert registry key path from NT form to Win32 form
@@ -970,16 +988,20 @@ MSG_HEADER *FileServer::OpenWow64Key(MSG_HEADER *msg, HANDLE idProcess)
 
     if (req->KeyPath[10] == L'M' || req->KeyPath[10] == L'm') {
         // MACHINE
+        if (KeyPathChars <= 10 + 7)
+            return SHORT_REPLY(STATUS_INVALID_PARAMETER);
         ShouldCloseRootKey = FALSE;
         hRootKey = HKEY_LOCAL_MACHINE;
         lpSubKey = req->KeyPath + 10 + 7;
     } else if (req->KeyPath[10] == L'U' || req->KeyPath[10] == L'u') {
         // USER
+        if (KeyPathChars <= 10 + 4)
+            return SHORT_REPLY(STATUS_INVALID_PARAMETER);
         ShouldCloseRootKey = TRUE;
         hRootKey = HKEY_CURRENT_USER;
         lpSubKey = req->KeyPath + 10 + 4;
         if (*lpSubKey != L'\\')
-            SHORT_REPLY(STATUS_INVALID_PARAMETER);
+            return SHORT_REPLY(STATUS_INVALID_PARAMETER);
         do {
             if (*lpSubKey == L'_') {
                 if (_wcsnicmp(lpSubKey + 1, L"classes", 7) == 0)
@@ -1124,10 +1146,9 @@ MSG_HEADER *FileServer::CheckKeyExists(MSG_HEADER *msg, HANDLE idProcess)
     FILE_CHECK_KEY_EXISTS_REQ *req = (FILE_CHECK_KEY_EXISTS_REQ *)msg;
     if (req->h.length < sizeof(FILE_CHECK_KEY_EXISTS_REQ))
         return SHORT_REPLY(STATUS_INVALID_PARAMETER);
-    if (req->KeyPath_len > PIPE_MAX_DATA_LEN)
-        return SHORT_REPLY(STATUS_INVALID_PARAMETER);
     ULONG offset = FIELD_OFFSET(FILE_CHECK_KEY_EXISTS_REQ, KeyPath);
-    if (offset + req->KeyPath_len > req->h.length)
+    if (! FileServer_IsValidWireWString(
+            req->h.length, offset, req->KeyPath_len, req->KeyPath))
         return SHORT_REPLY(STATUS_INVALID_PARAMETER);
 
     //

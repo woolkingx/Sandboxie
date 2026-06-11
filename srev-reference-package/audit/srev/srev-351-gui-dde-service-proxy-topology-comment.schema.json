@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "GUI_DDE_SERVICE_PROXY_TOPOLOGY_COMMENT",
+  "title": "GUI DDE service proxy topology comment",
+  "type": "object",
+  "owner": "Sandboxie/core/svc/GuiServer.cpp",
+  "stage": "schema -> boundary -> topology -> verify",
+  "source_scope": "GuiServer::DdeProxyThreadSlave topology comment",
+  "contracts": [
+    "DdeProxyThreadSlave owns the SbieSvc service-side DDE proxy window and transport edge",
+    "guidde.c owns the sandbox-side DDE hook and posted-DDE reconstruction topology",
+    "private win32k and integrity-level observations are evidence not API contract",
+    "the legal protocol shape remains documented DDE messages and DDE lParam helpers",
+    "WM_COPYDATA is a SendMessage-only copy boundary whose data is valid only during message processing",
+    "SREV-084 owns DDE ACK lParam forwarding behavior",
+    "SREV-347 owns direct WM_DDE_ACK proxy startup and client HWND validation",
+    "SREV-348 owns DDE request/data route mapping",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/about-dynamic-data-exchange",
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/wm-dde-execute",
+    "https://learn.microsoft.com/en-us/windows/desktop/dataxchg/wm-dde-request",
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/wm-dde-ack",
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/wm-copydata",
+    "https://learn.microsoft.com/en-us/windows/win32/api/dde/nf-dde-packddelparam",
+    "https://learn.microsoft.com/en-us/windows/win32/api/dde/nf-dde-unpackddelparam"
+  ],
+  "local_edges": [
+    "SendPostMessageSlave -> DdeProxyThreadSlave for direct WM_DDE_ACK startup",
+    "DdeProxyThreadSlave -> _DDE_ProxyClass2 service proxy window",
+    "DdeProxyThreadSlave -> SendMessage(hClientWnd, WM_DDE_ACK, proxy HWND, initial lParam)",
+    "DdeProxyThreadSlave -> WM_DDE_EXECUTE / WM_DDE_REQUEST receive edge",
+    "DdeProxyThreadSlave -> WM_COPYDATA bridge into sandbox server",
+    "DdeProxyThreadSlave -> SREV-084 received ACK lParam forwarding edge",
+    "DdeProxyThreadSlave -> SREV-348 request/data route map"
+  ],
+  "runtime_gate": "none for comment-only clarification; inherited Windows DDE runtime gates remain SREV-084, SREV-347, and SREV-348",
+  "status": "patched-comment-topology-after-official-dde-and-wm-copydata-review-no-behavior-change"
+}

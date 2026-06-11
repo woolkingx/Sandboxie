@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-023-pipeserver-thread-liveness.schema.json",
+  "title": "SREV-023 PipeServer thread liveness cleanup",
+  "id": "PIPESERVER_THREAD_LIVENESS_SHAPE",
+  "owner": "Sandboxie/core/svc/PipeServer.cpp",
+  "type": "object",
+  "properties": {
+    "process_id_of_thread_shape": {
+      "type": "string",
+      "description": "GetProcessIdOfThread returns the process identifier for a thread handle"
+    },
+    "thread_object_lifecycle": {
+      "type": "string",
+      "description": "Thread object state becomes signaled when the thread terminates; thread object is not freed until all open handles are closed"
+    },
+    "wait_zero_shape": {
+      "type": "string",
+      "description": "WaitForSingleObject with timeout 0 checks state and returns immediately; SYNCHRONIZE access right is required to wait on a thread handle"
+    },
+    "legacy_path_topology": {
+      "type": "string",
+      "description": "Vista LPC PortDisconnectByCreateTime receives port-closed with no CID and only a process creation timestamp; finds matching process and scans stored client threads"
+    },
+    "liveness_gate": {
+      "type": "string",
+      "description": "OpenThread(THREAD_QUERY_INFORMATION | SYNCHRONIZE) -> GetProcessIdOfThread match -> WaitForSingleObject(hThread, 0) == WAIT_TIMEOUT; only then keep the client thread"
+    },
+    "stale_routing": {
+      "type": "string",
+      "description": "Signaled thread, failed wait, missing thread, or process-id mismatch routes to existing PortDisconnectHelper cleanup"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate: thread entry removed after client thread exits; still-running thread retained; process-level cleanup fires when last thread removed; normal broker requests unaffected"
+    }
+  },
+  "required": [
+    "process_id_of_thread_shape",
+    "thread_object_lifecycle",
+    "wait_zero_shape",
+    "legacy_path_topology",
+    "liveness_gate",
+    "stale_routing",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Successful OpenThread alone does not prove the thread is still running",
+    "Liveness requires WAIT_TIMEOUT from WaitForSingleObject with zero timeout",
+    "OpenThread must request SYNCHRONIZE in addition to THREAD_QUERY_INFORMATION",
+    "Process-id mismatch is treated as stale"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getprocessidofthread",
+    "https://learn.microsoft.com/en-us/windows/win32/procthread/terminating-a-thread",
+    "https://learn.microsoft.com/en-us/windows/win32/procthread/thread-handles-and-identifiers",
+    "https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject"
+  ]
+}

@@ -28,10 +28,11 @@
 #include "driver.h"
 #include "api_defs.h"
 
-// There is a problem with a 32 bit app running in 64 bit Windows.  In a 32 bit app, the process handle passed via one of the API_ARGS structures
-// is a HANDLE, which is a VOID*, which is 32 bits.  The 64 bit driver will compare this against NtCurrentProcess(), which is a 64 bit -1.
-// So it never matches.  This macro solves that problem.
-#define IS_ARG_CURRENT_PROCESS(h) ((ULONG)h == 0xffffffff)      // -1
+// API_ARGS are 64-bit slots, but WOW64 callers can pass the 32-bit
+// NtCurrentProcess sentinel.  Accept only the native -1 and zero-extended
+// 32-bit -1 forms; do not match arbitrary 64-bit values by truncation.
+#define IS_ARG_CURRENT_PROCESS(h) \
+    (((ULONG_PTR)(h) == (ULONG_PTR)-1) || ((ULONG_PTR)(h) == (ULONG_PTR)0xffffffff))
 
 
 //---------------------------------------------------------------------------

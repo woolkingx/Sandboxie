@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-248-crypt-norton-export-lookup-boundary.schema.json",
+  "id": "CRYPT_NORTON_EXPORT_LOOKUP_BOUNDARY",
+  "title": "Crypt Norton export lookup boundary",
+  "type": "object",
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/crypt.c"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 6
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 4
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/dll/crypt.c",
+  "contracts": [
+    "Microsoft GetProcAddress returns NULL when an export address cannot be resolved",
+    "SBIEDLL_HOOK treats a null hook result as module-init failure",
+    "Crypt_Init owns the decision to install the complete Crypt32 hook surface or skip it for a known third-party export-lookup incompatibility",
+    "The Norton branch is not a DPAPI wire-schema fix and must not be used as a general permission to skip arbitrary Crypt32 failures",
+    "The branch is gated by missing CryptProtectData Windows 8 plus build and loaded UMEngx86.dll",
+    "This SREV does not change Crypt32 hook behavior DPAPI broker routing certificate-chain behavior or Norton compatibility behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getprocaddress",
+    "https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptprotectdata",
+    "https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptunprotectdata",
+    "https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/nf-wincrypt-certgetcertificatechain"
+  ],
+  "runtime_gate": "Windows 8+ Firefox/Norton 360 toolbar compatibility proof plus normal Crypt32 hook smoke"
+}

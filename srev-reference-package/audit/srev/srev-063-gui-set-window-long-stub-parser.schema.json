@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-063-gui-set-window-long-stub-parser.schema.json",
+  "title": "SREV-063 GUI SetWindowLong stub parser contract",
+  "id": "GUI_SET_WINDOW_LONG_STUB_PARSER",
+  "api": "Gui_Hook_SetWindowLong8 / Gui_Hook_SetWindowLongPtr8",
+  "owner": "Sandboxie/core/dll/guiprop.c",
+  "type": "object",
+  "properties": {
+    "set_window_long_a_stub": {
+      "type": "string",
+      "description": "SetWindowLongA or SetWindowLongPtrA exported entry bytes accepted by the local parser"
+    },
+    "set_window_long_w_stub": {
+      "type": "string",
+      "description": "SetWindowLongW or SetWindowLongPtrW exported entry bytes accepted by the local parser"
+    },
+    "worker_target": {
+      "type": "string",
+      "description": "Shared worker address derived only after required stubs are schema-valid"
+    }
+  },
+  "required": [
+    "set_window_long_a_stub",
+    "set_window_long_w_stub",
+    "worker_target"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "SetWindowLongA/W and SetWindowLongPtrA/W are User32 exported APIs, but their entry byte layout is not a Win32 API contract",
+    "The local A-side parser accepts only 41 B9 01 00 00 00 E9 followed by rel32",
+    "The local W-side parser accepts only 45 33 C9 E9 followed by rel32",
+    "The A-side branch displacement may be read only after the full A-side prefix and E9 opcode are proven",
+    "The SetWindowLong8 and SetWindowLongPtr8 hooks may be installed only after schema-valid target derivation"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowlonga",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowlongw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowlongptra",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowlongptrw"
+  ]
+}

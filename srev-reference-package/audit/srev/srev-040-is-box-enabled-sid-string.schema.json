@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-040-is-box-enabled-sid-string.schema.json",
+  "title": "SREV-040 is box enabled sid string",
+  "id": "API_IS_BOX_ENABLED_SID_STRING",
+  "owner": [
+    "Sandboxie/core/drv/conf_user.c",
+    "Sandboxie/core/drv/api.c"
+  ],
+  "type": "object",
+  "properties": {
+    "audit_contract": {
+      "type": "string",
+      "description": "API: Conf_Api_IsBoxEnabled / Api_CopySidStringFromUser | wire: {\"request\": \"API_IS_BOX_ENABLED_ARGS\", \"fields\": [{\"name\": \"box_name\", \"type\": \"WCHAR*\", \"shape\": \"fixed local box name string\"}, {\"name\": \"sid_string\", \"type\": \"WCHAR*\", \"required\": false, \"shape\": \"NUL-terminated string SID within 94 WCHARs\"}, {\"name\": \"session_id\", \"type\": \"ULONG\", \"used_when\": \"sid_string is present\"}]}"
+    },
+    "validation_invariants": {
+      "type": "string",
+      "description": "All contracts listed in the contracts metadata must hold before any data is trusted past the validation boundary"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate proves contracts hold under normal and malformed inputs"
+    }
+  },
+  "required": [
+    "audit_contract",
+    "validation_invariants",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "optional sid_string is a user pointer and must be copied before Conf_IsBoxEnabled reads it",
+    "sid_string must be readable as 96 WCHARs with WCHAR alignment",
+    "sid_string must contain a NUL terminator before the local 94-WCHAR payload cap",
+    "empty sid_string is invalid",
+    "local sid_string payload must start with S- before entering Conf_IsBoxEnabled",
+    "Conf_IsBoxEnabled receives only kernel-owned SID strings or Process_GetSidStringAndSessionId output"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/sddl/nf-sddl-convertstringsidtosidw",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-probeforread"
+  ]
+}

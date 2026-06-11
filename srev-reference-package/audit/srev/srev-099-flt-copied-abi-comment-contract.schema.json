@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-099-flt-copied-abi-comment-contract.schema.json",
+  "title": "SREV-099 FLT copied ABI comment contract",
+  "id": "FLT_COPIED_ABI_COMMENT_CONTRACT",
+  "owner": "Sandboxie/core/drv/my_fltkernel.h",
+  "type": "object",
+  "properties": {
+    "copied_header_boundary": {
+      "type": "string",
+      "description": "Local fltKernel.h subset copied for legacy XP build compatibility"
+    },
+    "parameters_union": {
+      "type": "string",
+      "description": "FLT_PARAMETERS FileSystemControl and DeviceIoControl method-specific union shape"
+    },
+    "name_options_partition": {
+      "type": "string",
+      "description": "FLT_FILE_NAME_OPTIONS bit partition for format, query method, and flags"
+    },
+    "source_change": {
+      "type": "string",
+      "description": "Comment-only clarification that preserves copied ABI layout"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows Filter Manager build/runtime proof for copied ABI consumers"
+    }
+  },
+  "required": [
+    "copied_header_boundary",
+    "parameters_union",
+    "name_options_partition",
+    "source_change",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "my_fltkernel.h is a local copied fltKernel.h subset kept for _WIN32_WINNT below Vista / XP driver build compatibility",
+    "this SREV does not change the copied FLT ABI layout or numeric constants",
+    "FLT_PARAMETERS contains method-specific FileSystemControl and DeviceIoControl union arms",
+    "the FileSystemControl method arms are Common, Neither, Buffered, and Direct",
+    "the DeviceIoControl method arms are Common, Neither, Buffered, Direct, and FastIo",
+    "FLT_FILE_NAME_OPTIONS is a ULONG partitioned into name format bits, query method bits, unused bits, and flags",
+    "FLT_FILE_NAME_NORMALIZED and FLT_FILE_NAME_QUERY_DEFAULT remain the local normalized-name query contract",
+    "comment wording must not describe official partitioned ABI fields as broken",
+    "file_flt.c remains the local Filter Manager consumer for Iopb->Parameters and FltGetFileNameInformation"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/fltkernel/ns-fltkernel-_flt_parameters",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/fltkernel/nf-fltkernel-fltgetfilenameinformation",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ifs/flt-file-name-options",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ifs/accessing-user-buffers-in-a-preoperation-callback-routine"
+  ]
+}

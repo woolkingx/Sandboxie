@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "INTERACTIVE_FILE_MIGRATION_PATH_BOUNDS",
+  "owners": [
+    "Sandboxie/core/svc/InteractiveWire.h",
+    "Sandboxie/core/dll/file_copy.c",
+    "SandboxiePlus/QSbieAPI/SbieAPI.cpp"
+  ],
+  "status": "patched-source-level-after-local-interactive-wire-request-contract-review-needs-windows-ui-runtime-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/strsafe/nf-strsafe-stringcchcopyw",
+    "https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/strcpy-s-wcscpy-s-mbscpy-s",
+    "https://learn.microsoft.com/en-us/previous-versions/visualstudio/visual-studio-2013/kk6xf663(v=vs.120)"
+  ],
+  "contracts": [
+    "InteractiveWire.h owns MAN_FILE_MIGRATION_REQ file_path as a fixed 256 WCHAR interactive queue field",
+    "file_copy.c owns the DLL side producer that serializes TruePath into the fixed field before crossing the MANPROXY queue boundary",
+    "The producer must not use an unbounded string copy into file_path[256]",
+    "The producer must zero the full request before sending it so padding and unused path tail bytes do not leak across the queue boundary",
+    "The producer must always NUL terminate file_path inside the fixed field",
+    "The Qt side consumer may continue to treat file_path as a C string because containment is enforced by the producer",
+    "The fix does not change request ids, queue names, copy limit policy, migration decision semantics, file size handling, Qt request routing, or the fixed wire structure layout"
+  ],
+  "runtime_gate": "Windows DLL and SandboxiePlus build plus normal and over-255-character file migration prompt smokes."
+}

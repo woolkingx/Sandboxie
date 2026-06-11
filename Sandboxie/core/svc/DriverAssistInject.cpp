@@ -59,6 +59,7 @@ void DriverAssist::InjectLow(void *_msg)
     UCHAR SandboxieLogonSid[SECURITY_MAX_SID_SIZE] = { 0 };
     WCHAR* file_root_path = NULL;
     WCHAR* reg_root_path = NULL;
+    HANDLE hProcess = NULL;
 
     if (!m_DriverReady) {
 
@@ -70,7 +71,7 @@ void DriverAssist::InjectLow(void *_msg)
 	// open new process and verify process creation time
 	//
 
-	HANDLE hProcess = InjectLow_OpenProcess(_msg);
+	hProcess = InjectLow_OpenProcess(_msg);
 	if (!hProcess) {
 
 		errlvl = 0x11;
@@ -247,4 +248,3 @@ HANDLE DriverAssist::InjectLow_OpenProcess(void *_msg)
 
     return NULL;
 }
-

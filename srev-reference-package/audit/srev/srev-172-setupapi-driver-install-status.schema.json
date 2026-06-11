@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "SETUPAPI_DRIVER_INSTALL_STATUS",
+  "type": "object",
+  "required": [
+    "owner",
+    "data",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/setup.c"
+    },
+    "data": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "Setup_VerifyCatalogFile"
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "setup.c owns SetupAPI catalog verification and CfgMgr32 driver package hook status projection"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 4
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/devnotes/verifycatalogfile",
+    "https://learn.microsoft.com/en-my/windows-hardware/drivers/install/setupapi",
+    "https://learn.microsoft.com/en-us/windows/win32/api/cfgmgr32/nf-cfgmgr32-cm_get_device_interface_listw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/cfgmgr32/nf-cfgmgr32-cm_mapcrtowin32err"
+  ],
+  "contracts": [
+    "setup.c owns SetupAPI catalog verification and CfgMgr32 driver package hook status projection",
+    "VerifyCatalogFile result values are owned by the original SetupAPI function",
+    "VerifyCatalogFile failure must not be converted into ERROR_SUCCESS",
+    "CM_Add_Driver_PackageW and CM_Add_Driver_Package_ExW are blocked driver package install edges",
+    "blocked driver package install must return a non success CONFIGRET",
+    "CR_ACCESS_DENIED is the local blocked status for driver package hooks",
+    "SREV-172 does not change hook installation message 2205 function pointer parameter count dynamic export lookup or disabled setup remove hooks",
+    "Linux source gate is not Windows installer compatibility proof"
+  ],
+  "owner": "Sandboxie/core/dll/setup.c",
+  "data": [
+    "Sandboxie/core/dll/setup.c",
+    "Sandboxie/core/dll/ldr.c",
+    "Setup_Init_SetupApi",
+    "Setup_VerifyCatalogFile",
+    "VerifyCatalogFile",
+    "Setup_Init_CfgMgr32",
+    "CM_Add_Driver_PackageW",
+    "CM_Add_Driver_Package_ExW",
+    "Setup_CM_Add_Driver_PackageW",
+    "Setup_CM_Add_Driver_Package_ExW",
+    "SbieApi_Log",
+    "SBIE2205",
+    "ERROR_SUCCESS",
+    "ERROR_AUTHENTICODE_TRUSTED_PUBLISHER",
+    "CR_SUCCESS",
+    "CR_ACCESS_DENIED",
+    "CONFIGRET"
+  ],
+  "runtime_gate": "Windows DLL build, signed and unsigned catalog verification smoke, CM_Add_Driver_PackageW and ExW blocked install smoke with SBIE2205 and non success CONFIGRET, installer compatibility observation"
+}

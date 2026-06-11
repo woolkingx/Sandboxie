@@ -53,10 +53,19 @@ static BOOLEAN File_Init_Filter(void);
 
 static void File_Unload_Filter(void);
 
+static BOOLEAN File_ProtectedRootStringLen(
+    const WCHAR *text, ULONG max_chars, ULONG *out_len);
+
 static FLT_PREOP_CALLBACK_STATUS File_PreOperation(
     PFLT_CALLBACK_DATA Data,
     PCFLT_RELATED_OBJECTS FltObjects,
     void **CompletionContext);
+
+static FLT_POSTOP_CALLBACK_STATUS File_PostOperation(
+    PFLT_CALLBACK_DATA Data,
+    PCFLT_RELATED_OBJECTS FltObjects,
+    void *CompletionContext,
+    FLT_POST_OPERATION_FLAGS Flags);
 
 static NTSTATUS File_CreateOperation(
     PROCESS *proc,
@@ -67,6 +76,11 @@ static NTSTATUS File_RenameOperation(
     PROCESS *proc,
     FLT_IO_PARAMETER_BLOCK *Iopb,
     BOOLEAN LinkOp);
+
+static BOOLEAN File_CheckRenameLinkNameLength(
+    ULONG BufferLength,
+    ULONG FileNameOffset,
+    ULONG FileNameLength);
 
 static NTSTATUS File_QueryTeardown(
     PCFLT_RELATED_OBJECTS FltObjects,
@@ -89,11 +103,12 @@ static NTSTATUS File_CheckFileObject(
 
 
 #define FILE_CALLBACK(irp) { irp, 0, File_PreOperation, NULL, NULL },
+#define FILE_CALLBACK_WITH_POST(irp) { irp, 0, File_PreOperation, File_PostOperation, NULL },
 
 
 static const FLT_OPERATION_REGISTRATION File_Callbacks[] = {
 
-    FILE_CALLBACK(IRP_MJ_CREATE)
+    FILE_CALLBACK_WITH_POST(IRP_MJ_CREATE)
     FILE_CALLBACK(IRP_MJ_CREATE_NAMED_PIPE)
     FILE_CALLBACK(IRP_MJ_CREATE_MAILSLOT)
     FILE_CALLBACK(IRP_MJ_SET_INFORMATION)
@@ -341,16 +356,23 @@ _FX FLT_PREOP_CALLBACK_STATUS File_PreOperation(
              && Data->Thread == PsGetCurrentThread()) {
 
             BOOLEAN bSetDirty = FALSE;
+            FILE_FONT_TOKEN_SWAP *FontTokenSwap = NULL;
 
             PFILE_OBJECT FileObject = Iopb->TargetFileObject;
 
-            File_ReplaceTokenIfFontRequest(
+            FontTokenSwap = File_ReplaceTokenIfFontRequest(
                 Iopb->Parameters.Create.SecurityContext->AccessState,
                 FileObject->DeviceObject, &FileObject->FileName, &bSetDirty);
 
             if (bSetDirty)
             {
                 FltSetCallbackDataDirty(Data);
+            }
+
+            if (FontTokenSwap)
+            {
+                *CompletionContext = FontTokenSwap;
+                return FLT_PREOP_SUCCESS_WITH_CALLBACK;
             }
         }
 
@@ -395,10 +417,13 @@ _FX FLT_PREOP_CALLBACK_STATUS File_PreOperation(
         if (nbuf)
         {
             if ((_wcsicmp(nptr, L"spoolsv.exe") == 0) &&        // is this the print spooler process?
-                // Stupid hack: some printer drivers try to open a DOS-style port at the end of a directory name.  E.g. C:\Users\admin\Documents\XPSPort:
-                // They must get invalid file error and not access denied, or they will error out.
+                // SREV-331: let spooler/port-monitor probe names that end
+                // in ':' reach the file system so path/device-name parsing,
+                // not sandbox denial, owns the failure status.
                 !UnicodeStringEndsWith(&Iopb->TargetFileObject->FileName, L":", TRUE) &&
-                // another stupid hack to make spoolsv happy.  It tries to open this file, but never uses it.  So we again have to humor it or it will fail.
+                // SREV-331: keep this printer-driver status probe outside the
+                // print-to-file deny path; the spooler compatibility branch
+                // remains scoped to spoolsv impersonating a sandboxed user.
                 !SearchUnicodeString(&Iopb->TargetFileObject->FileName, L"tpwinprn-stat.txt", TRUE) &&
                 // The spooler needs to write to a network pipe and will fail if it can't.
                 !SearchUnicodeString(&Iopb->TargetFileObject->FileName, L"\\pipe\\spoolss", TRUE))
@@ -614,7 +639,7 @@ check:
                     FltReleaseFileNameInformation(pTargetFileNameInfo);
                 }
             //}
-            //else if(!Box_IsBoxedPath(proc->box, file, &Iopb->Parameters.SetFileInformation.ParentOfTarget->FileName)) { // bug bug ParentOfTarget->FileName does not contain device path
+            //else if(!Box_IsBoxedPath(proc->box, file, &Iopb->Parameters.SetFileInformation.ParentOfTarget->FileName)) { // SREV-332: ParentOfTarget is a file-object carrier; File_RenameOperation owns target-context parsing.
             //    status = STATUS_ACCESS_DENIED;
             //}
             */
@@ -730,6 +755,23 @@ finish:
 
 
 //---------------------------------------------------------------------------
+// File_PostOperation
+//---------------------------------------------------------------------------
+
+
+_FX FLT_POSTOP_CALLBACK_STATUS File_PostOperation(
+    PFLT_CALLBACK_DATA Data,
+    PCFLT_RELATED_OBJECTS FltObjects,
+    void *CompletionContext,
+    FLT_POST_OPERATION_FLAGS Flags)
+{
+    File_RestoreTokenIfFontRequest((FILE_FONT_TOKEN_SWAP *)CompletionContext);
+
+    return FLT_POSTOP_FINISHED_PROCESSING;
+}
+
+
+//---------------------------------------------------------------------------
 // File_CreateOperation
 //---------------------------------------------------------------------------
 
@@ -779,6 +821,27 @@ _FX NTSTATUS File_CreateOperation(
 //---------------------------------------------------------------------------
 
 
+_FX BOOLEAN File_CheckRenameLinkNameLength(
+    ULONG BufferLength,
+    ULONG FileNameOffset,
+    ULONG FileNameLength)
+{
+    if ((! FileNameLength) || (FileNameLength > MAXUSHORT))
+        return FALSE;
+
+    if (FileNameLength & (sizeof(WCHAR) - 1))
+        return FALSE;
+
+    if (BufferLength < FileNameOffset)
+        return FALSE;
+
+    if (FileNameLength > BufferLength - FileNameOffset)
+        return FALSE;
+
+    return TRUE;
+}
+
+
 _FX NTSTATUS File_RenameOperation(
     PROCESS *proc,
     FLT_IO_PARAMETER_BLOCK *Iopb,
@@ -803,7 +866,13 @@ _FX NTSTATUS File_RenameOperation(
     
         FileObject = Parms->SetFileInformation.ParentOfTarget;
 
-        if ((! FileObject) || (! infoL) || (! infoL->FileNameLength))
+        if ((! FileObject) || (! infoL))
+            return STATUS_ACCESS_DENIED;
+
+        if (! File_CheckRenameLinkNameLength(
+                Parms->SetFileInformation.Length,
+                FIELD_OFFSET(FILE_LINK_INFORMATION, FileName),
+                infoL->FileNameLength))
             return STATUS_ACCESS_DENIED;
 
         FileName.Length = (USHORT)infoL->FileNameLength;
@@ -818,7 +887,13 @@ _FX NTSTATUS File_RenameOperation(
 
         FileObject = Parms->SetFileInformation.ParentOfTarget;
 
-        if ((! FileObject) || (! infoR) || (! infoR->FileNameLength))
+        if ((! FileObject) || (! infoR))
+            return STATUS_ACCESS_DENIED;
+
+        if (! File_CheckRenameLinkNameLength(
+                Parms->SetFileInformation.Length,
+                FIELD_OFFSET(FILE_RENAME_INFORMATION, FileName),
+                infoR->FileNameLength))
             return STATUS_ACCESS_DENIED;
 
         FileName.Length = (USHORT)infoR->FileNameLength;
@@ -902,7 +977,7 @@ _FX NTSTATUS File_CheckFileObject(
     FileObject = (FILE_OBJECT *)Object;
 
     //
-    // hack for Kaspersky 2014:  it queues an APC into Wow64 processes which
+    // SREV-333: Kaspersky 2014 queues an APC into Wow64 processes which
     // overwrites some NTAPI stubs, in particular NtSetInformationThread.
     // this gets in the way of the special NtSetInformationThread call from
     // Gui_ConnectToWindowStationAndDesktop in core/dll/gui.c
@@ -913,7 +988,7 @@ _FX NTSTATUS File_CheckFileObject(
     // function Syscall_OpenHandle in file syscall_open.c
     //
 
-    // $Workaround$ - 3rd party fix
+    // SREV-333: keep this x64 pre-SbieDll-loaded swmon_*_kl1 sentinel narrow.
 #ifdef _WIN64
     if (! proc->sbiedll_loaded) {
         WCHAR *Backslash = wcsrchr(NameString->Buffer, L'\\');
@@ -993,10 +1068,33 @@ _FX NTSTATUS File_CheckFileObject(
 //---------------------------------------------------------------------------
 
 
+_FX BOOLEAN File_ProtectedRootStringLen(
+    const WCHAR *text, ULONG max_chars, ULONG *out_len)
+{
+    ULONG i;
+
+    if ((! text) || (! out_len) || (! max_chars))
+        return FALSE;
+
+    for (i = 0; i < max_chars; ++i) {
+        if (text[i] == L'\0') {
+            *out_len = i;
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+
 _FX NTSTATUS File_Api_ProtectRoot(PROCESS *proc, ULONG64 *parms)
 {
     WCHAR* reg_root;
     WCHAR* file_root;
+    ULONG reg_root_len;
+    ULONG file_root_len;
+    ULONG len;
+    PROTECTED_ROOT *root;
     KIRQL irql;
 
     if (proc)
@@ -1014,30 +1112,38 @@ _FX NTSTATUS File_Api_ProtectRoot(PROCESS *proc, ULONG64 *parms)
     reg_root = (WCHAR *)parms[1];
     file_root = (WCHAR *)parms[2];
 
-    ULONG path_len = wcslen(file_root);
-    ULONG len = sizeof(PROTECTED_ROOT) + path_len * sizeof(WCHAR);
-    PROTECTED_ROOT *root = Mem_Alloc(Driver_Pool, len);
-    if (root) {
-        
-		root->admin_only = (parms[3] != 0);
+    if (! File_ProtectedRootStringLen(reg_root, MAX_REG_ROOT_LEN, &reg_root_len))
+        return STATUS_INVALID_PARAMETER;
 
-        root->file_root_len = path_len;
-        wmemcpy(root->file_root, file_root, path_len);
-        root->file_root[path_len] = L'\0';
-        
-        path_len = wcslen(reg_root);
-        root->reg_root_len = path_len;
-        wmemcpy(root->reg_root, reg_root, path_len);
-        root->reg_root[path_len] = L'\0';
+    if ((! File_ProtectedRootStringLen(file_root, 32767, &file_root_len)) ||
+            (! file_root_len))
+        return STATUS_INVALID_PARAMETER;
 
-        KeRaiseIrql(APC_LEVEL, &irql);
-        ExAcquireResourceExclusiveLite(File_ProtectedRootsLock, TRUE);
+    ProbeForRead(reg_root, (reg_root_len + 1) * sizeof(WCHAR), sizeof(WCHAR));
+    ProbeForRead(file_root, (file_root_len + 1) * sizeof(WCHAR), sizeof(WCHAR));
+
+    len = sizeof(PROTECTED_ROOT) + file_root_len * sizeof(WCHAR);
+    root = Mem_Alloc(Driver_Pool, len);
+    if (! root)
+        return STATUS_INSUFFICIENT_RESOURCES;
         
-        List_Insert_After(&File_ProtectedRoots, NULL, root);
+	root->admin_only = (parms[3] != 0);
+
+    root->file_root_len = file_root_len;
+    wmemcpy(root->file_root, file_root, file_root_len);
+    root->file_root[file_root_len] = L'\0';
         
-        ExReleaseResourceLite(File_ProtectedRootsLock);
-        KeLowerIrql(irql);
-    }
+    root->reg_root_len = reg_root_len;
+    wmemcpy(root->reg_root, reg_root, reg_root_len);
+    root->reg_root[reg_root_len] = L'\0';
+
+    KeRaiseIrql(APC_LEVEL, &irql);
+    ExAcquireResourceExclusiveLite(File_ProtectedRootsLock, TRUE);
+        
+    List_Insert_After(&File_ProtectedRoots, NULL, root);
+        
+    ExReleaseResourceLite(File_ProtectedRootsLock);
+    KeLowerIrql(irql);
 
     return STATUS_SUCCESS;
 }
@@ -1068,7 +1174,11 @@ _FX NTSTATUS File_Api_UnprotectRoot(PROCESS* proc, ULONG64* parms)
         return STATUS_ACCESS_DENIED;
     }
 
-    reg_root_len = wcslen((WCHAR *)parms[1]);
+    if (! File_ProtectedRootStringLen((WCHAR *)parms[1], MAX_REG_ROOT_LEN, &reg_root_len))
+        return STATUS_INVALID_PARAMETER;
+
+    ProbeForRead((WCHAR *)parms[1], (reg_root_len + 1) * sizeof(WCHAR), sizeof(WCHAR));
+
     wmemcpy(reg_root, (WCHAR *)parms[1], reg_root_len);
     reg_root[reg_root_len] = L'\0';
 

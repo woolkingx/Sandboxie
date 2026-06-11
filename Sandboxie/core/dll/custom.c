@@ -1245,8 +1245,8 @@ _FX void Custom_ComServer(void)
     // (typically this is Internet Explorer or Windows Media Player.)
     //
     // the program in the sandbox can't talk to COM outside the sandbox
-    // to serve the request, so we need some workaround.  prior to
-    // version 4, the workaround was to grant the process full access
+    // to serve the request, so Sandboxie uses a brokered COM handoff.  prior to
+    // version 4, the handoff granted the process full access
     // to the COM IPC objects (like epmapper) and then use the
     // comserver module to simulate a COM server.  This means we talked
     // to the real COM using expected COM interfaces, in order to get
@@ -1257,7 +1257,7 @@ _FX void Custom_ComServer(void)
     // in v4 this no longer works because the forced process is running
     // with untrusted privileges so the real COM will not let it sign up
     // as a COM server.  (COM returns error "out of memory" when we try
-    // to use CoRegisterClassObject.)  to work around this, the comserver
+    // to use CoRegisterClassObject.)  the comserver
     // module was moved into SbieSvc, and here we just issue a special
     // SbieDll_RunSandboxed request which runs an instance of SbieSvc
     // outside the sandbox.  SbieSvc (in file core/svc/comserver9.c) then
@@ -1367,15 +1367,11 @@ _FX BOOLEAN NsiRpc_Init(HMODULE module)
 }
 
 
-//  In Win8.1 WININET initialization needs to register network change events into NSI service (Network Store Interface Service).
-//  The communication between guest and NSI service is via epmapper. We currently block epmapper and it blocks guest and NSI service.
-//  This causes IE to pop up a dialog "Revocation information for the security certificate for this site is not available. Do you want to proceed?"
-//  The fix can be either - 
-//  1.  Allowing guest to talk to NSI service by fixing RpcBindingCreateW like what we did for keyiso-crypto and Smart Card service.
-//      ( We don't fully know what we actually open to allow guest to talk to NSI service and if it is needed. It has been blocked. )
-//  2. Hooking NsiRpcRegisterChangeNotification and silently returning NO_ERROR from the hook.
-//      ( Guest app won't get Network Change notification. I am not sure if this is needed for the APP we support. )
-//  We choose Fix 2 here. We may need fix 1 if see a need in the future.
+//  SREV-314: WinINet can register network-change notifications through the
+//  private winnsi NsiRpcRegisterChangeNotification export. Sandboxie does not
+//  own the NSI service notification topology here, so only the endpoint-mapper
+//  miss is translated to NO_ERROR while every other native result passes
+//  through unchanged.
 
 
 _FX RPC_STATUS NsiRpc_NsiRpcRegisterChangeNotification(LPVOID  p1, LPVOID  p2, LPVOID  p3, LPVOID  p4, LPVOID  p5, LPVOID  p6, LPVOID  p7)
@@ -2061,8 +2057,8 @@ _FX BOOLEAN Custom_InternetDownloadManager(HMODULE module)
 // calls LdrGetProcedureAddress to get the address of NtDeviceIoControlFile
 // and then copies the code.  if the code includes relative jumps (which
 // it does, after processing by SbieDll_Hook), this is not fixed up while
-// copying, and causes avast to crash.  to work around this, we return a
-// small trampoline with the following code which avoids a relative jump:
+// copying.  Return a generated trampoline that has no relative jump and publish
+// it only after the executable-code bytes are cache-coherent:
 // mov eax, NtDeviceIoControlFile; jmp eax
 //
 //---------------------------------------------------------------------------
@@ -2104,16 +2100,20 @@ _FX NTSTATUS Custom_Avast_SnxHk_LdrGetProcedureAddress(
         static UCHAR *code = 0;
         if (! code) {
 
-            code = Dll_AllocCode128();
+            UCHAR *new_code = Dll_AllocCode128();
+            if (! new_code)
+                return status;
 #ifdef _WIN64
-            *(USHORT *)code = 0xB848;
-            *(ULONG64 *)(code + 2) = *Address;
-            *(USHORT *)(code + 10) = 0xE0FF;
+            *(USHORT *)new_code = 0xB848;
+            *(ULONG64 *)(new_code + 2) = *Address;
+            *(USHORT *)(new_code + 10) = 0xE0FF;
 #else ! _WIN64
-            *code = 0xB8;
-            *(ULONG *)(code + 1) = *Address;
-            *(USHORT *)(code + 5) = 0xE0FF;
+            *new_code = 0xB8;
+            *(ULONG *)(new_code + 1) = *Address;
+            *(USHORT *)(new_code + 5) = 0xE0FF;
 #endif _WIN64
+            FlushInstructionCache(GetCurrentProcess(), new_code, 12);
+            code = new_code;
         }
 
         *Address = (ULONG_PTR)code;
@@ -2149,16 +2149,31 @@ _FX BOOLEAN Custom_SYSFER_DLL(HMODULE hmodule)
     //
     // Symantec Endpoint Protection SYSFER.DLL hooks NT API stubs in
     // NTDLL by simply copying code bytes elsewhere.  this doesn't work
-    // for us because it doesn't adjust JMP pointers.  we use this
-    // workaround to nullify SYSFER.DLL
+    // for us because it doesn't adjust JMP pointers.  SREV-055 owns this
+    // bounded entry-point patch for the SYSFER.DLL load path.
     //
 
-    extern IMAGE_OPTIONAL_HEADER *Ldr_OptionalHeader(ULONG_PTR ImageBase);
     ULONG_PTR base = (ULONG_PTR)hmodule;
-    IMAGE_OPTIONAL_HEADER *opt_hdr = Ldr_OptionalHeader(base);
-    UCHAR *entrypoint = (UCHAR *)(base + opt_hdr->AddressOfEntryPoint);
+    if (!base)
+        return TRUE;
+
+    IMAGE_DOS_HEADER* dos_hdr = (IMAGE_DOS_HEADER*)base;
+    if (dos_hdr->e_magic != IMAGE_DOS_SIGNATURE)
+        return TRUE;
+
+    IMAGE_NT_HEADERS* nt_hdrs = (IMAGE_NT_HEADERS*)(base + dos_hdr->e_lfanew);
+    if (nt_hdrs->Signature != IMAGE_NT_SIGNATURE)
+        return TRUE;
+
+    IMAGE_OPTIONAL_HEADER* opt_hdr = &nt_hdrs->OptionalHeader;
+    ULONG entry_rva = opt_hdr->AddressOfEntryPoint;
+    ULONG image_size = opt_hdr->SizeOfImage;
+    if (!entry_rva || entry_rva > image_size || image_size - entry_rva < sizeof(ULONG))
+        return TRUE;
+
+    UCHAR *entrypoint = (UCHAR *)(base + entry_rva);
     ULONG old_prot;
-    if (VirtualProtect(entrypoint, 16, PAGE_EXECUTE_READWRITE, &old_prot)) {
+    if (VirtualProtect(entrypoint, sizeof(ULONG), PAGE_EXECUTE_READWRITE, &old_prot)) {
 
         //
         // mov al, 1 ; ret
@@ -2168,6 +2183,10 @@ _FX BOOLEAN Custom_SYSFER_DLL(HMODULE hmodule)
         //
 
         *(ULONG *)entrypoint = 0x00C301B0;
+        FlushInstructionCache(GetCurrentProcess(), entrypoint, sizeof(ULONG));
+
+        ULONG tmp_prot;
+        VirtualProtect(entrypoint, sizeof(ULONG), old_prot, &tmp_prot);
     }
 
     return TRUE;
@@ -2206,7 +2225,7 @@ _FX BOOLEAN Custom_SYSFER_DLL(HMODULE hmodule)
 }*/
 
 //---------------------------------------------------------------------------
-// Handles ActivClient's acscmonitor.dll which crashes firefox in sandboxie.
+// Handles ActivClient's acscmonitor.dll loader reference lifetime.
 //---------------------------------------------------------------------------
 
 //---------------------------------------------------------------------------
@@ -2215,11 +2234,9 @@ _FX BOOLEAN Custom_SYSFER_DLL(HMODULE hmodule)
 
 ULONG CALLBACK Acscmonitor_LoadLibrary(LPVOID lpParam)
 {
-    // Acscmonitor is a plugin to Firefox which create a thread on initialize.
-    // Firefox has a habit of initializing the module right before it's about
-    // to unload the DLL, which is causing the crash.
-    // Our solution is to prevent the library from ever being removed by holding
-    // a reference to it.
+    // Acscmonitor is a plugin to Firefox which creates a thread on initialize.
+    // Pin the module with an extra LoadLibraryW reference so a late initialize
+    // path cannot race the loader's final FreeLibrary-driven unload.
     LoadLibraryW(L"acscmonitor.dll");
     return 0;
 }

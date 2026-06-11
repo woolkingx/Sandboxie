@@ -190,6 +190,36 @@ void *ComServer::CreateDummySlaveObject(GUID *riid)
 
 
 //---------------------------------------------------------------------------
+// CryptAddUlong
+//---------------------------------------------------------------------------
+
+
+static bool CryptAddUlong(ULONG Value, ULONG Addend, ULONG *Result)
+{
+    if (Value > (~0u - Addend))
+        return false;
+
+    *Result = Value + Addend;
+    return true;
+}
+
+
+//---------------------------------------------------------------------------
+// CryptWcharsToBytesWithNull
+//---------------------------------------------------------------------------
+
+
+static bool CryptWcharsToBytesWithNull(ULONG Chars, ULONG *Bytes)
+{
+    if (Chars > ((~0u / sizeof(WCHAR)) - 1))
+        return false;
+
+    *Bytes = (Chars + 1) * sizeof(WCHAR);
+    return true;
+}
+
+
+//---------------------------------------------------------------------------
 // CryptProtectDataSlave
 //---------------------------------------------------------------------------
 
@@ -197,7 +227,7 @@ void *ComServer::CreateDummySlaveObject(GUID *riid)
 ULONG ComServer::CryptProtectDataSlave(void *Buffer)
 {
     COM_CRYPT_PROTECT_DATA_REQ *req = (COM_CRYPT_PROTECT_DATA_REQ *)Buffer;
-    ULONG req_len, rpl_len, descr_len, offset;
+    ULONG req_len, rpl_len, descr_len, offset, remaining, descr_bytes;
     CRYPTPROTECT_PROMPTSTRUCT PromptStruct;
     DATA_BLOB DataIn, DataOut;
     DATA_BLOB Entropy, *pEntropy;
@@ -223,7 +253,11 @@ ULONG ComServer::CryptProtectDataSlave(void *Buffer)
     //
 
     offset = FIELD_OFFSET(COM_CRYPT_PROTECT_DATA_REQ, data);
-    if (offset + req->data_len > req_len)
+    if (offset > req_len)
+        return ERROR_INVALID_PARAMETER;
+
+    remaining = req_len - offset;
+    if (req->data_len > remaining)
         return ERROR_INVALID_PARAMETER;
 
     DataIn.cbData = req->data_len;
@@ -234,7 +268,8 @@ ULONG ComServer::CryptProtectDataSlave(void *Buffer)
     //
 
     offset += req->data_len;
-    if (offset + req->entropy_len > req_len)
+    remaining = req_len - offset;
+    if (req->entropy_len > remaining)
         return ERROR_INVALID_PARAMETER;
 
     Entropy.cbData = req->entropy_len;
@@ -255,7 +290,17 @@ ULONG ComServer::CryptProtectDataSlave(void *Buffer)
     if (req->mode == L'P') {
 
         offset += req->entropy_len;
-        if (offset + req->descr_len * sizeof(WCHAR) > req_len)
+        remaining = req_len - offset;
+        if (req->descr_len) {
+            if (! CryptWcharsToBytesWithNull(req->descr_len, &descr_bytes))
+                return ERROR_INVALID_PARAMETER;
+            if (descr_bytes > remaining)
+                return ERROR_INVALID_PARAMETER;
+        }
+        else
+            descr_bytes = 0;
+
+        if ((req->descr_len == 0) && (remaining < sizeof(WCHAR)))
             return ERROR_INVALID_PARAMETER;
 
         if (req->descr_len) {
@@ -284,14 +329,35 @@ ULONG ComServer::CryptProtectDataSlave(void *Buffer)
     // copy result data
     //
 
-    rpl_len = sizeof(COM_CRYPT_PROTECT_DATA_RPL)
-            + DataOut.cbData;
+    rpl_len = sizeof(COM_CRYPT_PROTECT_DATA_RPL);
+    if (! CryptAddUlong(rpl_len, DataOut.cbData, &rpl_len)) {
+        if (DataDescr)
+            LocalFree(DataDescr);
+        if (DataOut.pbData)
+            LocalFree(DataOut.pbData);
+        return ERROR_SECRET_TOO_LONG;
+    }
 
     if (DataDescr) {
-        descr_len = wcslen(DataDescr);
-        rpl_len += (descr_len + 1) * sizeof(WCHAR);
-    } else
+        size_t descr_len_size = wcslen(DataDescr);
+        if (descr_len_size > ~0u) {
+            LocalFree(DataDescr);
+            if (DataOut.pbData)
+                LocalFree(DataOut.pbData);
+            return ERROR_SECRET_TOO_LONG;
+        }
+        descr_len = (ULONG)descr_len_size;
+        if ((! CryptWcharsToBytesWithNull(descr_len, &descr_bytes)) ||
+            (! CryptAddUlong(rpl_len, descr_bytes, &rpl_len))) {
+            LocalFree(DataDescr);
+            if (DataOut.pbData)
+                LocalFree(DataOut.pbData);
+            return ERROR_SECRET_TOO_LONG;
+        }
+    } else {
         descr_len = 0;
+        descr_bytes = 0;
+    }
 
     if (rpl_len < MAX_MAP_BUFFER_LENGTH) {
 
@@ -302,10 +368,15 @@ ULONG ComServer::CryptProtectDataSlave(void *Buffer)
         rpl->h.status = 0;
 
         rpl->data_len = DataOut.cbData;
-        memcpy(rpl->data, DataOut.pbData, rpl->data_len);
+        if (rpl->data_len)
+            memcpy(rpl->data, DataOut.pbData, rpl->data_len);
 
         rpl->descr_len = descr_len;
-        wmemcpy((WCHAR*)(rpl->data + rpl->data_len), DataDescr, descr_len);
+        if (DataDescr) {
+            wmemcpy((WCHAR*)(rpl->data + rpl->data_len),
+                    DataDescr, descr_len);
+            ((WCHAR*)(rpl->data + rpl->data_len))[descr_len] = L'\0';
+        }
     }
 
     if (DataDescr)

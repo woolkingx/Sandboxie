@@ -1131,9 +1131,9 @@ _FX char* Cred_CopyW2A(char** pStrA, const WCHAR* strW)
     if (!strW)
         return NULL;
     ULONG i = 0;
-    WCHAR* strA = *pStrA;
+    char* strA = *pStrA;
     for (; strW[i]; i++)
-        strA[i] = strW[i];
+        strA[i] = (char)strW[i];
     strA[i++] = '\0';
     *pStrA += i;
     return strA;
@@ -1195,7 +1195,10 @@ _FX const WCHAR* Cred_STRA2W(const char* strA)
     if (!strA)
         return NULL;
     WCHAR* strW = LocalAlloc(LMEM_FIXED, Cred_StrWSizeA(strA));
-    return Cred_CopyA2W(&strW, strA);
+    if (! strW)
+        return NULL;
+    WCHAR* ptr = strW;
+    return Cred_CopyA2W(&ptr, strA);
 }
 
 
@@ -1210,13 +1213,15 @@ _FX CREDENTIALW* Cred_CREDENTIALA2W(CREDENTIALA* credA)
     size += Cred_StrWSizeA(credA->TargetName);  // CRED_MAX_DOMAIN_TARGET_NAME_LENGTH
     size += Cred_StrWSizeA(credA->Comment);     // CRED_MAX_STRING_LENGTH
     for (DWORD i = 0; i < credA->AttributeCount; i++) {         // CRED_MAX_ATTRIBUTES
-        size += sizeof(CREDENTIAL_ATTRIBUTEA);
+        size += sizeof(CREDENTIAL_ATTRIBUTEW);
         size += Cred_StrWSizeA(credA->Attributes[i].Keyword);   // CRED_MAX_STRING_LENGTH
     }                                                           // CRED_MAX_VALUE_SIZE 
     size += Cred_StrWSizeA(credA->TargetAlias); // CRED_MAX_STRING_LENGTH
     size += Cred_StrWSizeA(credA->UserName);    // CRED_MAX_USERNAME_LENGTH
 
     CREDENTIALW* credW = LocalAlloc(LMEM_FIXED, size);
+    if (! credW)
+        return NULL;
 
     WCHAR* ptr = (WCHAR*)(((char*)credW) + sizeof(CREDENTIALW));
 
@@ -1230,7 +1235,7 @@ _FX CREDENTIALW* Cred_CREDENTIALA2W(CREDENTIALA* credA)
     credW->Persist = credA->Persist;
     credW->AttributeCount = credA->AttributeCount;
     credW->Attributes = (PCREDENTIAL_ATTRIBUTEW)ptr;
-    ptr = (WCHAR*)(((char*)ptr) + (sizeof(PCREDENTIAL_ATTRIBUTEW) * credW->AttributeCount));
+    ptr = (WCHAR*)(((char*)ptr) + (sizeof(CREDENTIAL_ATTRIBUTEW) * credW->AttributeCount));
     for (DWORD i = 0; i < credA->AttributeCount; i++) {
         credW->Attributes[i].Keyword = Cred_CopyA2W(&ptr, credA->Attributes[i].Keyword);
         credW->Attributes[i].Flags = credA->Attributes[i].Flags;
@@ -1262,8 +1267,10 @@ _FX CREDENTIALA* Cred_CREDENTIALW2A(CREDENTIALW* credW)
     size += Cred_StrASizeW(credW->UserName);    // CRED_MAX_USERNAME_LENGTH
 
     CREDENTIALA* credA = LocalAlloc(LMEM_FIXED, size);
+    if (! credA)
+        return NULL;
 
-    char* ptr = ((char*)credW) + sizeof(CREDENTIALW);
+    char* ptr = ((char*)credA) + sizeof(CREDENTIALA);
 
     credA->Flags = credW->Flags;
     credA->Type = credW->Type;
@@ -1275,7 +1282,7 @@ _FX CREDENTIALA* Cred_CREDENTIALW2A(CREDENTIALW* credW)
     credA->Persist = credW->Persist;
     credA->AttributeCount = credW->AttributeCount;
     credA->Attributes = (PCREDENTIAL_ATTRIBUTEA)ptr;
-    ptr += sizeof(PCREDENTIAL_ATTRIBUTEA) * credW->AttributeCount;
+    ptr += sizeof(CREDENTIAL_ATTRIBUTEA) * credW->AttributeCount;
     for (DWORD i = 0; i < credW->AttributeCount; i++) {
         credA->Attributes[i].Keyword = Cred_CopyW2A(&ptr, credW->Attributes[i].Keyword);
         credA->Attributes[i].Flags = credW->Attributes[i].Flags;
@@ -1306,6 +1313,8 @@ _FX CREDENTIAL_TARGET_INFORMATIONW* Cred_CREDENTIAL_TARGET_INFORMATIONA2W(CREDEN
     size += Cred_StrWSizeA(TargetInfoA->PackageName);
 
     CREDENTIAL_TARGET_INFORMATIONW* TargetInfoW = LocalAlloc(LMEM_FIXED, size);
+    if (! TargetInfoW)
+        return NULL;
 
     WCHAR* ptr = (WCHAR*)(((char*)TargetInfoW) + sizeof(CREDENTIAL_TARGET_INFORMATIONW));
 
@@ -1334,6 +1343,10 @@ _FX BOOL Cred_CredWriteA(void *pCredential, ULONG Flags)
     CREDENTIALA *credA = (CREDENTIALA *)pCredential;
 
     CREDENTIALW *credW = Cred_CREDENTIALA2W(credA);
+    if (! credW) {
+        SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+        return FALSE;
+    }
 
     BOOL ret = Cred_CredWriteW(credW, Flags);
 
@@ -1357,6 +1370,12 @@ _FX BOOL Cred_CredWriteDomainCredentialsA(
 
     CREDENTIAL_TARGET_INFORMATIONW *TargetInfoW = Cred_CREDENTIAL_TARGET_INFORMATIONA2W(TargetInfoA);
     CREDENTIALW *credW = Cred_CREDENTIALA2W(credA);
+    if (! TargetInfoW || ! credW) {
+        if (TargetInfoW) LocalFree(TargetInfoW);
+        if (credW) LocalFree(credW);
+        SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+        return FALSE;
+    }
 
     BOOL ret = Cred_CredWriteDomainCredentialsW(TargetInfoW, credW, Flags);
 
@@ -1419,6 +1438,10 @@ _FX BOOL Cred_CredReadA(
     const char *TargetName, ULONG Type, ULONG Flags, void **ppCredential)
 {
     const WCHAR* TargetNameW = Cred_STRA2W(TargetName);
+    if (! TargetNameW) {
+        SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+        return FALSE;
+    }
     
     void* pCredentialW = NULL;
     BOOL ret = Cred_CredReadW(TargetNameW, Type, Flags, &pCredentialW);
@@ -1426,6 +1449,10 @@ _FX BOOL Cred_CredReadA(
     if (pCredentialW) {
         *ppCredential = Cred_CREDENTIALW2A(pCredentialW);
         LocalFree(pCredentialW);
+        if (! *ppCredential) {
+            SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+            ret = FALSE;
+        }
     }
     if (TargetNameW) LocalFree((WCHAR*)TargetNameW);
 
@@ -1441,7 +1468,8 @@ _FX BOOL Cred_CredReadA(
 _FX BOOL Cred_CredReadDomainCredentialsA(
     void *pTargetInfo, ULONG Flags, ULONG *pCount, void ***ppCredentials)
 {
-    // todo
+    // ANSI array virtualization is owned by SREV-245; keep native passthrough
+    // until a CredFree-compatible ANSI array conversion owner exists.
     SbieApi_Log(2205, L"CredReadDomainCredentialsA");
     return __sys_CredReadDomainCredentialsA(
                                 pTargetInfo, Flags, pCount, ppCredentials);
@@ -1456,7 +1484,8 @@ _FX BOOL Cred_CredReadDomainCredentialsA(
 _FX BOOL Cred_CredEnumerateA(
     void *pFilter, ULONG Flags, ULONG *pCount, void ***ppCredentials)
 {
-    // todo
+    // ANSI array virtualization is owned by SREV-245; keep native passthrough
+    // until a CredFree-compatible ANSI array conversion owner exists.
     //SbieApi_Log(2205, L"CredEnumerateA");
     return __sys_CredEnumerateA(pFilter, Flags, pCount, ppCredentials);
 }

@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-089-guihook-wisptis-fake-hook-handle.schema.json",
+  "title": "SREV-089 GUI hook WISPTIS fake hook handle",
+  "id": "GUIHOOK_WISPTIS_FAKE_HOOK_HANDLE",
+  "owner": "Sandboxie/core/dll/guihook.c",
+  "type": "object",
+  "properties": {
+    "hook_request": {
+      "type": "string",
+      "description": "WISPTIS WH_MOUSE_LL SetWindowsHookExW request"
+    },
+    "fake_hook": {
+      "type": "string",
+      "description": "Process-local fake HHOOK cookie returned for suppressed hook"
+    },
+    "unhook_input": {
+      "type": "string",
+      "description": "UnhookWindowsHookEx input handle"
+    },
+    "real_hook": {
+      "type": "string",
+      "description": "User32-owned HHOOK path"
+    },
+    "pseudo_global_hook": {
+      "type": "string",
+      "description": "Sandboxie-owned GUI_HOOK pointer handle path"
+    }
+  },
+  "required": [
+    "hook_request",
+    "fake_hook",
+    "unhook_input",
+    "real_hook",
+    "pseudo_global_hook"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "the WISPTIS WH_MOUSE_LL compatibility block returns a non-NULL process-local fake HHOOK",
+    "the fake HHOOK has an owner-local cookie address rather than a magic integer",
+    "UnhookWindowsHookEx consumes that fake HHOOK locally before pointer-shape probing",
+    "real HHOOK values still forward to user32 UnhookWindowsHookEx",
+    "Sandboxie pseudo-global GUI_HOOK pointer handles keep their existing owner path",
+    "this SREV does not broaden WISPTIS hook suppression policy"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowshookexw",
+    "https://learn.microsoft.com/en-us/windows/win32/winmsg/lowlevelmouseproc",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-unhookwindowshookex",
+    "https://learn.microsoft.com/en-us/windows/win32/winmsg/about-hooks"
+  ]
+}

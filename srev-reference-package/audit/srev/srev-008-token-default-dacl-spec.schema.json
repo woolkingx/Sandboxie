@@ -1,0 +1,66 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-008-token-default-dacl-spec.schema.json",
+  "title": "SREV-008 token default DACL mutation shape",
+  "id": "TOKEN_DEFAULT_DACL_SHAPE",
+  "owner": "Sandboxie/core/svc/ProcessServer.cpp",
+  "type": "object",
+  "properties": {
+    "default_dacl_shape": {
+      "type": "string",
+      "description": "TOKEN_DEFAULT_DACL.DefaultDacl is the default ACL assigned to objects created by the token user; GetTokenInformation(TokenDefaultDacl) may return DefaultDacl == NULL when the token has no default DACL"
+    },
+    "acl_opacity": {
+      "type": "string",
+      "description": "ACL is opaque to applications; ACL must be built via documented APIs (InitializeAcl, AddAce, AddAccessAllowedAce) rather than editing AclSize directly"
+    },
+    "size_info_shape": {
+      "type": "string",
+      "description": "GetAclInformation(AclSizeInformation) returns AceCount, AclBytesInUse, AclBytesFree; AddAccessAllowedAce returns failure when the ACE cannot fit (ERROR_ALLOTTED_SPACE_EXCEEDED)"
+    },
+    "new_buffer_topology": {
+      "type": "string",
+      "description": "RunSandboxedSetDacl builds a new ACL in an independent HeapAlloc buffer: GetAclInformation sizing -> InitializeAcl on new buffer -> GetAce/AddAce copy existing ACEs -> AddAccessAllowedAce caller ACE -> SetTokenInformation with rebuilt ACL"
+    },
+    "failure_topology": {
+      "type": "string",
+      "description": "DefaultDacl == NULL fails closed with ERROR_INVALID_ACL; NewAclSize > 0xFFFF fails closed with ERROR_ALLOTTED_SPACE_EXCEEDED; HeapAlloc failure fails closed with ERROR_NOT_ENOUGH_MEMORY; every InitializeAcl/GetAce/AddAce/AddAccessAllowedAce return is checked"
+    },
+    "policy_invariant": {
+      "type": "string",
+      "description": "Caller SID selection (useUserSID vs LogonSid) and access-mask policy are unchanged"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate: MSI/service custom-action launch still grants the intended caller access"
+    }
+  },
+  "required": [
+    "default_dacl_shape",
+    "acl_opacity",
+    "size_info_shape",
+    "new_buffer_topology",
+    "failure_topology",
+    "policy_invariant",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "TOKEN_DEFAULT_DACL.DefaultDacl may be NULL and must be gated before ACL API calls",
+    "ACL structure must be opaque; no code writes pAcl->AclSize",
+    "GetAclInformation(AclSizeInformation) must precede ACL sizing",
+    "GetAclInformation(AclRevisionInformation) supplies the ACL revision for the rebuilt ACL",
+    "InitializeAcl, GetAce, AddAce, and AddAccessAllowedAce return values are checked",
+    "SetTokenInformation(TokenDefaultDacl) receives the rebuilt ACL only after the new ACE is added successfully",
+    "Old ACL remains readable while ACEs are copied into the new buffer"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-token_default_dacl",
+    "https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-gettokeninformation",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-acl",
+    "https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-getaclinformation",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-acl_size_information",
+    "https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-addaccessallowedace",
+    "https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-initializeacl"
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-258-custom-sysfer-comment-owner.schema.json",
+  "id": "CUSTOM_SYSFER_COMMENT_OWNER",
+  "title": "Custom SYSFER comment owner",
+  "type": "object",
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/custom.c"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 3
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 3
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/dll/custom.c",
+  "contracts": [
+    "SREV-055 owns the executable-code patch boundary for SYSFER.DLL",
+    "The source comment names the bounded entry-point patch owner rather than a generic workaround",
+    "This SREV does not change PE validation patch bytes page protection instruction-cache coherency or Symantec compatibility behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/debug/pe-format",
+    "https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualprotect",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-flushinstructioncache"
+  ],
+  "runtime_gate": "Inherited from SREV-055: Windows endpoint-protection compatibility proof remains required"
+}

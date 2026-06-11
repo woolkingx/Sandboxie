@@ -1,0 +1,25 @@
+---
+kind: srev-ledger-entry
+id: SREV-116
+title: Advapi Header Out-Param Schema
+status: patched-source-level-after-official-advapi-cred-pointer-depth-and-output-paramet
+owner: Sandboxie/core/dll/advapi.h
+spec: docs/plan/srev-116-advapi-header-out-param-schema.md
+schema: docs/plan/srev-116-advapi-header-out-param-schema.schema.json
+checker: docs/plan/check-srev-116.py
+runtime_gate: "Windows x86/x64 build proving the typed hooks match real imported API prototypes, runtime smoke for `GetSecurityInfo` / `ntmarta!GetSecurityInfo` DACL fallback on dummy window station, and sandboxed `CredReadA/W` plus `CredEnumerateA/W` with native and PStore-backed credentials"
+---
+### SREV-116: Advapi Header Out-Param Schema
+
+| Field | Content |
+|---|---|
+| Severity | [major] |
+| Status | patched source-level after official Advapi/Cred pointer-depth and output-parameter shape; needs Windows build/runtime proof |
+| Evidence | `Sandboxie/core/dll/advapi.h` was the highest-ranked unnamed reviewable core file after SREV-115. The header owns Advapi/Cred function pointer typedefs consumed by `Sandboxie/core/dll/advapi.c` and `Sandboxie/core/dll/cred.c`. The old `P_GetSecurityInfo` typedef and matching `AdvApi_GetSecurityInfo` / `Ntmarta_GetSecurityInfo` hook prototypes used `PSID` and `PACL` where Microsoft documents `PSID *` and `PACL *` output slots. The old `P_CredRead` used `void *` where Microsoft documents a credential output slot, and `P_CredEnumerate` used `void *` where Microsoft documents a credential-array output slot. `P_LookupAccountName` was also declared twice with the same shape. |
+| Data | `P_GetSecurityInfo`, `AdvApi_GetSecurityInfo`, `Ntmarta_GetSecurityInfo`, `P_CredRead`, `P_CredEnumerate`, `P_LookupAccountName`, `__sys_GetSecurityInfo`, `__sys_Ntmarta_GetSecurityInfo`, `__sys_CredReadA/W`, `__sys_CredEnumerateA/W`, `ppsidOwner`, `ppsidGroup`, `ppDacl`, `ppSacl`, `ppCredential`, and `ppCredentials`. |
+| Schema | `ADVAPI_HEADER_OUT_PARAM_SCHEMA` says `advapi.h` owns the hooked Advapi/Cred function pointer shapes shared by `advapi.c` and `cred.c`; hook typedefs that model Windows APIs preserve pointer-depth for out parameters; `GetSecurityInfo` receives `PSID *`, `PSID *`, `PACL *`, `PACL *`, and `PSECURITY_DESCRIPTOR *` output slots; `CredRead` receives a credential output slot, not a credential value; `CredEnumerate` receives a credential-array output slot, not an opaque input pointer; hook implementation prototypes in `advapi.c` match the hooked API pointer typedef; this SREV does not change hook selection, access masks, window-station fallback behavior, credential serialization, credential conversion, or PStore merge logic. |
+| Topology | Windows Advapi/Cred API contracts flow into `advapi.h` function pointer typedefs, then into resolved `__sys_*` function pointers, `SBIEDLL_HOOK` replacement signatures, and wrapper forwarding calls in `advapi.c` / `cred.c`. Output slots cross that topology unchanged so ownership and writeback edges remain visible at each layer. |
+| Logic Risk | Compressing output slots into plain pointer values hides the fact that the API writes back pointers owned by the returned security descriptor or credential block. The common Windows ABI may still pass pointer-sized values successfully, but the local schema becomes false: future hook edits, static checks, or compiler diagnostics cannot tell whether a parameter is data, an output slot, or an array output slot. Duplicate typedefs also make the header's API map less trustworthy during review. |
+| Official Shape | `docs/plan/srev-116-advapi-header-out-param-schema.md` records Microsoft `GetSecurityInfo`, `CredReadW`, `CredEnumerateW`, and `LookupAccountNameW` references. `docs/plan/srev-116-advapi-header-out-param-schema.schema.json` records the JSON Schema draft-07 local `ADVAPI_HEADER_OUT_PARAM_SCHEMA` contract. |
+| Fix | `advapi.h` now preserves official pointer-depth for `P_GetSecurityInfo`, `P_CredRead` (`void **ppCredential`), and `P_CredEnumerate` (`void ***ppCredential`), and keeps only one `P_LookupAccountName` typedef. `advapi.c` hook prototypes and forwarding calls now use `ppsidOwner`, `ppsidGroup`, `ppDacl`, and `ppSacl` to match the `GetSecurityInfo` API shape. No hook selection, `SetSecurityInfo` behavior, window-station fallback decision, credential serialization, ANSI/Wide conversion, PStore merge, access mask, or runtime policy was changed. |
+| Acceptance Gate | `docs/plan/check-srev-116.py` validates the draft-07 schema, official references, header typedef pointer-depth, singular `P_LookupAccountName`, `advapi.c` hook prototype and forwarding shape, `cred.c` consumer shape, and ledger entry; `docs/plan/check-srev-116.sh` is the matrix wrapper. Runtime/build gate: Windows x86/x64 build proving the typed hooks match real imported API prototypes, runtime smoke for `GetSecurityInfo` / `ntmarta!GetSecurityInfo` DACL fallback on dummy window station, and sandboxed `CredReadA/W` plus `CredEnumerateA/W` with native and PStore-backed credentials. |

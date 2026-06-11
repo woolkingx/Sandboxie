@@ -36,6 +36,8 @@
 
 
 #define SESSION_MONITOR_BUF_SIZE    (PAGE_SIZE * 32)
+#define SESSION_MONITOR_ENTRY_HEADER_SIZE \
+    (sizeof(LONGLONG) + sizeof(ULONG) + sizeof(ULONG) + sizeof(ULONG))
 
 
 //---------------------------------------------------------------------------
@@ -528,13 +530,10 @@ _FX NTSTATUS Session_Api_ForceChildren(PROCESS *proc, ULONG64 *parms)
 
     process_id = (HANDLE)parms[1];
 
-    memzero(boxname, sizeof(boxname));
     user_boxname = (WCHAR *)parms[2];
-    if (user_boxname) {
-        ProbeForRead(user_boxname, sizeof(WCHAR) * (BOXNAME_COUNT - 2), sizeof(UCHAR));
-        if (user_boxname[0])
-            wcsncpy(boxname, user_boxname, (BOXNAME_COUNT - 2));
-    }
+    if (! Api_CopyBoxNameFromUser(boxname, user_boxname))
+        return STATUS_INVALID_PARAMETER;
+
     if(!process_id || process_id == (HANDLE)-1 || !boxname[0])
         return STATUS_INVALID_PARAMETER;
 
@@ -614,7 +613,7 @@ _FX void Session_MonitorPutEx(ULONG type, const WCHAR** strings, ULONG* lengths,
 
         
 		//[Time 8][Type 4][PID 4][TID 4][Data n*2](0xFFFF[ID1][LEN1][DATA1]...[IDn][LENn][DATAn])
-		SIZE_T entry_size = 8 + 4 + 4 + 4 + data_len;
+		SIZE_T entry_size = SESSION_MONITOR_ENTRY_HEADER_SIZE + data_len;
 
         PVOID backTrace[MAX_STACK_DEPTH];
         ULONG frames = 0;
@@ -726,12 +725,15 @@ _FX NTSTATUS Session_Api_MonitorControl(PROCESS *proc, ULONG64 *parms)
 
             if (EnableMonitor && (! session->monitor_log)) {
 
-                ULONG BuffSize = Conf_Get_Number(NULL, L"TraceBufferPages", 0, 256) * PAGE_SIZE;
+                ULONG BuffPages = Conf_Get_Number(NULL, L"TraceBufferPages", 0, 256);
+                SIZE_T BuffSize = 0;
+                if (BuffPages <= ((SIZE_T)-1 - sizeof(LOG_BUFFER)) / PAGE_SIZE)
+                    BuffSize = (SIZE_T)BuffPages * PAGE_SIZE;
 
-				session->monitor_log = log_buffer_init(BuffSize * sizeof(WCHAR));
+				session->monitor_log = log_buffer_init(BuffSize);
                 if (!session->monitor_log) {
                     Log_Msg0(MSG_1201);
-                    session->monitor_log = log_buffer_init(SESSION_MONITOR_BUF_SIZE * sizeof(WCHAR));
+                    session->monitor_log = log_buffer_init(SESSION_MONITOR_BUF_SIZE);
                 }
 
                 if (session->monitor_log) {
@@ -816,9 +818,11 @@ _FX NTSTATUS Session_Api_MonitorPut2(PROCESS *proc, ULONG64 *parms)
     }
 
     const ULONG max_buff = 2048;
-	if (log_len > max_buff) // truncate as we only have 1028 in buffer
+    // SREV-338: `name` is a WCHAR-counted monitor staging buffer.
+    // The +4 allocation slack preserves NUL termination after truncation.
+	if (log_len > max_buff)
 		log_len = max_buff;
-    name = Mem_Alloc(proc->pool, (max_buff + 4) * sizeof(WCHAR)); // todo: should we increase this ?
+    name = Mem_Alloc(proc->pool, (max_buff + 4) * sizeof(WCHAR));
     if (! name)
         return STATUS_INSUFFICIENT_RESOURCES;
 
@@ -933,9 +937,9 @@ _FX NTSTATUS Session_Api_MonitorPut2(PROCESS *proc, ULONG64 *parms)
 
                 if (NT_SUCCESS(status)) {
 
-				    log_len = Name->Name.Length / sizeof(WCHAR);
-                    if (log_len > max_buff) // truncate as we only have 1028 in buffer
-					    log_len = max_buff;
+					    log_len = Name->Name.Length / sizeof(WCHAR);
+	                    if (log_len > max_buff)
+						    log_len = max_buff;
                     wmemcpy(name, Name->Name.Buffer, log_len);
                     name[log_len] = L'\0';
 
@@ -1129,6 +1133,11 @@ _FX NTSTATUS Session_Api_MonitorGetEx(PROCESS* proc, ULONG64* parms)
 
         //[Time 8][Type 4][PID 4][TID 4][Data n*2]
 
+        if (entry_size < SESSION_MONITOR_ENTRY_HEADER_SIZE) {
+            status = STATUS_DATA_ERROR;
+            __leave;
+        }
+
         log_buffer_get_bytes((CHAR*)&timestamp.QuadPart, 8, &read_ptr, session->monitor_log);
 
         log_buffer_get_bytes((CHAR*)log_type, 4, &read_ptr, session->monitor_log);
@@ -1143,18 +1152,27 @@ _FX NTSTATUS Session_Api_MonitorGetEx(PROCESS* proc, ULONG64* parms)
         if (log_tid != NULL)
             *log_tid = tid;
 
-        ULONG data_size = (entry_size - (4 + 4 + 4));
-        if ((USHORT)data_size > (log_data->MaximumLength - 1))
+        ULONG data_size = entry_size - SESSION_MONITOR_ENTRY_HEADER_SIZE;
+        if (log_data->MaximumLength < sizeof(WCHAR))
         {
-            data_size = (log_data->MaximumLength - 1);
+            status = STATUS_BUFFER_TOO_SMALL;
+            __leave;
+        }
+
+        ULONG max_data_size = log_data->MaximumLength - sizeof(WCHAR);
+        max_data_size &= ~(sizeof(WCHAR) - 1);
+
+        if (data_size > max_data_size)
+        {
+            data_size = max_data_size;
             status = STATUS_BUFFER_TOO_SMALL;
         }
         
         log_data->Length = (USHORT)data_size;
-        ProbeForWrite(log_buffer, data_size + 1, sizeof(WCHAR));
+        ProbeForWrite(log_buffer, data_size + sizeof(WCHAR), sizeof(WCHAR));
         log_buffer_get_bytes((CHAR*)log_buffer, data_size, &read_ptr, session->monitor_log);
 
-        log_buffer[data_size / sizeof(wchar_t)] = L'\0';
+        log_buffer[data_size / sizeof(WCHAR)] = L'\0';
         
 
         //if (seq_num != NULL)
@@ -1192,6 +1210,9 @@ _FX NTSTATUS Session_Api_MonitorGet2(PROCESS *proc, ULONG64 *parms)
     buffer_len = *args->buffer_len.val;
     ProbeForWrite(args->buffer_len.val, sizeof(ULONG), sizeof(ULONG));
     *args->buffer_len.val = 0;
+
+    if (buffer_len < sizeof(LOG_BUFFER_SIZE_T))
+        return STATUS_BUFFER_TOO_SMALL;
 
     ProbeForWrite(args->buffer_ptr.val, buffer_len, sizeof(UCHAR));
     buffer_ptr = (UCHAR*)args->buffer_ptr.val;

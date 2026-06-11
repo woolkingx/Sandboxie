@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-114-scm-service-key-path-shape.schema.json",
+  "title": "SREV-114 SCM service key path shape",
+  "id": "SCM_SERVICE_KEY_PATH_SHAPE",
+  "owner": "Sandboxie/core/dll/scm.c",
+  "type": "object",
+  "properties": {
+    "official_scm_shape": {
+      "type": "string",
+      "description": "Official Win32 service name, SCM handle, and service registry key shape"
+    },
+    "official_registry_shape": {
+      "type": "string",
+      "description": "Official object attributes and registry key open/create shape"
+    },
+    "source_change": {
+      "type": "string",
+      "description": "Length-derived service registry path allocation and handle payload casing"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows SCM and boxed-service registry path proof"
+    }
+  },
+  "required": [
+    "official_scm_shape",
+    "official_registry_shape",
+    "source_change",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "OpenServiceW service names are non-empty and at most 256 characters",
+    "Sandboxie local service handles store a tzuk marker followed by the service-name payload",
+    "lower-casing applies only to the service-name payload and not to the marker",
+    "service registry paths are composed from Scm_ServicesKeyPath slash and service name",
+    "service registry path buffers are sized from actual base path and service name length",
+    "Scm_OpenKeyForService owns the temporary path buffer until NtOpenKey or NtCreateKey returns",
+    "Scm_DiscardKeyCache invalidates Services root and service subkey while preserving caller last error",
+    "this SREV must not change access masks boxed-service lookup SbieSvc query routing key-cache invalidation targets or handle marker layout"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/nl-nl/windows/win32/api/winsvc/nf-winsvc-openservicew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-createservicea",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-closeservicehandle",
+    "https://learn.microsoft.com/en-us/windows/win32/api/ntdef/nf-ntdef-initializeobjectattributes",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwopenkey",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwcreatekey",
+    "https://learn.microsoft.com/en-us/windows/win32/sysinfo/registry-element-size-limits"
+  ]
+}

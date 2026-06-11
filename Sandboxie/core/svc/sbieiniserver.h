@@ -87,7 +87,7 @@ protected:
 
     void UnlockConf();
 
-    bool HashPassword(const WCHAR *Password, WCHAR *Hash41);
+    bool HashPassword(const WCHAR *Password, WCHAR *Hash41, bool LegacyBug = true);
 
     bool GenerateSalt(UCHAR Salt[16]);
 
@@ -97,7 +97,7 @@ protected:
 
     MSG_HEADER *SetDatFile(MSG_HEADER *msg, HANDLE idProcess);
 	
-    //MSG_HEADER *GetDatFile(MSG_HEADER *msg, HANDLE idProcess);
+    // SREV-352: GET_DAT is reserved until a read reply schema and gate exist.
 
     MSG_HEADER *RC4Crypt(MSG_HEADER *msg, HANDLE idProcess, bool isSandboxed);
 

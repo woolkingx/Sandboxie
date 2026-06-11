@@ -1,0 +1,125 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-022-font-token-subject-context.schema.json",
+  "title": "SREV-022 font token subject context rewrite",
+  "id": "FONT_TOKEN_SUBJECT_CONTEXT_SHAPE",
+  "owner": "Sandboxie/core/drv/file.c",
+  "type": "object",
+  "properties": {
+    "object_reference_shape": {
+      "type": "string",
+      "description": "ObReferenceObject increments object reference count; caller must decrement via ObDereferenceObject"
+    },
+    "primary_token_shape": {
+      "type": "string",
+      "description": "PsReferencePrimaryToken must be balanced by ObDereferenceObject or PsDereferencePrimaryToken"
+    },
+    "subject_context_invariant": {
+      "type": "string",
+      "description": "Drivers must not directly modify ACCESS_STATE or directly modify/inspect SECURITY_SUBJECT_CONTEXT members; supported posture uses SeCaptureSubjectContext / SeReleaseSubjectContext"
+    },
+    "local_compatibility_shape": {
+      "type": "string",
+      "description": "File_ReplaceTokenIfFontRequest handles delayed kernel-mode win32k font opens with a scoped fallback that substitutes proc->primary_token into AccessState->SubjectSecurityContext.ClientToken, raises impersonation level, marks callback dirty, and returns a FILE_FONT_TOKEN_SWAP for owner-local restore/dereference"
+    },
+    "no_blind_patch_posture": {
+      "type": "string",
+      "description": "A naked ObDereferenceObject beside the reference call risks Digital Guardian BSOD or token lifetime bug; the source-level route is scoped fallback plus minifilter/XP continuation restore before Windows runtime proof"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate: sandboxed GDI font load works; Digital Guardian callback path does not BSOD; repeated font opens do not grow token references or pool; minifilter and XP parse-proc paths verified independently"
+    },
+    "shared_runtime_capture_schema": {
+      "type": "string",
+      "description": "Runtime evidence records use docs/plan/srev-022-027-kernel-runtime-capture.schema.json with feature_path font-token-subject-context"
+    }
+  },
+  "required": [
+    "object_reference_shape",
+    "primary_token_shape",
+    "subject_context_invariant",
+    "local_compatibility_shape",
+    "no_blind_patch_posture",
+    "runtime_matrix",
+    "shared_runtime_capture_schema"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Driver must not modify ACCESS_STATE or SECURITY_SUBJECT_CONTEXT directly to make security decisions",
+    "Every successful token reference must be matched by ObDereferenceObject or PsDereferencePrimaryToken",
+    "Token reference behavior must not change until Windows runtime proves both font compatibility and reference ownership",
+    "default FontTokenMode auto scoped path must restore and dereference the substituted token through owner-local continuation points",
+    "FontTokenMode legacy preserves the old unscoped compatibility behavior as a regression escape hatch",
+    "FontTokenMode strict or off disables the unsupported subject-context rewrite",
+    "minifilter IRP_MJ_CREATE must pass FILE_FONT_TOKEN_SWAP through CompletionContext to a post-create restore path",
+    "legacy XP parse-proc must wrap the system parse continuation and restore after it returns",
+    "Source comments must not describe the active path as replacing PrimaryToken in ACCESS_STATE because the implementation prefers ClientToken in SECURITY_SUBJECT_CONTEXT",
+    "Minifilter pre-operation continuation and XP parse-proc continuation may need different owner-local restore/release mechanisms",
+    "runtime capture must prove who owns the substituted token reference after the unsupported subject-context rewrite before any release or restore behavior change",
+    "shared kernel runtime capture records must use feature_path font-token-subject-context"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-obreferenceobject",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-obdereferenceobject",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-psreferenceprimarytoken",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-psdereferenceprimarytoken",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_access_state",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_security_subject_context",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-secapturesubjectcontext",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-sereleasesubjectcontext"
+  ],
+  "runtime_capture_matrix": {
+    "builds": [
+      "supported Windows 10 releases",
+      "supported Windows 11 releases",
+      "XP or Server 2003 target when file_xp.c remains supported"
+    ],
+    "path_topologies": [
+      "minifilter IRP_MJ_CREATE path through file_flt.c",
+      "legacy XP parse-proc path through file_xp.c"
+    ],
+    "requestor_shapes": [
+      "kernel-mode win32k delayed font open",
+      "user-mode file open negative control",
+      "active impersonation negative control",
+      "non-sandboxed process negative control"
+    ],
+    "access_masks": [
+      "exact font read/execute mask",
+      "denied write/delete mask",
+      "unrelated read path outside font compatibility"
+    ],
+    "path_classes": [
+      "real %SystemRoot%\\Fonts path",
+      "sandbox-boxed font path from the GDI helper",
+      "non-font path",
+      "missing file",
+      "reparse or symlinked font path"
+    ],
+    "token_state": [
+      "proc->primary_token pointer",
+      "object reference delta before and after create path",
+      "ClientToken field selected",
+      "PrimaryToken fallback selected",
+      "ImpersonationLevel",
+      "downstream release or no-release observation"
+    ],
+    "failure_controls": [
+      "Process_Find miss",
+      "missing proc->primary_token",
+      "Obj_GetParseName failure",
+      "boxed-path allocation failure",
+      "create failure",
+      "Digital Guardian or equivalent callback-sensitive endpoint regression"
+    ],
+    "resource_proof": [
+      "repeated font opens",
+      "token reference count",
+      "paged pool",
+      "nonpaged pool",
+      "process lifetime",
+      "driver unload readback"
+    ]
+  }
+}

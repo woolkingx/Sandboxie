@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "DIRECTORY_ENUMERATION_PROGRESS_GATE",
+  "title": "Directory enumeration progress gate",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/file_dir.c",
+  "stage": "schema -> topology -> verify",
+  "source_function": "File_MergeCache",
+  "contracts": [
+    "File_MergeCache owns progress safety while building the sorted directory merge cache",
+    "NtQueryDirectoryFile returns one or more FILE_XXX_INFORMATION records and ends with an empty buffer plus a status such as STATUS_NO_MORE_FILES",
+    "RestartScan starts enumeration at the first entry and subsequent calls continue the scan",
+    "FILE_ID_BOTH_DIR_INFORMATION is a variable-size record whose next entry is located by NextEntryOffset",
+    "FileNameLength is a byte count used to create the cache entry name view",
+    "a provider result that repeats a name already present in the merge cache is non-progress at this owner boundary",
+    "the duplicate-name progress guard synthesizes STATUS_NO_MORE_FILES before publication of the duplicate entry",
+    "SREV-001 owns variable-size record capacity and NextEntryOffset buffer-shape proof",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntquerydirectoryfile",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_id_both_dir_information",
+    "https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/1e144bff-c056-45aa-bd29-c13d214ee2ba"
+  ],
+  "local_edges": [
+    "NtQueryDirectoryFile -> info_area",
+    "info_area -> FILE_ID_BOTH_DIR_INFORMATION records",
+    "FileNameLength -> cache_file->name_uni.Length",
+    "RtlCompareUnicodeString -> ordered cache insertion point",
+    "cmp == 0 -> STATUS_NO_MORE_FILES -> stop loop"
+  ],
+  "runtime_gate": "Windows directory enumeration matrix for NTFS, fallback information class, SMB/NAS repeated-name provider, wildcard mask, restart scan, and duplicate-name progress termination",
+  "status": "patched-comment-topology-after-official-directory-enumeration-progress-review-no-behavior-change"
+}

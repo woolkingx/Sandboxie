@@ -773,8 +773,6 @@ _FX void Ldr_Inject_Init(BOOLEAN bHostInject)
         *aCode++ = 0xD61F0100;	// br x8
         *(ULONG_PTR*)aCode = (ULONG_PTR)Ldr_Inject_Entry64;
 
-        NtFlushInstructionCache(GetCurrentProcess(), entrypoint, LDR_INJECT_NUM_SAVE_BYTES);
-
 #elif _WIN64
 
         entrypoint[0] = 0x48;           // mov rax, Ldr_Inject_Entry64
@@ -805,6 +803,7 @@ _FX void Ldr_Inject_Init(BOOLEAN bHostInject)
 
 #endif _WIN64
 
+        NtFlushInstructionCache(GetCurrentProcess(), entrypoint, LDR_INJECT_NUM_SAVE_BYTES);
     }
 }
 
@@ -861,9 +860,7 @@ _FX void* Ldr_Inject_Entry(ULONG_PTR *pPtr)
     VirtualProtect(entrypoint, LDR_INJECT_NUM_SAVE_BYTES,
                    Ldr_Inject_OldProtect, &dummy_prot);
 
-#ifdef _M_ARM64
     NtFlushInstructionCache(GetCurrentProcess(), entrypoint, LDR_INJECT_NUM_SAVE_BYTES);
-#endif
 
     if (!g_bHostInject)
     {

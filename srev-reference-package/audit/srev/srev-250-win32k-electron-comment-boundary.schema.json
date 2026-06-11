@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-250-win32k-electron-comment-boundary.schema.json",
+  "id": "WIN32K_ELECTRON_COMMENT_BOUNDARY",
+  "title": "Win32k Electron comment boundary",
+  "type": "object",
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/Win32.c and Sandboxie/core/dll/proc.c"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 5
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 5
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/dll/Win32.c and Sandboxie/core/dll/proc.c",
+  "contracts": [
+    "win32k hook installation is local Sandboxie runtime state not proof of Electron GPU compatibility",
+    "Electron GPU command-line handling remains inactive until Windows runtime matrix evidence proves replacement coverage",
+    "proc.c Electron GPU command-line comments must name SREV-250 and stay comment-only",
+    "Win32_Init must not assign Dll_ElectronWorkaround",
+    "comment-only clarification must not change win32k hook gates hook calls Electron detection or process creation behavior",
+    "SREV-087 remains the behavior owner for the runtime matrix"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-process_mitigation_system_call_disable_policy",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getprocessmitigationpolicy",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-setprocessmitigationpolicy",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/display/windows-vista-and-later-display-driver-model-operation-flow",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_display/"
+  ],
+  "runtime_gate": "Inherited from SREV-087: Electron and Chromium GPU-process launches need Windows runtime matrix proof before behavior change"
+}

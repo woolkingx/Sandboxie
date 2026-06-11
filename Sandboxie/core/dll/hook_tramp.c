@@ -53,6 +53,14 @@ static BOOLEAN Hook_Tramp_Copy(
     HOOK_TRAMP *tramp, void *SourceFunc,
     ULONG ByteCount, BOOLEAN is64, BOOLEAN probe);
 
+static BOOLEAN Hook_Tramp_HasCodeSpace(
+    HOOK_TRAMP *tramp, UCHAR *code, ULONG write_len, ULONG reserve_len);
+
+static ULONG Hook_Tramp_JumpBackSize(BOOLEAN is64);
+
+static ULONG Hook_Tramp_EmitLength(
+    UCHAR *src, HOOK_INST *inst, BOOLEAN is64, BOOLEAN push_pop_rax);
+
 
 //---------------------------------------------------------------------------
 // Variables
@@ -216,6 +224,72 @@ _FX BOOLEAN Hook_Tramp_CountBytes(
 
 
 //---------------------------------------------------------------------------
+// Hook_Tramp_HasCodeSpace
+//---------------------------------------------------------------------------
+
+
+_FX BOOLEAN Hook_Tramp_HasCodeSpace(
+    HOOK_TRAMP *tramp, UCHAR *code, ULONG write_len, ULONG reserve_len)
+{
+    UCHAR *begin = tramp->code;
+    UCHAR *end = tramp->code + sizeof(tramp->code);
+
+    if (code < begin || code > end)
+        return FALSE;
+
+    if (write_len > (ULONG)(end - code))
+        return FALSE;
+
+    code += write_len;
+
+    if (reserve_len > (ULONG)(end - code))
+        return FALSE;
+
+    return TRUE;
+}
+
+
+//---------------------------------------------------------------------------
+// Hook_Tramp_JumpBackSize
+//---------------------------------------------------------------------------
+
+
+_FX ULONG Hook_Tramp_JumpBackSize(BOOLEAN is64)
+{
+    return is64 ? 10 : 6;
+}
+
+
+//---------------------------------------------------------------------------
+// Hook_Tramp_EmitLength
+//---------------------------------------------------------------------------
+
+
+_FX ULONG Hook_Tramp_EmitLength(
+    UCHAR *src, HOOK_INST *inst, BOOLEAN is64, BOOLEAN push_pop_rax)
+{
+    if ((inst->op1 >= 0x70 && inst->op1 <= 0x7F) ||
+        (inst->op1 == 0x0F && (inst->op2 >= 0x80 && inst->op2 <= 0x8F)))
+        return is64 ? 16 : 6;
+
+    if (inst->op1 == 0xEB)
+        return is64 ? 14 : 5;
+
+    if (is64 && (inst->op1 == 0xE8 || inst->op1 == 0xE9))
+        return 16;
+
+    if (inst->op1 == 0xFF && inst->op2 == 0x25 &&
+                    *(ULONG *)&src[2] == 0)
+        return inst->len;
+
+    if (is64 && inst->modrm && (inst->modrm[0] & 0xC7) == 5)
+        return inst->len + 10 + (push_pop_rax ? 2 : 0);
+
+    return inst->len;
+}
+
+
+//---------------------------------------------------------------------------
 // Hook_Tramp_Copy
 //---------------------------------------------------------------------------
 
@@ -241,8 +315,14 @@ _FX BOOLEAN Hook_Tramp_Copy(
     while ((ULONG_PTR)(src - (UCHAR *)SourceFunc) < ByteCount) {
 
         HOOK_INST inst;
+        ULONG emit_len;
         BOOLEAN ok = Hook_Analyze(src, probe, is64, &inst);
         if (! ok)
+            return FALSE;
+
+        emit_len = Hook_Tramp_EmitLength(src, &inst, is64, push_pop_rax);
+        if (! Hook_Tramp_HasCodeSpace(
+                tramp, code, emit_len, Hook_Tramp_JumpBackSize(is64)))
             return FALSE;
 
         memcpy(code, src, inst.len);
@@ -417,6 +497,10 @@ _FX BOOLEAN Hook_Tramp_Copy(
     // stub ends with a jump to the original entrypoint.  first qword
     // in the stub contains the address of the original entrypoint
 
+    if (! Hook_Tramp_HasCodeSpace(
+            tramp, code, Hook_Tramp_JumpBackSize(is64), 0))
+        return FALSE;
+
     code[0] = 0xFF;                     // jmp dword/qword ptr [target]
     code[1] = 0x25;
     code += 2;
@@ -529,10 +613,10 @@ _FX void Hook_BuildJump(
             // Rising Antivirus hooks by pointing SSDT to this stub:
             //      PUSH routine_address        0x68 xx xx xx xx
             //      RET                         0xC3
-            // When unloading, overwrites "routine_address" with original
-            // address from SSDT.  Thus if we hook by replacing PUSH with
-            // JMP, we get a crash when it unloads.  To prevent that, we
-            // use the same PUSH/RET method to transfer control
+            // Its unload path restores only the immediate operand from SSDT.
+            // Preserve the same PUSH/RET instruction envelope and replace only
+            // that operand; changing the opcode to a relative JMP changes the
+            // owner shape the third-party unload code expects.
             //
 
             *(ULONG *)&SourceAddr[1] = (ULONG)JumpTarget;

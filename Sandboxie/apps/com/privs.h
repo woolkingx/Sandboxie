@@ -122,7 +122,13 @@ ALIGNED BOOL my_AccessCheckByType(
     LPDWORD GrantedAccess,
     LPBOOL AccessStatus)
 {
-    *GrantedAccess = 0xFFFFFFFF;
+    DWORD granted_access = DesiredAccess;
+
+    if ((DesiredAccess & MAXIMUM_ALLOWED) && GenericMapping)
+        granted_access = GenericMapping->GenericAll
+                       | (DesiredAccess & ~MAXIMUM_ALLOWED);
+
+    *GrantedAccess = granted_access;
     *AccessStatus = TRUE;
     SetLastError(0);
     return TRUE;

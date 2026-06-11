@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "SERVICE_PCH_BOUNDARY_CONTRACT",
+  "owners": [
+    "Sandboxie/core/svc/stdafx.h",
+    "Sandboxie/core/svc/stdafx.cpp"
+  ],
+  "status": "docs-only-source-topology-reviewed-needs-windows-service-build-proof",
+  "official_references": [],
+  "contracts": [
+    "stdafx.h owns the service compile environment shared by translation units that use the service PCH",
+    "stdafx.cpp owns PCH creation by including only stdafx.h",
+    "SboxSvc.vcxproj owns the build topology that uses the PCH for normal service translation units and creates it from stdafx.cpp",
+    "_HAS_EXCEPTIONS 0 is a compile contract: code compiled under this header must not rely on C++ exception support",
+    "WIN32_NO_STATUS and the local NTSTATUS typedef are header-order contracts that keep Windows headers from redefining NT status symbols",
+    "Runtime defects belong to the concrete service owner that performs the transition, not to stdafx.h or stdafx.cpp without a proven compile-boundary defect"
+  ],
+  "runtime_gate": "Windows SboxSvc build for supported configurations proves that the PCH use/create topology and service compile environment still compile."
+}

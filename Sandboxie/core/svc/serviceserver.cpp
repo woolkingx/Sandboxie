@@ -28,6 +28,25 @@
 #include "common/my_version.h"
 
 
+static ULONG Service_CheckName(ULONG msg_len, ULONG offset, ULONG name_len, WCHAR *name)
+{
+    if (name_len > 256)
+        return ERROR_INVALID_PARAMETER;
+    if (offset > msg_len)
+        return ERROR_INVALID_PARAMETER;
+
+    ULONG available = msg_len - offset;
+    if (available < sizeof(WCHAR))
+        return ERROR_INVALID_PARAMETER;
+    if (name_len > (available / sizeof(WCHAR)) - 1)
+        return ERROR_INVALID_PARAMETER;
+    if (name[name_len] != L'\0')
+        return ERROR_INVALID_PARAMETER;
+
+    return ERROR_SUCCESS;
+}
+
+
 //---------------------------------------------------------------------------
 // Constructor
 //---------------------------------------------------------------------------
@@ -89,28 +108,22 @@ MSG_HEADER *ServiceServer::StartHandler(MSG_HEADER *msg, HANDLE idProcess)
     if (req->h.length < sizeof(SERVICE_START_REQ))
         return SHORT_REPLY(ERROR_INVALID_PARAMETER);
 
-    ULONG name_len = req->name_len * sizeof(WCHAR);
-    if (name_len > PIPE_MAX_DATA_LEN)
-        return SHORT_REPLY(ERROR_INVALID_PARAMETER);
     ULONG offset = FIELD_OFFSET(SERVICE_START_REQ, name);
-    if (offset + name_len > req->h.length)
-        return SHORT_REPLY(ERROR_INVALID_PARAMETER);
+    ULONG status = Service_CheckName(req->h.length, offset, req->name_len, req->name);
+    if (status != ERROR_SUCCESS)
+        return SHORT_REPLY(status);
 
-    /*x
-    should do:
-    if (! IsAdmin())
-        return SHORT_REPLY(ERROR_ACCESS_DENIED)
-    and NOT:
-    IsAdmin
-    if (! CanCallerDoElevation(idProcess, req->name, &idSession))
-        return SHORT_REPLY(ERROR_ACCESS_DENIED);
-    */
+    // SREV-007: Handler impersonates the caller before dispatch, so this
+    // host-service start broker intentionally delegates authorization to the
+    // service object's SCM DACL through OpenService(..., SERVICE_START).
+    // Do not add an admin-only or elevation-style gate here unless Sandboxie
+    // first defines a stricter policy owner such as an explicit allowlist.
 
     //
     // execute request
     //
 
-    ULONG status = 0;
+    status = 0;
 
     SC_HANDLE handle1 = OpenSCManager(NULL, NULL, GENERIC_READ);
     if (! handle1)
@@ -149,12 +162,10 @@ MSG_HEADER *ServiceServer::QueryHandler(MSG_HEADER *msg)
     if (req->h.length < sizeof(SERVICE_QUERY_REQ))
         return SHORT_REPLY(ERROR_INVALID_PARAMETER);
 
-    ULONG name_len = req->name_len * sizeof(WCHAR);
-    if (name_len > PIPE_MAX_DATA_LEN)
-        return SHORT_REPLY(ERROR_INVALID_PARAMETER);
     ULONG offset = FIELD_OFFSET(SERVICE_QUERY_REQ, name);
-    if (offset + name_len > req->h.length)
-        return SHORT_REPLY(ERROR_INVALID_PARAMETER);
+    error = Service_CheckName(req->h.length, offset, req->name_len, req->name);
+    if (error != ERROR_SUCCESS)
+        return SHORT_REPLY(error);
 
     //
     // open connection to service manager
@@ -321,7 +332,7 @@ MSG_HEADER *ServiceServer::ListHandler(MSG_HEADER *msg)
     while (1) {
 
         if (buf)
-            HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, buf);
+            HeapFree(GetProcessHeap(), 0, buf);
         if (err)
             break;
         buf_len += PAGE_SIZE * 4;
@@ -369,7 +380,7 @@ MSG_HEADER *ServiceServer::ListHandler(MSG_HEADER *msg)
         *names = L'\0';
     }
 
-    HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, buf);
+    HeapFree(GetProcessHeap(), 0, buf);
 
     if (! rpl)
         return SHORT_REPLY(ERROR_NOT_ENOUGH_MEMORY);

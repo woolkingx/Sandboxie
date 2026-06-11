@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "SYSCALL_GETNEXTPROCESS_FALLBACK_TOPOLOGY",
+  "title": "Syscall GetNextProcess fallback topology",
+  "type": "object",
+  "owner": "Sandboxie/core/drv/syscall_open.c",
+  "stage": "perceive -> schema -> topology -> verify",
+  "source_functions": [
+    "Syscall_GetNextProcess",
+    "Syscall_Api_Invoke",
+    "Thread_CheckObject_Common"
+  ],
+  "contracts": [
+    "Syscall_GetNextProcess owns the fallback process-handle filtering loop only when Obj_CallbackInstalled is false",
+    "When Obj_CallbackInstalled is true the native syscall path is allowed because process handle access is filtered by object callbacks",
+    "The fallback loop redirects the output handle through the temporary TLS handle slot before native dispatch",
+    "Rejected outside-box process handles are closed before the next enumeration attempt",
+    "Accepted process handles are returned through Syscall_WriteRestoredHandleToUser",
+    "No public Microsoft Learn NtGetNextProcess DDI page was found so the syscall ABI remains a Windows runtime gate",
+    "This SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-obregistercallbacks",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_ob_pre_create_handle_information",
+    "https://learn.microsoft.com/en-us/windows/win32/procthread/process-security-and-access-rights",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-obreferenceobjectbyhandle"
+  ],
+  "local_edges": [
+    "Obj_CallbackInstalled -> Syscall_Invoke",
+    "GetNextProcess output handle -> Syscall_ReplaceTargetHandle -> TLS slot",
+    "NewHandle -> ObReferenceObjectByHandle(*PsProcessType) -> ProcessObject",
+    "ProcessObject -> Thread_CheckObject_Common -> accept or skip",
+    "denied NewHandle -> user_args[0] -> next enumeration attempt",
+    "accepted NewHandle -> Syscall_WriteRestoredHandleToUser"
+  ],
+  "runtime_gate": "Windows NtGetNextProcess matrix for ObCallbacks on off denied outside-box writable handles accepted same-box handles end-of-enumeration invalid output pointer and handle leaks",
+  "status": "patched-comment-topology-after-official-obcallback-process-rights-handle-reference-review-no-behavior-change"
+}

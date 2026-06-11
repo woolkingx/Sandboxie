@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-320-proc-child-token-compatibility-gates.schema.json",
+  "title": "SREV-320 Proc child token compatibility gates",
+  "id": "PROC_CHILD_TOKEN_COMPATIBILITY_GATES",
+  "owner": "Sandboxie/core/dll/proc.c",
+  "stage": "data -> schema -> topology -> logic -> action -> verify",
+  "contracts": [
+    "public process creation either uses caller default token shape or an explicit primary token shape",
+    "local hToken clearing is a process-token selection boundary, not a generic browser compatibility switch",
+    "Edge CDM token clearing stays under DeprecatedTokenHacks, DLL_IMAGE_GOOGLE_CHROME, and --service-sandbox-type",
+    "Firefox token clearing stays under DLL_IMAGE_MOZILLA_FIREFOX and -sandboxingKind",
+    "plugin-container and Acrobat token clearing stays under DropChildProcessToken or the existing image-type predicates",
+    "SREV-320 changes comments and proof only, not token selection behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessasuserw",
+    "https://learn.microsoft.com/en-us/windows/win32/secauthz/access-tokens"
+  ],
+  "runtime_gate": "Windows Edge/Chrome CDM service child launch, Firefox -sandboxingKind child launch, Acrobat/plugin-container child launch, DeprecatedTokenHacks negative smoke, and DropChildProcessToken negative smoke"
+}

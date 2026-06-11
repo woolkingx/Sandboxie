@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-043-dynamic-port-fixed-string.schema.json",
+  "title": "SREV-043 dynamic port fixed string",
+  "id": "DYNAMIC_PORT_FIXED_STRING",
+  "owner": "Sandboxie/core/drv/ipc_port.c",
+  "type": "object",
+  "properties": {
+    "audit_contract": {
+      "type": "string",
+      "description": "API: Ipc_Api_OpenDynamicPort | wire: {\"request\": \"API_OPEN_DYNAMIC_PORT_ARGS\", \"fields\": [{\"name\": \"port_name\", \"type\": \"WCHAR*\", \"required\": true, \"shape\": \"NUL-terminated within DYNAMIC_PORT_NAME_CHARS\"}, {\"name\": \"port_id\", \"type\": \"WCHAR*\", \"required\": false, \"shape\": \"NUL-terminated within DYNAMIC_PORT_ID_CHARS\"}, {\"name\": \"filter_num\", \"type\": \"ULONG\"}, {\"name\": \"filter_ids\", \"type\": \"ULONG*\"}]}"
+    },
+    "validation_invariants": {
+      "type": "string",
+      "description": "All contracts listed in the contracts metadata must hold before any data is trusted past the validation boundary"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate proves contracts hold under normal and malformed inputs"
+    }
+  },
+  "required": [
+    "audit_contract",
+    "validation_invariants",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "port_name is required and must be copied before dynamic-port topology uses it",
+    "port_name must be readable as DYNAMIC_PORT_NAME_CHARS WCHARs with WCHAR alignment",
+    "port_name must be non-empty and NUL-terminated before DYNAMIC_PORT_NAME_CHARS - 1",
+    "present port_id must be non-empty and NUL-terminated before DYNAMIC_PORT_ID_CHARS - 1",
+    "overlong unterminated fixed strings are invalid and must not be truncated",
+    "Ipc_CreateDynamicPort receives only local fixed buffers"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-probeforread"
+  ]
+}

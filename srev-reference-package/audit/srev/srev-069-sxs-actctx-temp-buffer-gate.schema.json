@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-069-sxs-actctx-temp-buffer-gate.schema.json",
+  "title": "SREV-069 SXS ActCtx temp buffer gate contract",
+  "id": "SXS_ACTCTX_TEMP_BUFFER_GATE",
+  "api": "CreateActCtxW / QueryActCtxW SXS path projection",
+  "owner": "Sandboxie/core/dll/sxs.c",
+  "type": "object",
+  "properties": {
+    "actctx_input": {
+      "type": "string",
+      "description": "ACTCTXW lpSource and lpAssemblyDirectory path inputs"
+    },
+    "temp_buffers": {
+      "type": "string",
+      "description": "Sandboxie-owned temporary wide-string buffers"
+    },
+    "fallback": {
+      "type": "string",
+      "description": "Underlying CreateActCtxW call when local path translation is skipped"
+    }
+  },
+  "required": [
+    "actctx_input",
+    "temp_buffers",
+    "fallback"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "CreateActCtxW receives an ACTCTXW pointer that contains activation context information",
+    "ACTCTXW lpSource is a null-terminated path string",
+    "wmemcpy requires valid source and destination buffers for the requested character count",
+    "args.Directory may be copied into only after Dll_AllocTemp returns a non-null buffer",
+    "MySource may be passed to SbieDll_GetHandlePath only after Dll_AllocTemp returns a non-null buffer",
+    "TruePath2 may receive a trailing-slash copy only after Dll_AllocTemp returns a non-null buffer",
+    "If local alternate path translation cannot allocate its temp buffer, the wrapper must fall through to the underlying CreateActCtxW owner"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createactctxw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-actctxw",
+    "https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/memcpy-wmemcpy?view=msvc-170"
+  ]
+}

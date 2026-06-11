@@ -1,0 +1,119 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-092-scm-msi-loader-unload-event-owner.schema.json",
+  "title": "SREV-092 SCM MSI loader unload event owner",
+  "id": "SCM_MSI_LOADER_UNLOAD_EVENT_OWNER",
+  "owner": "Sandboxie/core/dll/scm_msi.c",
+  "type": "object",
+  "properties": {
+    "msi_module": {
+      "type": "string",
+      "description": "msi.dll load/unload callback state"
+    },
+    "in_use_event": {
+      "type": "string",
+      "description": "SBIE_WindowsInstallerInUse named event handle"
+    },
+    "msi_server_waiter": {
+      "type": "string",
+      "description": "MSI server loop that exits when the named event cannot be opened"
+    },
+    "msi_handle": {
+      "type": "string",
+      "description": "MSIHANDLE close operations"
+    },
+    "loader_owner": {
+      "type": "string",
+      "description": "Sandboxie Ldr layer sub-module callback topology"
+    },
+    "shared_runtime_capture_schema": {
+      "type": "string",
+      "description": "Runtime evidence records use docs/plan/srev-092-322-user-lifecycle-runtime-capture.schema.json with feature_path msi-last-user-event"
+    }
+  },
+  "required": [
+    "msi_module",
+    "in_use_event",
+    "msi_server_waiter",
+    "msi_handle",
+    "loader_owner",
+    "shared_runtime_capture_schema"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "msi.dll load may create the SBIE_WindowsInstallerInUse named event",
+    "loader unload notifications are recorded by the Ldr layer; sub-module init functions are called on load and unload_func is optional",
+    "Scm_MsiDll(NULL) unload cleanup releases the process event hold created on msi.dll load",
+    "MsiCloseHandle closes a per-thread installer handle and is not a proven last-MSI-session owner",
+    "MsiCloseAllHandles is diagnostic and must not become the cleanup owner",
+    "the MSI server waiter exits only when the named in-use event no longer opens",
+    "source path now releases the process event hold on msi.dll unload",
+    "runtime capture must prove the last-user edge across MSI module lifetime, installer handles, custom actions, and MSIServer process lifetime before release",
+    "shared user-mode lifecycle capture records must use feature_path msi-last-user-event"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/devnotes/ldrregisterdllnotification",
+    "https://learn.microsoft.com/en-us/windows/win32/devnotes/ldrdllnotification",
+    "https://learn.microsoft.com/en-us/windows/win32/api/msi/nf-msi-msiclosehandle",
+    "https://learn.microsoft.com/en-us/windows/win32/api/msi/nf-msi-msicloseallhandles",
+    "https://learn.microsoft.com/en-us/windows/win32/sync/event-objects",
+    "https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createeventw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-closehandle"
+  ],
+  "runtime_capture_matrix": {
+    "builds": [
+      "supported Windows 10 releases",
+      "supported Windows 11 releases"
+    ],
+    "msi_entry_paths": [
+      "install",
+      "repair",
+      "uninstall",
+      "advertised repair",
+      "custom action process"
+    ],
+    "client_process_shapes": [
+      "one client process",
+      "multiple concurrent client processes",
+      "nested custom action process",
+      "early client crash"
+    ],
+    "module_lifetime_events": [
+      "msi.dll load notification",
+      "msi.dll unload notification",
+      "Ldr_MyDllCallbackNew load state",
+      "Ldr_MyDllCallbackNew unload state"
+    ],
+    "event_lifetime_events": [
+      "CreateEvent(SBIE_WindowsInstallerInUse)",
+      "MSI server OpenEvent success",
+      "MSI server OpenEvent failure",
+      "last handle close",
+      "CloseHandle(Msi_ServerInUseEvent)"
+    ],
+    "msi_handle_events": [
+      "MsiOpenPackage",
+      "MsiOpenProduct",
+      "MsiGetActiveDatabase",
+      "MsiDatabaseOpenView",
+      "MsiViewFetch",
+      "MsiCloseHandle",
+      "MsiCloseAllHandles diagnostic readback"
+    ],
+    "server_lifetime_events": [
+      "sandboxed MSIServer start",
+      "wait-loop polling",
+      "last-user exit",
+      "non-exit while live installer handle remains",
+      "non-exit while custom action remains"
+    ],
+    "negative_controls": [
+      "MsiCloseHandle on one handle while another same-thread handle remains open",
+      "MsiCloseHandle on one handle while another thread still owns an MSI handle",
+      "MsiCloseAllHandles diagnostic count without cleanup ownership",
+      "msi.dll unload while a custom action or installer transaction is still active",
+      "failed MSI load or failed event creation",
+      "non-MSI process loading and unloading unrelated DLLs"
+    ]
+  }
+}

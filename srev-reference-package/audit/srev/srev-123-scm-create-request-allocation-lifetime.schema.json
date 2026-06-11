@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-123-scm-create-request-allocation-lifetime.schema.json",
+  "title": "SREV-123 SCM create request allocation lifetime",
+  "id": "SCM_CREATE_REQUEST_ALLOCATION_LIFETIME",
+  "owner": "Sandboxie/core/dll/scm_create.c",
+  "type": "object",
+  "properties": {
+    "allocation_shape": {
+      "type": "string",
+      "description": "Dll_Alloc and Dll_AllocTemp may fail before returning writable storage"
+    },
+    "boxed_service_list": {
+      "type": "string",
+      "description": "SandboxedServices REG_MULTI_SZ update writes only after names2 exists"
+    },
+    "create_service_handle": {
+      "type": "string",
+      "description": "CreateService fake SC_HANDLE payload is allocated before fill and before boxed-list mutation"
+    },
+    "service_run_request": {
+      "type": "string",
+      "description": "SERVICE_RUN_REQ is allocated before fill and freed after SbieDll_CallServer"
+    }
+  },
+  "required": [
+    "allocation_shape",
+    "boxed_service_list",
+    "create_service_handle",
+    "service_run_request"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Dll_Alloc and Dll_AllocTemp may fail before returning writable storage",
+    "Scm_AddBoxedService writes names2 only after Dll_AllocTemp succeeds",
+    "Scm_CreateServiceW writes the fake service handle name only after Dll_Alloc succeeds",
+    "Scm_CreateServiceW allocates the fake service handle before Scm_AddBoxedService mutates SandboxedServices",
+    "Scm_CreateServiceW frees the fake service handle if Scm_AddBoxedService fails",
+    "Scm_StartBoxedService2 fills SERVICE_RUN_REQ only after Dll_Alloc succeeds",
+    "Scm_StartBoxedService2 frees SERVICE_RUN_REQ after SbieDll_CallServer returns",
+    "service creation policy registry values sandboxed-service list semantics special service routing and service-run wire shape are unchanged"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heapalloc",
+    "https://learn.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heapfree",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-createservicew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-startservicew"
+  ]
+}

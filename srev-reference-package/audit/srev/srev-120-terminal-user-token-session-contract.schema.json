@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-120-terminal-user-token-session-contract.schema.json",
+  "title": "SREV-120 Terminal user token session contract",
+  "id": "TERMINAL_USER_TOKEN_SESSION_CONTRACT",
+  "owner": "Sandboxie/core/dll/terminal.c + Sandboxie/core/svc/terminalserver.cpp",
+  "type": "object",
+  "properties": {
+    "wire_shape": {
+      "type": "string",
+      "description": "GET_USER_TOKEN_REQ carries the requested WTS session id"
+    },
+    "service_gate": {
+      "type": "string",
+      "description": "TerminalServer validates requested session against the caller session"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows WTSQueryUserToken and DuplicateHandle runtime proof"
+    }
+  },
+  "required": [
+    "wire_shape",
+    "service_gate",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "WTSQueryUserToken is keyed by an explicit Remote Desktop Services SessionId",
+    "Terminal_WTSQueryUserToken must forward the caller requested SessionId in GET_USER_TOKEN_REQ",
+    "TerminalServer GetUserToken validates the full GET_USER_TOKEN_REQ size",
+    "TerminalServer only satisfies the request when requested session equals the SbieApi_QueryProcess caller session",
+    "TerminalServer calls WTSQueryUserToken with the validated requested session id",
+    "token filtering OriginalToken UnfilteredToken DuplicateHandle and close-handle ownership are unchanged"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtsqueryusertoken",
+    "https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtsenumeratesessionsw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-duplicatehandle"
+  ]
+}

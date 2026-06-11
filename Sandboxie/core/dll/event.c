@@ -28,7 +28,7 @@
 //---------------------------------------------------------------------------
 
 
-static BOOLEAN Event_EvtIntAssertConfig(
+static BOOL Event_EvtIntAssertConfig(
     ULONG_PTR Unknown1, ULONG_PTR Unknown2, ULONG_PTR Unknown3);
 
 
@@ -45,7 +45,7 @@ typedef BOOL (*P_EvtIntAssertConfig)(
 //---------------------------------------------------------------------------
 
 
-ALIGNED BOOLEAN Event_EvtIntAssertConfig(
+ALIGNED BOOL Event_EvtIntAssertConfig(
     ULONG_PTR Unknown1, ULONG_PTR Unknown2, ULONG_PTR Unknown3)
 {
     SetLastError(0);
@@ -65,6 +65,8 @@ ALIGNED BOOLEAN EvtApi_Init(HMODULE module)
 
     EvtIntAssertConfig = (P_EvtIntAssertConfig)
         GetProcAddress(module, "EvtIntAssertConfig");
+    if (! EvtIntAssertConfig)
+        return FALSE;
 
     SBIEDLL_HOOK(Event_,EvtIntAssertConfig);
 

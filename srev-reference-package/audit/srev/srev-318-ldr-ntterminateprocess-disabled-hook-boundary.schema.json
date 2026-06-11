@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "LDR_NTTERMINATEPROCESS_DISABLED_HOOK_BOUNDARY",
+  "owner": "Sandboxie/core/dll/ldr.c",
+  "stage": "data -> schema -> topology -> logic -> action -> verify",
+  "contracts": [
+    "LdrRegisterDllNotification returns a callback identifier cookie used for unregister",
+    "LdrUnregisterDllNotification owns cancellation of the registered DLL notification cookie",
+    "LdrDllNotification callback context is constrained and unsafe for broad cross-module calls",
+    "TerminateProcess is unconditional process termination and may compromise DLL global state",
+    "the NtTerminateProcess hook remains disabled until ARM64 process-exit runtime proof exists",
+    "SREV-318 changes comments and proof only, not notification registration, unregister behavior, or hook activation"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/devnotes/ldrregisterdllnotification",
+    "https://learn.microsoft.com/en-us/windows/win32/devnotes/ldrunregisterdllnotification",
+    "https://learn.microsoft.com/en-us/windows/win32/devnotes/ldrdllnotification",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-terminateprocess"
+  ],
+  "runtime_gate": "Windows ARM64/ARM64EC process-exit matrix before enabling the disabled NtTerminateProcess hook"
+}

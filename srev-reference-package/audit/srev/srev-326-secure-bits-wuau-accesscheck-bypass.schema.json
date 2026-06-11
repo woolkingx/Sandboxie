@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-326-secure-bits-wuau-accesscheck-bypass.schema.json",
+  "title": "SREV-326 Secure BITS/WUAU AccessCheckByType bypass",
+  "id": "SECURE_BITS_WUAU_ACCESSCHECK_BYPASS",
+  "owner": "Sandboxie/core/dll/secure.c",
+  "stage": "data -> schema -> topology -> logic -> action -> verify",
+  "contracts": [
+    "official access-check semantics are descriptor, token, object-type, and generic mapping decisions",
+    "MAXIMUM_ALLOWED is not equivalent to blindly granting GenericAll",
+    "the BITS/WUAU branch is a local compatibility bypass, not a proven access-check implementation",
+    "the bypass is limited to BITS, Sandboxie WUAU, and wuauclt images",
+    "allowlisted callers must try Ldr_TestToken plus native __sys_NtAccessCheckByType before using the synthetic compatibility grant",
+    "synthetic MAXIMUM_ALLOWED to GenericAll fallback is allowed only when the native API call itself fails",
+    "all other callers must continue through Ldr_TestToken and native __sys_NtAccessCheckByType",
+    "runtime matrix must cover Windows versions, allowlisted callers, non-allowlisted callers, DesiredAccess shapes, security descriptors, token shapes, output contracts, and regression evidence",
+    "SREV-326 adds a native access-check first path while preserving the synthetic compatibility fallback",
+    "SREV-326 and SREV-327 share docs/plan/srev-326-327-secure-runtime-capture.schema.json as the machine-readable Windows evidence shape"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-accesscheckbytype",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-generic_mapping",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-seaccesscheck"
+  ],
+  "runtime_gate": "BITS/WUAU/WUAUCLT compatibility matrix on Windows 8.1+ and Windows 10/11, with allowlisted caller proof, non-allowlisted caller negative controls, allow/deny/NULL/owner-specific/object-type security descriptors, specific/generic/MAXIMUM_ALLOWED desired access, sandboxed/real/admin/non-admin token shapes, GrantedAccess/AccessStatus/LastError/return-status readback, and native forwarding regression",
+  "shared_capture_schema": "docs/plan/srev-326-327-secure-runtime-capture.schema.json"
+}

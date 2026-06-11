@@ -31,6 +31,8 @@
 
 
 #define PAD_LEN         (4 * sizeof(WCHAR))
+#define OBJ_OBJECT_TYPES_CAPACITY 10
+#define OBJ_OBJECT_TYPES_MAX      (OBJ_OBJECT_TYPES_CAPACITY - 1)
 
 
 //---------------------------------------------------------------------------
@@ -172,10 +174,14 @@ _FX BOOLEAN Obj_Init(void)
     //
 
     Obj_ObjectTypes = Mem_AllocEx(
-                            Driver_Pool, sizeof(POBJECT_TYPE) * 10, TRUE);
+                            Driver_Pool,
+                            sizeof(POBJECT_TYPE) * OBJ_OBJECT_TYPES_CAPACITY,
+                            TRUE);
     if (! Obj_ObjectTypes)
         return FALSE;
-    memzero(Obj_ObjectTypes, sizeof(POBJECT_TYPE) * 10);
+    memzero(
+        Obj_ObjectTypes,
+        sizeof(POBJECT_TYPE) * OBJ_OBJECT_TYPES_CAPACITY);
 
     if (! Obj_AddObjectType(L"Job")) // PsJobType
         return FALSE;
@@ -785,9 +791,17 @@ _FX BOOLEAN Obj_AddObjectType(const WCHAR *TypeName)
     if (object == NULL)
         return FALSE;
 
-    for (i = 0; Obj_ObjectTypes[i]; ++i)
+    for (i = 0; i < OBJ_OBJECT_TYPES_MAX && Obj_ObjectTypes[i]; ++i)
         ;
+
+    if (i >= OBJ_OBJECT_TYPES_MAX) {
+        Log_Status_Ex(
+            MSG_OBJ_HOOK_ANY_PROC, 0x96, STATUS_BUFFER_OVERFLOW, TypeName);
+        return FALSE;
+    }
+
     Obj_ObjectTypes[i] = object;
+    Obj_ObjectTypes[i + 1] = NULL;
 
     return TRUE;
 }

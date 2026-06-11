@@ -83,15 +83,6 @@ typedef BOOL (*P_LookupAccountName)(
     LPDWORD cchReferencedDomainName,
     PSID_NAME_USE peUse);
 
-typedef BOOL (*P_LookupAccountName)(
-    void *lpSystemName,
-    void *lpAccountName,
-    PSID Sid,
-    LPDWORD cbSid,
-    void *ReferencedDomainName,
-    LPDWORD cchReferencedDomainName,
-    PSID_NAME_USE peUse);
-
 typedef BOOL (*P_LookupPrivilegeValue)(
     void *lpSystemName,
     void *lpName,
@@ -132,10 +123,10 @@ typedef DWORD(*P_GetSecurityInfo)(
     HANDLE handle,
     SE_OBJECT_TYPE ObjectType,
     SECURITY_INFORMATION SecurityInfo,
-    PSID psidOwner,
-    PSID psidGroup,
-    PACL pDacl,
-    PACL pSacl,
+    PSID *ppsidOwner,
+    PSID *ppsidGroup,
+    PACL *ppDacl,
+    PACL *ppSacl,
     PSECURITY_DESCRIPTOR *ppSecurityDescriptor);
 
 
@@ -183,7 +174,7 @@ extern P_SetSecurityInfo        __sys_SetSecurityInfo;
 typedef BOOL (*P_CredWrite)(void *pCredential, ULONG Flags);
 
 typedef BOOL(*P_CredRead)(
-    const void *TargetName, ULONG Type, ULONG Flags, void *pCredential);
+    const void *TargetName, ULONG Type, ULONG Flags, void **ppCredential);
 
 typedef BOOL(*P_CredWriteDomainCredentials)(
     void *pTargetInfo, void *pCredential, ULONG Flags);
@@ -200,7 +191,7 @@ typedef BOOL(*P_CredRename)(
 typedef BOOL(*P_CredDelete)(void *TargetName, ULONG Type, ULONG Flags);
 
 typedef BOOL(*P_CredEnumerate)(
-    void *pFilter, ULONG Flags, ULONG *Count, void *ppCredential);
+    void *pFilter, ULONG Flags, ULONG *Count, void ***ppCredential);
 
 //---------------------------------------------------------------------------
 // Pointers

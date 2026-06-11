@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "THREAD_CHANGE_NOTIFY_TOKEN_STATUS_SENTINEL",
+  "title": "Thread change notify token status sentinel",
+  "type": "object",
+  "owner": "Sandboxie/core/drv/thread_token.c",
+  "additional_owners": [
+    "Sandboxie/core/drv/syscall.c"
+  ],
+  "stage": "schema -> topology -> verify",
+  "source_functions": [
+    "Thread_SetInformationThread_ImpersonationToken",
+    "Thread_SetInformationThread_ChangeNotifyToken",
+    "Syscall_Api_Invoke"
+  ],
+  "contracts": [
+    "Thread_SetInformationThread_ChangeNotifyToken owns the local STATUS_THREAD_NOT_IN_PROCESS producer for the current-thread change-notify-token path",
+    "Syscall_Api_Invoke owns the matching current-thread SetInformationThread sentinel consumer",
+    "The sentinel is a Sandboxie-private status signal and not a documented NtSetInformationThread result contract",
+    "The sentinel path preserves impersonation across syscall return only for this current-thread change-notify-token request",
+    "Normal primary-token syscall returns still clear temporary thread impersonation",
+    "SREV-329 and SREV-333 own adjacent NtSetInformationThread pass-through and Kaspersky/WOW64 sentinel topology",
+    "This SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntsetinformationthread",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddk/nf-ntddk-zwsetinformationthread",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-psreferenceimpersonationtoken",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-psimpersonateclient",
+    "https://learn.microsoft.com/en-us/windows/win32/secauthz/privilege-constants"
+  ],
+  "local_edges": [
+    "Gui_ConnectToWindowStationAndDesktop -> NtSetInformationThread current-thread ThreadImpersonationToken signal",
+    "Thread_SetInformationThread_ImpersonationToken -> Thread_SetInformationThread_ChangeNotifyToken",
+    "PsReferenceImpersonationToken or proc primary token -> Token_Restrict DISABLE_MAX_PRIVILEGE",
+    "Thread_MyImpersonateClient -> STATUS_THREAD_NOT_IN_PROCESS",
+    "Syscall_Api_Invoke -> SetInformationThread current-thread sentinel -> STATUS_SUCCESS without Thread_ClearThreadToken"
+  ],
+  "runtime_gate": "Windows non-zero-session GUI setup and NtSetInformationThread matrix for preserved change-notify impersonation normal token clear repeated committed calls and SREV-329 SREV-333 adjacency",
+  "status": "patched-comment-topology-after-official-ntsetinformationthread-impersonation-token-privilege-review-no-behavior-change"
+}

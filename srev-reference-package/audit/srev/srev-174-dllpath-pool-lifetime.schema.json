@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "DLLPATH_POOL_LIFETIME",
+  "type": "object",
+  "required": [
+    "owner",
+    "data",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/dllpath.c"
+    },
+    "data": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "Dll_RefreshPathList"
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "dllpath.c owns the DLL-side path list cache and its pool/list lifetime"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 2
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/sync/critical-section-objects",
+    "https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-initializecriticalsectionandspincount"
+  ],
+  "contracts": [
+    "dllpath.c owns the DLL-side path list cache and its pool/list lifetime",
+    "pool2 owns refreshable file path PATTERN nodes",
+    "file path refresh must build a complete replacement in a new pool before publishing it",
+    "refresh failure must preserve the last successfully published file path lists and their pool",
+    "old pool2 may be deleted only after the replacement pool and list heads are published",
+    "partially built replacement lists are discarded by deleting the replacement pool",
+    "Dll_InitPathList must delete earlier pools when later initialization steps fail",
+    "SREV-174 does not change path code selection pattern matching semantics driver refresh ownership lock ownership or the path list wire format",
+    "Linux source gate is not Windows refresh runtime proof"
+  ],
+  "owner": "Sandboxie/core/dll/dllpath.c",
+  "data": [
+    "Sandboxie/core/dll/dllpath.c",
+    "Sandboxie/core/dll/sbieapi.c",
+    "Sandboxie/core/drv/process_api.c",
+    "Sandboxie/core/drv/file.c",
+    "Sandboxie/common/pool.c",
+    "PATH_LIST_ANCHOR",
+    "Dll_PathListAnchor",
+    "Dll_FilePathListCritSec",
+    "Dll_InitPathList",
+    "Dll_InitPathList2",
+    "Dll_InitPathList3",
+    "Dll_RefreshPathList",
+    "SbieApi_QueryPathList",
+    "API_REFRESH_FILE_PATH_LIST",
+    "Pool_Create",
+    "Pool_Delete",
+    "PATTERN",
+    "LIST"
+  ],
+  "runtime_gate": "Windows DLL build and refresh-failure smoke proving the last successfully published file path lists remain usable after a failed rebuild"
+}

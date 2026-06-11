@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-055-custom-sysfer-entrypoint-patch.schema.json",
+  "title": "SREV-055 SYSFER entry point patch boundary contract",
+  "id": "CUSTOM_SYSFER_ENTRYPOINT_PATCH",
+  "api": "Custom_SYSFER_DLL",
+  "owner": "Sandboxie/core/dll/custom.c",
+  "type": "object",
+  "properties": {
+    "module_base": {
+      "type": "integer",
+      "description": "Loaded SYSFER.DLL image base"
+    },
+    "entry_rva": {
+      "type": "integer",
+      "description": "PE AddressOfEntryPoint RVA"
+    },
+    "image_size": {
+      "type": "integer",
+      "description": "PE SizeOfImage extent"
+    },
+    "patch_size": {
+      "type": "integer",
+      "const": 4,
+      "description": "Size of the mov-al-ret patch"
+    }
+  },
+  "required": [
+    "module_base",
+    "entry_rva",
+    "image_size",
+    "patch_size"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "The loaded module base must be non-null before reading PE headers",
+    "DOS and NT signatures must be valid before using AddressOfEntryPoint",
+    "AddressOfEntryPoint must name a non-zero 4-byte span inside SizeOfImage",
+    "VirtualProtect may make only the patch span writable and executable",
+    "Modified executable code must be followed by FlushInstructionCache",
+    "The previous page protection must be restored after writing the patch"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/debug/pe-format",
+    "https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualprotect",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-flushinstructioncache"
+  ]
+}

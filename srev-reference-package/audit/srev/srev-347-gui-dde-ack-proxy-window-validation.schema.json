@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "GUI_DDE_ACK_PROXY_WINDOW_VALIDATION",
+  "title": "GUI DDE ACK proxy window validation",
+  "type": "object",
+  "owner": "Sandboxie/core/svc/GuiServer.cpp",
+  "stage": "schema -> boundary -> topology -> action -> verify",
+  "source_functions": [
+    "Gui_SendMessageA",
+    "Gui_SendMessageW",
+    "Gui_SendMessageTimeoutA",
+    "Gui_SendMessageTimeoutW",
+    "Gui_DDE_ACK_Sending",
+    "GuiServer::SendPostMessageSlave",
+    "GuiServer::DdeProxyThreadSlave"
+  ],
+  "contracts": [
+    "DDE conversation identity is a pair of participating window handles",
+    "DDE ACK proxy startup is for direct SendMessageA and SendMessageW requests",
+    "SendMessageTimeoutA and SendMessageTimeoutW remain on the normal timeout broker path",
+    "SendPostMessageSlave must validate the client HWND with IsWindow before allocating proxy arguments or creating DdeProxyThreadSlave",
+    "DdeProxyThreadSlave preserves the existing initial WM_DDE_ACK and posted DDE bridge topology",
+    "SREV-084 owns DDE ACK lParam forwarding and SREV-293 owns the guidde topology comment",
+    "Windows runtime proof is still required for DDE proxy behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/about-dynamic-data-exchange",
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/wm-dde-ack",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendmessagew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendmessagetimeoutw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-iswindow"
+  ],
+  "local_edges": [
+    "Gui_SendMessageA/W WM_DDE_ACK -> Gui_DDE_ACK_Sending -> GUI_SEND_POST_MESSAGE which sm a/sm w",
+    "Gui_SendMessageTimeoutA/W -> GUI_SEND_POST_MESSAGE which smta/smtw -> normal timeout broker path",
+    "GuiServer SendPostMessageSlave WM_DDE_ACK direct SendMessage -> IsWindow client HWND -> DdeProxyThreadSlave",
+    "DdeProxyThreadSlave -> initial SendMessage client WM_DDE_ACK -> posted DDE bridge"
+  ],
+  "runtime_gate": "Windows SbieSvc and DLL build with direct DDE SendMessage proxy smoke, stale client HWND no-proxy proof, and SendMessageTimeout normal broker proof",
+  "status": "patched-source-level-after-official-dde-window-handle-review-needs-windows-runtime-proof"
+}

@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "EPMAPPER_SERVER_HEADER_TOPOLOGY_CONTRACT",
+  "owner": "Sandboxie/core/svc/EpMapperServer.h",
+  "related_owners": [
+    "Sandboxie/core/svc/EpMapperServer.cpp",
+    "Sandboxie/core/svc/EpMapperWire.h",
+    "Sandboxie/core/dll/rpcrt.c",
+    "Sandboxie/core/drv/ipc_port.c"
+  ],
+  "status": "docs-only-source-topology-reviewed-needs-windows-service-build-proof",
+  "official_references": [],
+  "contracts": [
+    "EpMapperServer.h is a declaration-only service header",
+    "The header may declare the service class, constructor, static PipeServer handler, and concrete request handler entry point",
+    "The header does not own RPC endpoint parsing, fixed wire string validation, dynamic-port policy, service control manager lookup, RPC runtime binding lifetime, or driver dynamic-port storage",
+    "Runtime behavior changes belong to the owner that executes the transition: EpMapperServer.cpp, EpMapperWire.h, rpcrt.c, or ipc_port.c",
+    "Future header changes must prove the PipeServer registration and dispatch topology before behavior claims"
+  ],
+  "runtime_gate": "Windows SboxSvc build continues to compile the header and register MSGID_EPMAPPER; dynamic endpoint runtime behavior remains covered by the open SREV-108 and SREV-218 Windows gates."
+}

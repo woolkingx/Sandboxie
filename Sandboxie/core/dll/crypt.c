@@ -98,6 +98,103 @@ static BOOLEAN Crypt_CallSbieSvc = FALSE;
 
 
 //---------------------------------------------------------------------------
+// Crypt_AddUlong
+//---------------------------------------------------------------------------
+
+
+_FX BOOLEAN Crypt_AddUlong(ULONG Value, ULONG Addend, ULONG *Result)
+{
+    if (Value > (~0u - Addend))
+        return FALSE;
+
+    *Result = Value + Addend;
+    return TRUE;
+}
+
+
+//---------------------------------------------------------------------------
+// Crypt_WcharsToBytesWithNull
+//---------------------------------------------------------------------------
+
+
+_FX BOOLEAN Crypt_WcharsToBytesWithNull(ULONG Chars, ULONG *Bytes)
+{
+    if (Chars > ((~0u / sizeof(WCHAR)) - 1))
+        return FALSE;
+
+    *Bytes = (Chars + 1) * sizeof(WCHAR);
+    return TRUE;
+}
+
+
+//---------------------------------------------------------------------------
+// Crypt_GetBlobLength
+//---------------------------------------------------------------------------
+
+
+_FX BOOLEAN Crypt_GetBlobLength(DATA_BLOB *Blob, ULONG *Length)
+{
+    if (! Blob)
+        return FALSE;
+
+    if (Blob->cbData && (! Blob->pbData))
+        return FALSE;
+
+    *Length = Blob->cbData;
+    return TRUE;
+}
+
+
+//---------------------------------------------------------------------------
+// Crypt_GetOptionalBlobLength
+//---------------------------------------------------------------------------
+
+
+_FX BOOLEAN Crypt_GetOptionalBlobLength(DATA_BLOB *Blob, ULONG *Length)
+{
+    if (! Blob) {
+        *Length = 0;
+        return TRUE;
+    }
+
+    return Crypt_GetBlobLength(Blob, Length);
+}
+
+
+//---------------------------------------------------------------------------
+// Crypt_ValidateReply
+//---------------------------------------------------------------------------
+
+
+_FX BOOLEAN Crypt_ValidateReply(
+    COM_CRYPT_PROTECT_DATA_RPL *rpl, ULONG *data_len, ULONG *descr_len)
+{
+    ULONG rpl_len = rpl->h.length;
+    ULONG offset = FIELD_OFFSET(COM_CRYPT_PROTECT_DATA_RPL, data);
+    ULONG remaining;
+
+    if (rpl_len < sizeof(COM_CRYPT_PROTECT_DATA_RPL))
+        return FALSE;
+
+    if (rpl_len < offset)
+        return FALSE;
+
+    remaining = rpl_len - offset;
+    if (rpl->data_len > remaining)
+        return FALSE;
+
+    remaining -= rpl->data_len;
+    if (rpl->descr_len > (remaining / sizeof(WCHAR)))
+        return FALSE;
+
+    *data_len = rpl->data_len;
+    if (descr_len)
+        *descr_len = rpl->descr_len;
+    return TRUE;
+}
+
+
+//---------------------------------------------------------------------------
 // Crypt_InitPromptData
 //---------------------------------------------------------------------------
 
@@ -154,6 +251,10 @@ _FX BOOL Crypt_CryptUnprotectData(
     COM_CRYPT_PROTECT_DATA_RPL *rpl;
     ULONG req_len;
     ULONG entropy_len;
+    ULONG data_len;
+    ULONG reply_data_len;
+    ULONG reply_descr_len;
+    ULONG descr_bytes;
     ULONG error;
     UCHAR *ptr;
 
@@ -176,28 +277,40 @@ _FX BOOL Crypt_CryptUnprotectData(
     // otherwise call SbieSvc decrypt service
     //
 
-    if (pOptionalEntropy)
-        entropy_len = pOptionalEntropy->cbData;
-    else
-        entropy_len = 0;
+    if ((! pDataOut) ||
+        (! Crypt_GetBlobLength(pDataIn, &data_len)) ||
+        (! Crypt_GetOptionalBlobLength(pOptionalEntropy, &entropy_len))) {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return FALSE;
+    }
 
-    req_len = sizeof(COM_CRYPT_PROTECT_DATA_REQ)
-            + pDataIn->cbData + entropy_len;
+    req_len = sizeof(COM_CRYPT_PROTECT_DATA_REQ);
+    if ((! Crypt_AddUlong(req_len, data_len, &req_len)) ||
+        (! Crypt_AddUlong(req_len, entropy_len, &req_len))) {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return FALSE;
+    }
 
     req = (COM_CRYPT_PROTECT_DATA_REQ *)Dll_AllocTemp(req_len);
+    if (! req) {
+        SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+        return FALSE;
+    }
+
     req->h.length = req_len;
     req->h.msgid = MSGID_COM_CRYPT_PROTECT_DATA;
 
     req->mode = L'U';
     req->flags = dwFlags;
-    req->data_len = pDataIn->cbData;
+    req->data_len = data_len;
     req->entropy_len = entropy_len;
     req->descr_len = 0;
 
     ptr = (UCHAR *)req->data;
-    memcpy(ptr, pDataIn->pbData, req->data_len);
+    if (data_len)
+        memcpy(ptr, pDataIn->pbData, data_len);
     if (entropy_len) {
-        ptr += req->data_len;
+        ptr += data_len;
         memcpy(ptr, pOptionalEntropy->pbData, entropy_len);
     }
 
@@ -214,25 +327,42 @@ _FX BOOL Crypt_CryptUnprotectData(
 
     if (error == 0) {
 
-        pDataOut->pbData = LocalAlloc(LPTR, rpl->data_len);
-        if (! pDataOut->pbData)
+        if (! Crypt_ValidateReply(rpl, &reply_data_len, &reply_descr_len))
+            error = ERROR_INVALID_PARAMETER;
+    }
+
+    if (error == 0) {
+
+        pDataOut->pbData = NULL;
+        pDataOut->cbData = reply_data_len;
+        if (reply_data_len)
+            pDataOut->pbData = LocalAlloc(LPTR, reply_data_len);
+
+        if (reply_data_len && (! pDataOut->pbData))
             error = ERROR_NOT_ENOUGH_MEMORY;
         else {
-            memcpy(pDataOut->pbData, rpl->data, rpl->data_len);
-            pDataOut->cbData = rpl->data_len;
+            if (reply_data_len)
+                memcpy(pDataOut->pbData, rpl->data, reply_data_len);
 
             if (ppszDataDescr) {
 
-                ULONG descr_len = (rpl->descr_len + 1) * sizeof(WCHAR);
-                *ppszDataDescr = LocalAlloc(LPTR, descr_len);
-                if (! *ppszDataDescr) {
-                    LocalFree(pDataOut->pbData);
-                    pDataOut->pbData = NULL;
-                    error = ERROR_NOT_ENOUGH_MEMORY;
-                } else {
-                    wmemcpy(*ppszDataDescr, (WCHAR*)(rpl->data + rpl->data_len),
-                            rpl->descr_len);
-                    (*ppszDataDescr)[rpl->descr_len] = L'\0';
+                *ppszDataDescr = NULL;
+                if (! Crypt_WcharsToBytesWithNull(reply_descr_len, &descr_bytes))
+                    error = ERROR_INVALID_PARAMETER;
+                else {
+                    *ppszDataDescr = LocalAlloc(LPTR, descr_bytes);
+                    if (! *ppszDataDescr) {
+                        if (pDataOut->pbData)
+                            LocalFree(pDataOut->pbData);
+                        pDataOut->pbData = NULL;
+                        pDataOut->cbData = 0;
+                        error = ERROR_NOT_ENOUGH_MEMORY;
+                    } else {
+                        wmemcpy(*ppszDataDescr,
+                                (WCHAR*)(rpl->data + reply_data_len),
+                                reply_descr_len);
+                        (*ppszDataDescr)[reply_descr_len] = L'\0';
+                    }
                 }
             }
         }
@@ -259,9 +389,13 @@ _FX BOOL Crypt_CryptProtectData(
     COM_CRYPT_PROTECT_DATA_RPL *rpl;
     ULONG req_len;
     ULONG entropy_len;
+    ULONG data_len;
     ULONG descr_len;
+    ULONG descr_bytes;
+    ULONG reply_data_len;
     ULONG error;
     UCHAR *ptr;
+    size_t descr_len_size;
 
     //
     // first try system procedure
@@ -282,37 +416,61 @@ _FX BOOL Crypt_CryptProtectData(
     // otherwise call SbieSvc crypt service
     //
 
-    if (pOptionalEntropy)
-        entropy_len = pOptionalEntropy->cbData;
-    else
-        entropy_len = 0;
-    if (szDataDescr)
-        descr_len = wcslen(szDataDescr);
-    else
-        descr_len = 0;
+    if ((! pDataOut) ||
+        (! Crypt_GetBlobLength(pDataIn, &data_len)) ||
+        (! Crypt_GetOptionalBlobLength(pOptionalEntropy, &entropy_len))) {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return FALSE;
+    }
 
-    req_len = sizeof(COM_CRYPT_PROTECT_DATA_REQ)
-            + pDataIn->cbData + entropy_len
-            + (descr_len + 1) * sizeof(WCHAR);
+    if (szDataDescr)
+        descr_len_size = wcslen(szDataDescr);
+    else
+        descr_len_size = 0;
+
+    if (descr_len_size > ~0u) {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return FALSE;
+    }
+    descr_len = (ULONG)descr_len_size;
+
+    if (! Crypt_WcharsToBytesWithNull(descr_len, &descr_bytes)) {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return FALSE;
+    }
+
+    req_len = sizeof(COM_CRYPT_PROTECT_DATA_REQ);
+    if ((! Crypt_AddUlong(req_len, data_len, &req_len)) ||
+        (! Crypt_AddUlong(req_len, entropy_len, &req_len)) ||
+        (! Crypt_AddUlong(req_len, descr_bytes, &req_len))) {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return FALSE;
+    }
 
     req = (COM_CRYPT_PROTECT_DATA_REQ *)Dll_AllocTemp(req_len);
+    if (! req) {
+        SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+        return FALSE;
+    }
+
     req->h.length = req_len;
     req->h.msgid = MSGID_COM_CRYPT_PROTECT_DATA;
 
     req->mode = L'P';
     req->flags = dwFlags;
-    req->data_len = pDataIn->cbData;
+    req->data_len = data_len;
     req->entropy_len = entropy_len;
     req->descr_len = descr_len;
 
     ptr = (UCHAR *)req->data;
-    memcpy(ptr, pDataIn->pbData, req->data_len);
-    ptr += req->data_len;
+    if (data_len)
+        memcpy(ptr, pDataIn->pbData, data_len);
+    ptr += data_len;
     if (entropy_len) {
         memcpy(ptr, pOptionalEntropy->pbData, entropy_len);
-        ptr += req->entropy_len;
+        ptr += entropy_len;
     }
-    if (descr_len)
+    if (szDataDescr)
         wmemcpy((WCHAR *)ptr, szDataDescr, descr_len + 1);
 
     Crypt_InitPromptData(req, pPromptStruct);
@@ -328,12 +486,22 @@ _FX BOOL Crypt_CryptProtectData(
 
     if (error == 0) {
 
-        pDataOut->pbData = LocalAlloc(LPTR, rpl->data_len);
-        if (! pDataOut->pbData)
+        if (! Crypt_ValidateReply(rpl, &reply_data_len, NULL))
+            error = ERROR_INVALID_PARAMETER;
+    }
+
+    if (error == 0) {
+
+        pDataOut->pbData = NULL;
+        pDataOut->cbData = reply_data_len;
+        if (reply_data_len)
+            pDataOut->pbData = LocalAlloc(LPTR, reply_data_len);
+
+        if (reply_data_len && (! pDataOut->pbData))
             error = ERROR_NOT_ENOUGH_MEMORY;
         else {
-            memcpy(pDataOut->pbData, rpl->data, rpl->data_len);
-            pDataOut->cbData = rpl->data_len;
+            if (reply_data_len)
+                memcpy(pDataOut->pbData, rpl->data, reply_data_len);
         }
     }
 
@@ -408,7 +576,9 @@ _FX BOOLEAN Crypt_Init(HMODULE module)
     CertGetCertificateChain =
                         GetProcAddress(module, "CertGetCertificateChain");
 
-    // $Workaround$ - 3rd party fix
+    // Norton 360 toolbar can make the CryptProtectData export lookup fail on
+    // Windows 8.  Treat that as a module-owned hook surface incompatibility:
+    // skip Crypt32 hooks for that process instead of failing Crypt_Init.
     if ((! CryptProtectData) && (Dll_OsBuild >= 8400)
             //&& (Dll_ImageType == DLL_IMAGE_MOZILLA_FIREFOX)
             && GetModuleHandle(L"UMEngx86.dll")) {

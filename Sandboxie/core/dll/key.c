@@ -895,11 +895,9 @@ _FX NTSTATUS Key_FixNameWow64(
         if (! (DesiredAccess & KEY_WOW64_32KEY))
             return STATUS_SUCCESS;
 
-        // ToDo: ???
-        // NoSysCallHooks BEGIN
-        //if(Dll_CompartmentMode || SbieApi_QueryConfBool(NULL, L"NoSysCallHooks", FALSE))
-        //    return STATUS_SUCCESS;
-        // NoSysCallHooks END
+        // SREV-303: a 64-bit process requesting KEY_WOW64_32KEY needs
+        // the service-assisted RegOpenKeyEx path because there is no
+        // WOW64 NtOpenKey thunk to rewrite this native call locally.
 
         return Key_FixNameWow64_2(OutTruePath, OutCopyPath);
 #ifndef _WIN64
@@ -1028,6 +1026,8 @@ _FX NTSTATUS Key_FixNameWow64_2(WCHAR **OutTruePath, WCHAR **OutCopyPath)
     TruePath_len = (wcslen(TruePath) + 1) * sizeof(WCHAR);
     req_len = sizeof(FILE_OPEN_WOW64_KEY_REQ) + TruePath_len;
     req = (FILE_OPEN_WOW64_KEY_REQ *)Dll_AllocTemp(req_len);
+    if (! req)
+        return STATUS_INSUFFICIENT_RESOURCES;
 
     req->h.length = req_len;
     req->h.msgid = MSGID_FILE_OPEN_WOW64_KEY;
@@ -2569,7 +2569,7 @@ _FX NTSTATUS Key_MarkDeletedAndClose(HANDLE KeyHandle)
         }
 
         if (NT_SUCCESS(status)) {
-            Key_MarkDeletedEx_v2(TruePath, NULL);
+            Key_MarkDeletedEx_v2(TruePath, NULL, 0);
 
             Key_UpdateMergeByPath(TruePath, TRUE, FALSE);
         }
@@ -2721,7 +2721,7 @@ _FX NTSTATUS Key_NtDeleteValueKey(
             InitializeObjectAttributes(&objattrs, &objname, OBJ_CASE_INSENSITIVE, NULL, NULL);
             Key_CreatePath(&objattrs, NULL);
 
-            Key_MarkDeletedEx_v2(TruePath, ValueName->Buffer);
+            Key_MarkDeletedEx_v2(TruePath, ValueName->Buffer, ValueName->Length / sizeof(WCHAR));
 
             status = __sys_NtDeleteValueKey(KeyHandle, ValueName);
 
@@ -2789,14 +2789,11 @@ _FX NTSTATUS Key_NtSetValueKey(
         uni.Buffer        = ValueName->Buffer;
 
         //
-        // when installing WinSxS assemblies, the TrustedInstaller
-        // component alternately creates and deletes a StoreDirty
-        // value in the \REGISTRY\MACHINE\COMPONENTS keys, but
-        // occasionally (at least in a sandboxed process) forgets
-        // to delete this value, and then complains that it still
-        // exists, and aborts.  A workaround is to just not create
-        // this value, which causes TrustedInstaller to complain
-        // about it, but it still completes the installation.
+        // SREV-304: TrustedInstaller WinSxS assembly install compatibility.
+        // ZwSetValueKey would create or replace StoreDirty; this sandbox
+        // policy deliberately suppresses that one COMPONENTS marker so the
+        // installer can complete. Windows runtime proof owns any predicate
+        // change to the image, key path, value type, or data shape.
         //
 
         if (Dll_ImageType == DLL_IMAGE_TRUSTED_INSTALLER &&
@@ -3348,12 +3345,11 @@ _FX NTSTATUS Key_NtEnumerateKey(
             } else {
 
                 //
-                // if the subkey to query is HKU\S-x-y-z\SOFTWARE\CLASSES,
-                // then actually the HKU\S-x-y-z_CLASSES key will be opened.
-                // Thus for KeyBasicInformation and KeyNodeInformation, which
-                // are really used to only get the name of the subkey, the
-                // returned name will be wrong ("current_classes" instead
-                // of "classes").  We fake a result for this case too
+                // SREV-305: HKU\<sid>\Software\Classes is the caller-visible
+                // classes path, but Windows may resolve it through the user's
+                // merged classes root. KeyBasicInformation/KeyNodeInformation
+                // ask only for the child name, so this path stays on the
+                // fake-enumeration owner instead of returning current_classes.
                 //
 
                 if (SubkeyPathLen > _Registry_User_Len + 2 &&
@@ -3580,7 +3576,10 @@ _FX NTSTATUS Key_NtQueryValueKey(
                 __leave;
         }
 
-        // $Workaround$ - 3rd party fix
+        // SREV-306: Acrobat/AcroPDF-compatible callers share this
+        // KeyValuePartialInformation fake-value policy for Adobe REG_DWORD
+        // preferences. The fake owner must return a complete partial value
+        // buffer or STATUS_BAD_INITIAL_PC for normal registry handling.
         if (Dll_ImageType == DLL_IMAGE_ACROBAT_READER ||
             Dll_ImageType == DLL_IMAGE_PLUGIN_CONTAINER ||
             Dll_ImageType == DLL_IMAGE_GOOGLE_CHROME ||
@@ -3626,7 +3625,7 @@ _FX NTSTATUS Key_NtQueryValueKey(
             if (NT_SUCCESS(status) || status == STATUS_BUFFER_OVERFLOW)
             {
                 if (Key_Delete_v2) {
-                    if(Key_IsDeletedEx_v2(TruePath, ValueNameBuf, TRUE))
+                    if(Key_IsDeletedExLen_v2(TruePath, ValueNameBuf, ValueNameLen1, TRUE))
                         status = STATUS_OBJECT_NAME_NOT_FOUND;
                 }
                 else {
@@ -3727,10 +3726,10 @@ _FX NTSTATUS Key_NtQueryValueKeyFakeForInternetExplorer(
         ;
 
     //
-    // hack:  if the Internet Explorer process is checking for
-    // value 2500, the Protected Mode setting, in the registry key
-    // ...\Microsoft\Windows\CurrentVersion\Internet Settings\Zones
-    // then always return 3 - protected mode OFF
+    // SREV-307: IE zone Protected Mode policy. Microsoft documents
+    // Zones\<n>\2500 as the per-zone Protected Mode value; this fake
+    // route returns 3 only for that Zones path, exposing Protected
+    // Mode as off while preserving non-Zones value queries.
     //
 
     } else if (ValueNameLen == 4 && _wcsicmp(ValueNameBuf, L"2500") == 0) {
@@ -3758,9 +3757,9 @@ _FX NTSTATUS Key_NtQueryValueKeyFakeForInternetExplorer(
         }
 
     //
-    // hack:  if the Internet Explorer process is checking for value
-    // ProtectedModeOffForAllZones, return value 1.  this alternate
-    // approach is sometimes used instead of the approach above
+    // SREV-307: IE may also probe this all-zones low-rights switch.
+    // Public Microsoft docs for this value are sparse, so the local
+    // contract is only the exact counted value-name match and DWORD 1.
     //
 
     } else if (ValueNameLen == 27 &&
@@ -3770,9 +3769,9 @@ _FX NTSTATUS Key_NtQueryValueKeyFakeForInternetExplorer(
         ValueData = 1;                  // protected mode OFF
 
     //
-    // hack:  if the Internet Explorer process is checking for value
-    // NoProtectedModeBanner, return value 1, to prevent the gold bar
-    // warning that protected mode is turned off
+    // SREV-307: suppress the IE Protected Mode warning banner alongside
+    // the off-mode fake values; Microsoft ESC script guidance documents
+    // this REG_DWORD preference under Internet Explorer\Main.
     //
 
     } else if (ValueNameLen == 21 &&
@@ -3809,7 +3808,9 @@ _FX NTSTATUS Key_NtQueryValueKeyFakeForInternetExplorer(
 // Key_NtQueryValueKeyFakeForAcrobatReader
 //---------------------------------------------------------------------------
 
-// $Workaround$ - 3rd party fix
+// SREV-306: Adobe preference fake-value owner. This routine only fabricates
+// REG_DWORD KeyValuePartialInformation for bProtectedMode and iCheckReader;
+// non-matches fall through to the normal registry merge/query path.
 _FX NTSTATUS Key_NtQueryValueKeyFakeForAcrobatReader(
     const WCHAR *TruePath,
     const WCHAR *ValueNameBuf,
@@ -3890,10 +3891,11 @@ _FX NTSTATUS Key_NtQueryValueKeyFakeForCreateProcess(
         ;
 
     //
-    // the AuthenticodeEnabled registry value for SRP is queried during
-    // CreateProcess processing.  if enabled it causes a recursive
-    // CreateProcess call to SandboxieCrypto, which will hang if
-    // loading SandboxieRpcSs, a dependency of SandboxieCrypto
+    // SREV-308: CreateProcess-time SRP certificate-rule policy.
+    // Microsoft documents SRP certificate rules as Authenticode/CRL
+    // processing for signed EXE launch. During Sandboxie process
+    // creation, keep this exact fake value disabled to avoid recursive
+    // SandboxieCrypto startup while SandboxieRpcSs is being loaded.
     //
 
     } else if (ValueNameLen == 19 &&
@@ -3989,15 +3991,22 @@ _FX NTSTATUS Key_NtEnumerateValueKey(
                 if (Key_Delete_v2) {
 
                     WCHAR* ValueName;
+                    ULONG ValueNameLen;
 
-                    if (KeyValueInformationClass == KeyValueBasicInformation)
+                    if (KeyValueInformationClass == KeyValueBasicInformation) {
                         ValueName = ((KEY_VALUE_BASIC_INFORMATION *)KeyValueInformation)->Name;
-                    else if (KeyValueInformationClass == KeyValueFullInformation)
+                        ValueNameLen = ((KEY_VALUE_BASIC_INFORMATION *)KeyValueInformation)->NameLength / sizeof(WCHAR);
+                    }
+                    else if (KeyValueInformationClass == KeyValueFullInformation) {
                         ValueName = ((KEY_VALUE_FULL_INFORMATION *)KeyValueInformation)->Name;
-                    else
+                        ValueNameLen = ((KEY_VALUE_FULL_INFORMATION *)KeyValueInformation)->NameLength / sizeof(WCHAR);
+                    }
+                    else {
                         ValueName = 0;
+                        ValueNameLen = 0;
+                    }
 
-                    if(ValueName && Key_IsDeletedEx_v2(TruePath, ValueName, TRUE))
+                    if(ValueName && Key_IsDeletedExLen_v2(TruePath, ValueName, ValueNameLen, TRUE))
                         status = STATUS_OBJECT_NAME_NOT_FOUND;
                 }
                 else {
@@ -4688,7 +4697,9 @@ finish:
 _FX NTSTATUS Key_NtSaveKey(
     HANDLE KeyHandle, HANDLE FileHandle)
 {
-    // todo: copy all reg keys from host to box for the used KeyHandle such that all will be saved
+    // SREV-309: NtSaveKey saves the physical key tree reached by KeyHandle.
+    // Sandboxie's merged host+box view is not materialized here; pre-save
+    // materialization needs a Windows hive-save runtime gate before change.
     SbieApi_Log(2205, L"NtSaveKey");
     return __sys_NtSaveKey(KeyHandle, FileHandle);
 }
@@ -4702,7 +4713,9 @@ _FX NTSTATUS Key_NtSaveKey(
 _FX NTSTATUS Key_NtSaveKeyEx(
     HANDLE KeyHandle, HANDLE FileHandle, ULONG Flags)
 {
-    // todo: copy all reg keys from host to box for the used KeyHandle such that all will be saved
+    // SREV-309: NtSaveKeyEx has the same physical-tree boundary as NtSaveKey.
+    // Flags do not make the sandbox merge view durable; pre-save
+    // materialization needs a Windows hive-save runtime gate before change.
     SbieApi_Log(2205, L"NtSaveKeyEx");
     return __sys_NtSaveKeyEx(KeyHandle, FileHandle, Flags);
 }
@@ -4793,7 +4806,7 @@ _FX NTSTATUS Key_NtLoadKeyImpl(
             __leave;
         }
 
-        if (wcslen(WorkPath) > 127) { // todo // fix-me: make req->FilePath much longer
+        if (wcslen(WorkPath) >= FILE_LOAD_KEY_PATH_CHARS) {
             status = STATUS_ACCESS_DENIED;
             __leave;
         }
@@ -4811,7 +4824,7 @@ _FX NTSTATUS Key_NtLoadKeyImpl(
         if (! NT_SUCCESS(status))
             __leave;
 
-        if (wcslen(TruePath) > 127) {
+        if (wcslen(TruePath) >= FILE_LOAD_KEY_PATH_CHARS) {
             status = STATUS_ACCESS_DENIED;
             __leave;
         }

@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-267-file-arm64ec-ntopenfile-bypass-comment-owner.schema.json",
+  "id": "FILE_ARM64EC_NTOPENFILE_BYPASS_COMMENT_OWNER",
+  "title": "File ARM64EC NtOpenFile bypass comment owner",
+  "type": "object",
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/file.c"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 5
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 2
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/dll/file.c",
+  "contracts": [
+    "The ARM64EC direct NtOpenFile path is a compatibility bypass not the normal Sandboxie file-policy route",
+    "SREV-054 owns the executable half-open xtajit64.dll image range gate for this bypass",
+    "The bypass is legal only when the caller return address is inside the SREV-054 half-open xtajit64.dll image range",
+    "Stale TODO or Fix-Me wording must not remain on this bypass because it hides the owner and policy gate",
+    "This SREV changes comments and proof only; behavior remains owned by SREV-054"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulehandlew",
+    "https://learn.microsoft.com/en-us/windows/win32/debug/pe-format"
+  ],
+  "runtime_gate": "Inherited from SREV-054: ARM64EC process with xtajit64.dll loaded, return address inside image bypasses without stack overflow; return address outside image stays on normal Sandboxie file path; unloaded or invalid image range disables the bypass"
+}

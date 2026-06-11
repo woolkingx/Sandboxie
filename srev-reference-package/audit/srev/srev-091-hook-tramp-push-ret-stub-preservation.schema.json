@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-091-hook-tramp-push-ret-stub-preservation.schema.json",
+  "title": "SREV-091 Hook trampoline PUSH/RET stub preservation",
+  "id": "HOOK_TRAMP_PUSH_RET_STUB_PRESERVATION",
+  "owner": "Sandboxie/core/dll/hook_tramp.c",
+  "type": "object",
+  "properties": {
+    "source_bytes": {
+      "type": "string",
+      "description": "Writable alias for executable detour bytes"
+    },
+    "push_ret_envelope": {
+      "type": "string",
+      "description": "Existing 32-bit PUSH imm32 / RET detour owned by a third-party hook"
+    },
+    "replacement_target": {
+      "type": "string",
+      "description": "Sandboxie jump target written into the detected detour"
+    },
+    "fallback_jump": {
+      "type": "string",
+      "description": "Ordinary 32-bit relative E9 JMP fallback path"
+    },
+    "cache_coherency": {
+      "type": "string",
+      "description": "Caller-owned executable code mutation and instruction-cache gate"
+    }
+  },
+  "required": [
+    "source_bytes",
+    "push_ret_envelope",
+    "replacement_target",
+    "fallback_jump",
+    "cache_coherency"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "the existing 32-bit PUSH imm32 / RET envelope is a third-party-owned detour shape",
+    "Sandboxie may replace only the PUSH immediate operand in that envelope",
+    "Sandboxie must not rewrite that envelope into a relative E9 JMP",
+    "ordinary 32-bit non-PUSH/RET hooks still use the existing E9 relative JMP path",
+    "64-bit hooks keep the mov-rax / jmp-rax path",
+    "code mutation and instruction-cache coherency remain owned by caller hook-install paths such as SREV-058"
+  ],
+  "official_references": [
+    "https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html",
+    "https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualprotect",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-flushinstructioncache",
+    "https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-freelibrary",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwunloaddriver"
+  ]
+}

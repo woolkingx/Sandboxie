@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-192-gui-copydata-wire-length-contract.schema.json",
+  "title": "SREV-192 GUI COPYDATA wire length contract",
+  "id": "GUI_COPYDATA_WIRE_LENGTH_CONTRACT",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/svc/GuiWire.h"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 8
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 2
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/svc/GuiWire.h",
+  "contracts": [
+    "GuiWire.h owns the local GUI_SEND_COPYDATA_REQ wire shape",
+    "COPYDATASTRUCT cbData is a byte count",
+    "COPYDATASTRUCT lpData is generic PVOID data, not a wide string",
+    "GUI_SEND_COPYDATA_REQ cds_buf is a byte tail",
+    "SendCopyDataSlave must prove the fixed request header through FIELD_OFFSET before reading cds_len",
+    "The enum request id GUI_SEND_COPYDATA is not a structure size owner",
+    "The service must prove FIELD_OFFSET plus cds_len fits inside req_len before using cds_buf",
+    "DLL senders must allocate FIELD_OFFSET plus byte payload length",
+    "runtime proof is required on Windows for normal WM_COPYDATA DDE copydata and malformed short request handling"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-copydatastruct",
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/wm-copydata"
+  ],
+  "runtime_gate": "Windows SbieSvc and DLL build plus normal WM_COPYDATA DDE copydata short-header and short-tail malformed request proof"
+}

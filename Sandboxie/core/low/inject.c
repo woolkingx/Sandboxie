@@ -326,8 +326,9 @@ _FX void InitInject(SBIELOW_DATA *data, void *DetourCode)
 #endif
     {
         //
-        // for ARM64EC we need native functions, FindDllExport can manage FFS
-        // however this does not work for syscalls, hence we use the native function directly
+        // ARM64EC ordinary exports can be FFS-resolved to native EC targets.
+        // Nt* syscall exports are routed through SbieLow syscall-wrapper state;
+        // keep the pre-captured native/EC entrypoints for injection-time calls.
         //
 
         inject->NtProtectVirtualMemory = data->NativeNtProtectVirtualMemory;

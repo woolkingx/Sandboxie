@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "OLE_HGLOBAL_LOCK_AND_CIDA_COPY_GATES",
+  "title": "SREV-158 Ole HGLOBAL Lock And CIDA Copy Gates",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/ole.cpp",
+  "properties": {
+    "owner_files": {
+      "type": "array",
+      "items": { "type": "string" },
+      "contains": { "const": "Sandboxie/core/dll/ole.cpp" }
+    },
+    "contracts": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "official_references": {
+      "type": "array",
+      "items": { "type": "string", "format": "uri" }
+    },
+    "runtime_gates": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "required": [
+    "owner_files",
+    "contracts",
+    "official_references",
+    "runtime_gates"
+  ],
+  "additionalProperties": false,
+  "owner_files": [
+    "Sandboxie/core/dll/ole.cpp"
+  ],
+  "contracts": [
+    "Every active GlobalLock result dereferenced by ole.cpp must be non-null before copy or API use",
+    "Every successful active GlobalLock in these copy paths must be followed by GlobalUnlock before local return",
+    "Failed output HGLOBAL locks free the newly allocated handle before returning failure or NULL",
+    "XDataObject::GetData does not publish a caller-visible STGMEDIUM unless both source and destination HGLOBAL locks succeed",
+    "CFSTR_SHELLIDLIST CIDA offset zero copies the rewritten parent PIDL and child offsets copy GetPidl(count)",
+    "does not change supported clipboard formats sandbox path translation policy drag/drop scheduling or inactive virtual-file extraction",
+    "Linux source gate is not Windows runtime proof"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-globalalloc",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-globallock",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-globalunlock",
+    "https://learn.microsoft.com/en-us/windows/win32/api/objidl/ns-objidl-stgmedium-r1",
+    "https://learn.microsoft.com/en-us/windows/win32/api/objidl/nf-objidl-idataobject-getdata",
+    "https://learn.microsoft.com/en-us/windows/win32/shell/clipboard"
+  ],
+  "runtime_gates": [
+    "Windows DLL build for ole.cpp",
+    "clipboard and drag/drop smoke for CF_HDROP CFSTR_FILENAMEA CFSTR_FILENAMEW and CFSTR_SHELLIDLIST",
+    "fault-injection or debugger-assisted GlobalLock failure proving no null dereference and no leaked replacement HGLOBAL",
+    "Shell ID List drop/paste smoke proving parent and child PIDLs resolve correctly"
+  ]
+}

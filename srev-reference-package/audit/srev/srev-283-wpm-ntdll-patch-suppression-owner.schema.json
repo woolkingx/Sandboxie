@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "WPM_NTDLL_PATCH_SUPPRESSION_OWNER",
+  "title": "WriteProcessMemory ntdll patch suppression owner",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/file_misc.c",
+  "stage": "schema -> boundary -> verify",
+  "source_function": "File_WriteProcessMemory",
+  "contracts": [
+    "WriteProcessMemory writes data to memory in a specified process",
+    "WriteProcessMemory target range must be accessible or the operation fails",
+    "lpNumberOfBytesWritten is optional and NULL may be ignored",
+    "File_WriteProcessMemory owns only the Firefox/Thunderbird ntdll patch suppression branch",
+    "the suppression branch is legal only for NtSetInformationThread and NtMapViewOfSection export-address targets",
+    "SREV-075 owns the fake-success output-parameter gate",
+    "non-matching writes must flow to the real __sys_WriteProcessMemory owner",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-writeprocessmemory"
+  ],
+  "local_edges": [
+    "WriteProcessMemory call -> File_WriteProcessMemory hook",
+    "non-compartment Firefox/Thunderbird -> selected ntdll export-address predicate",
+    "NtSetInformationThread target -> fake success with SREV-075 output gate",
+    "NtMapViewOfSection target -> fake success with SREV-075 output gate",
+    "non-matching write -> __sys_WriteProcessMemory"
+  ],
+  "runtime_gate": "Windows Firefox/Thunderbird matrix inherited from SREV-075 plus target-address regression proof",
+  "status": "patched-comment-topology-after-official-writeprocessmemory-review-no-behavior-change"
+}

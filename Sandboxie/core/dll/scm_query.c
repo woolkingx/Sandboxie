@@ -26,6 +26,9 @@
 //---------------------------------------------------------------------------
 
 
+#define SCM_SERVICE_NAME_MAX_CHARS 256
+
+
 typedef struct QUERY_SERVICE_CONFIG_64 {
 
     ULONG dwServiceType;
@@ -754,7 +757,15 @@ _FX void *Scm_QueryServiceByName(
         WCHAR req_space[384];
     } u;
     SERVICE_QUERY_RPL *rpl;
+    ULONG name_len;
+    ULONG req_len;
     ULONG error;
+    size_t name_len_size;
+
+    if (! ServiceNm) {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return NULL;
+    }
 
     //
     // if the name identifies a sandboxed service, let someone else
@@ -770,13 +781,26 @@ _FX void *Scm_QueryServiceByName(
     // this is a real service, so query through SbieSvc
     //
 
-    u.req.name_len = wcslen(ServiceNm);
-    wcscpy(u.req.name, ServiceNm);
+    name_len_size = wcslen(ServiceNm);
+    if (name_len_size > SCM_SERVICE_NAME_MAX_CHARS) {
+        SetLastError(ERROR_INVALID_NAME);
+        return NULL;
+    }
+
+    name_len = (ULONG)name_len_size;
+    req_len = sizeof(SERVICE_QUERY_REQ)
+            + (name_len + 1) * sizeof(WCHAR);
+    if (req_len > sizeof(u)) {
+        SetLastError(ERROR_INVALID_NAME);
+        return NULL;
+    }
+
+    u.req.name_len = name_len;
+    memcpy(u.req.name, ServiceNm, (name_len + 1) * sizeof(WCHAR));
     u.req.with_service_status = (USHORT)with_service_status;
     u.req.with_service_config = (USHORT)with_service_config;
 
-    u.req.h.length = sizeof(SERVICE_QUERY_REQ)
-                   + (u.req.name_len + 1) * sizeof(WCHAR);
+    u.req.h.length = req_len;
     u.req.h.msgid = MSGID_SERVICE_QUERY;
 
     rpl = (SERVICE_QUERY_RPL *)SbieDll_CallServer(&u.req.h);

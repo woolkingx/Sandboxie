@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-071-ipc-async-start-handoff.schema.json",
+  "title": "SREV-071 IPC async start handoff contract",
+  "id": "IPC_ASYNC_START_HANDOFF",
+  "api": "Ipc_StartServer async handoff",
+  "owner": "Sandboxie/core/dll/ipc_start.c",
+  "type": "object",
+  "properties": {
+    "payload": {
+      "type": "string",
+      "description": "Four-slot async handoff payload allocated before CreateThread"
+    },
+    "thread": {
+      "type": "string",
+      "description": "CreateThread worker handle and success gate"
+    },
+    "fallback": {
+      "type": "string",
+      "description": "Synchronous wait and cleanup path when async handoff cannot be transferred"
+    }
+  },
+  "required": [
+    "payload",
+    "thread",
+    "fallback"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "CreateThread returns a thread handle on success and NULL on failure",
+    "The async payload may be written only after Dll_AllocTemp returns non-null",
+    "The async worker owns hServerEvent and hServerProcess only after CreateThread succeeds",
+    "If CreateThread fails after payload allocation, the payload must be freed by the current call",
+    "If async handoff cannot be transferred, the current call must fall back to the synchronous wait and cleanup path",
+    "The synchronous wait path owns closing hServerEvent and hServerProcess"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createthread",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/ns-processthreadsapi-process_information",
+    "https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitformultipleobjects"
+  ]
+}

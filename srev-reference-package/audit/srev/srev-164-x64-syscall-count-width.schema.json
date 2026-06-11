@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "X64_SYSCALL_COUNT_WIDTH",
+  "type": "object",
+  "required": [
+    "owner",
+    "data",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/drv/util_asm.asm"
+    },
+    "data": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "Sbie_InvokeSyscall_asm"
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "on x64 count arrives as the low 32 bits of RDX and the high 32 bits are not part of the ULONG contract"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 2
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "official_references": [
+    "https://learn.microsoft.com/en-us/cpp/build/x64-calling-convention?view=msvc-170",
+    "https://learn.microsoft.com/en-us/cpp/build/x64-calling-convention?view=msvc-170#parameter-passing",
+    "https://learn.microsoft.com/en-us/cpp/build/prolog-and-epilog?view=msvc-170"
+  ],
+  "contracts": [
+    "util_asm.asm owns the assembly implementation of Sbie_InvokeSyscall_asm",
+    "the C-facing count parameter is ULONG count",
+    "on x64 count arrives as the low 32 bits of RDX and the high 32 bits are not part of the ULONG contract",
+    "the x64 trampoline must validate store compare and load the count through 32-bit register views edx r10d and ecx",
+    "the count remains capped at 19 arguments before any stack copy",
+    "register argument layout stack argument layout shadow-space placement nonvolatile register preservation and x86 trampoline behavior are unchanged",
+    "Linux source gate is not Windows driver build or runtime proof"
+  ],
+  "owner": "Sandboxie/core/drv/util_asm.asm",
+  "data": [
+    "Sandboxie/core/drv/util_asm.asm",
+    "Sandboxie/core/drv/syscall.c",
+    "Sandboxie/core/drv/syscall_win32.c",
+    "Sbie_InvokeSyscall_asm",
+    "ULONG count",
+    "edx",
+    "r10d",
+    "ecx",
+    "rep movsq",
+    "STATUS_INVALID_SYSTEM_SERVICE"
+  ],
+  "runtime_gate": "Windows x64 driver build, kernel syscall proxy smoke, win32k syscall proxy smoke, argument-count boundary smoke, and HVCI-enabled guarded indirect-call smoke"
+}

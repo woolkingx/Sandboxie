@@ -81,15 +81,17 @@ static BOOLEAN WSA_RefreshBindIPState();
 BOOLEAN WSA_InitNetDnsFilter(HMODULE module);
 
 static int WSA_IsBlockedTraffic(const short *addr, int addrlen, int protocol);
+static BOOLEAN WSA_IsConnectSockaddr(const void* addr, int addrlen, ADDRESS_FAMILY* af);
+static BOOLEAN WSA_IsLocalhostAddress(const void* addr, int addrlen);
 
-static int WSA_WSAStartup(
+static int WSAAPI WSA_WSAStartup(
     WORD wVersionRequested,
     void* lpWSAData);
     
-static int WSA_WSACleanup(void);
+static int WSAAPI WSA_WSACleanup(void);
 
 
-static int WSA_WSAIoctl(
+static int WSAAPI WSA_WSAIoctl(
     SOCKET                             s,
     DWORD                              dwIoControlCode,
     LPVOID                             lpvInBuffer,
@@ -100,28 +102,28 @@ static int WSA_WSAIoctl(
     LPWSAOVERLAPPED                    lpOverlapped,
     LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine);
 
-static int WSA_ioctlsocket(
+static int WSAAPI WSA_ioctlsocket(
     SOCKET  s,
     long    cmd,
     ULONG*  argp);
 
-static int WSA_WSAAsyncSelect(
+static int WSAAPI WSA_WSAAsyncSelect(
     SOCKET  s,
     HWND    hWnd,
     UINT    wMsg,
     long    lEvent);
 
-static int WSA_WSAEventSelect(
+static int WSAAPI WSA_WSAEventSelect(
     SOCKET  s,
     void*   hEventObject,
     long    lNetworkEvents);
 
-static int WSA_WSAEnumNetworkEvents(
+static int WSAAPI WSA_WSAEnumNetworkEvents(
     SOCKET  s,
     void*   hEventObject,
     LPWSANETWORKEVENTS lpNetworkEvents);
 
-static int WSA_WSANSPIoctl(
+static int WSAAPI WSA_WSANSPIoctl(
     HANDLE          hLookup,
     DWORD           dwControlCode,
     LPVOID          lpvInBuffer,
@@ -131,16 +133,16 @@ static int WSA_WSANSPIoctl(
     LPDWORD         lpcbBytesReturned,
     LPWSACOMPLETION lpCompletion);
 
-static int WSA_GetAddrInfoW(
+static int WSAAPI WSA_GetAddrInfoW(
     PCWSTR pNodeName,
     PCWSTR pServiceName,
     const ADDRINFOW* pHints,
     PADDRINFOW* ppResult);
 
-static void WSA_FreeAddrInfoW(
+static void WSAAPI WSA_FreeAddrInfoW(
     PADDRINFOW      pAddrInfo);
 
-static SOCKET WSA_WSASocketW(
+static SOCKET WSAAPI WSA_WSASocketW(
     int                 af,
     int                 type,
     int                 protocol,
@@ -148,17 +150,17 @@ static SOCKET WSA_WSASocketW(
     unsigned int        g,
     DWORD               dwFlags);
 
-static int WSA_bind(
+static int WSAAPI WSA_bind(
     SOCKET         s,
     const void     *name,
     int            namelen);
 
-static int WSA_connect(
+static int WSAAPI WSA_connect(
     SOCKET         s,
     const void     *name,
     int            namelen);
 
-static int WSA_WSAConnect(
+static int WSAAPI WSA_WSAConnect(
     SOCKET         s,
     const void     *name,
     int            namelen,
@@ -167,7 +169,7 @@ static int WSA_WSAConnect(
     LPQOS          lpSQOS,
     LPQOS          lpGQOS);
 
-static int WSA_ConnectEx(
+static BOOL WSAAPI WSA_ConnectEx(
     SOCKET          s,
     const void      *name,
     int             namelen,
@@ -202,7 +204,7 @@ static int WSA_AcceptEx(
     LPDWORD      lpdwBytesReceived,
     LPOVERLAPPED lpOverlapped);*/
 
-static int WSA_sendto(
+static int WSAAPI WSA_sendto(
     SOCKET         s,
     const char     *buf,
     int            len,
@@ -210,7 +212,7 @@ static int WSA_sendto(
     const void     *to,
     int            tolen);
 
-static int WSA_WSASendTo(
+static int WSAAPI WSA_WSASendTo(
     SOCKET                             s,
     LPWSABUF                           lpBuffers,
     DWORD                              dwBufferCount,
@@ -221,7 +223,7 @@ static int WSA_WSASendTo(
     LPWSAOVERLAPPED                    lpOverlapped,
     LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine);
 
-static int WSA_recvfrom(
+static int WSAAPI WSA_recvfrom(
     SOCKET   s,
     char     *buf,
     int      len,
@@ -229,7 +231,7 @@ static int WSA_recvfrom(
     void     *from,
     int      *fromlen);
 
-static int WSA_WSARecvFrom(
+static int WSAAPI WSA_WSARecvFrom(
     SOCKET                             s,
     LPWSABUF                           lpBuffers,
     DWORD                              dwBufferCount,
@@ -240,7 +242,7 @@ static int WSA_WSARecvFrom(
     LPWSAOVERLAPPED                    lpOverlapped,
     LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine);
 
-static int WSA_closesocket(SOCKET s);
+static int WSAAPI WSA_closesocket(SOCKET s);
 
 static int WSA_IsLocalLoop(const short* addr, int addrlen);
 
@@ -323,8 +325,8 @@ struct NETPROXY_RULE {
     SOCKADDR_IN6_LH WSA_ProxyAddr6;
 
     BOOLEAN auth;
-    WCHAR   login[255];
-    WCHAR   pass[255];
+    WCHAR   login[256];
+    WCHAR   pass[256];
 
     rbtree_t ip_map;
 };
@@ -422,7 +424,7 @@ _FX WSA_SOCK* WSA_GetSock(SOCKET s, BOOLEAN bCanAdd)
 //---------------------------------------------------------------------------
 
 
-_FX int WSA_WSAStartup(
+_FX int WSAAPI WSA_WSAStartup(
     WORD wVersionRequested,
     void* lpWSAData)
 {
@@ -479,7 +481,7 @@ _FX int WSA_WSAStartup(
 //---------------------------------------------------------------------------
 
 
-_FX int WSA_WSACleanup(void)
+_FX int WSAAPI WSA_WSACleanup(void)
 {
     return __sys_WSACleanup();
 }
@@ -490,7 +492,7 @@ _FX int WSA_WSACleanup(void)
 //---------------------------------------------------------------------------
 
 
-_FX int WSA_WSAIoctl(
+_FX int WSAAPI WSA_WSAIoctl(
     SOCKET                             s,
     DWORD                              dwIoControlCode,
     LPVOID                             lpvInBuffer,
@@ -532,7 +534,7 @@ _FX int WSA_WSAIoctl(
 //---------------------------------------------------------------------------
 
 
-_FX int WSA_ioctlsocket(
+_FX int WSAAPI WSA_ioctlsocket(
     SOCKET  s,
     long    cmd,
     ULONG*  argp)
@@ -555,7 +557,7 @@ _FX int WSA_ioctlsocket(
 //---------------------------------------------------------------------------
 
 
-_FX int WSA_WSAAsyncSelect(
+_FX int WSAAPI WSA_WSAAsyncSelect(
     SOCKET  s,
     HWND    hWnd,
     UINT    wMsg,
@@ -580,7 +582,7 @@ _FX int WSA_WSAAsyncSelect(
 //---------------------------------------------------------------------------
 
 
-_FX int WSA_WSAEventSelect(
+_FX int WSAAPI WSA_WSAEventSelect(
     SOCKET  s,
     void*   hEventObject,
     long    lNetworkEvents)
@@ -603,7 +605,7 @@ _FX int WSA_WSAEventSelect(
 //---------------------------------------------------------------------------
 
 
-_FX int WSA_WSAEnumNetworkEvents(
+_FX int WSAAPI WSA_WSAEnumNetworkEvents(
     SOCKET  s,
     void*   hEventObject,
     LPWSANETWORKEVENTS lpNetworkEvents)
@@ -629,7 +631,7 @@ _FX int WSA_WSAEnumNetworkEvents(
 //---------------------------------------------------------------------------
 
 
-_FX int WSA_WSANSPIoctl(
+_FX int WSAAPI WSA_WSANSPIoctl(
     HANDLE          hLookup,
     DWORD           dwControlCode,
     LPVOID          lpvInBuffer,
@@ -669,7 +671,7 @@ _FX int WSA_WSANSPIoctl(
 
 const BOOLEAN File_InternetBlockade_ManualBypass();
 
-static SOCKET WSA_WSASocketW(
+static SOCKET WSAAPI WSA_WSASocketW(
   int                 af,
   int                 type,
   int                 protocol,
@@ -692,14 +694,9 @@ static SOCKET WSA_WSASocketW(
             && (!prompt || !File_InternetBlockade_ManualBypass())) {
 
             //
-            // Note: we don't care for the result and we don't want to fail this call
-            // we invoke File_InternetBlockade_ManualBypass to give the box manager
-            // a chance to allow the network access in the driver
-            // 
-            // the actual enforcement of the preset is done by the driver
-            // 
-            // to not make the process crash or behave unexpectedly we always allow 
-            // for the socket to be created successfully
+            // SREV-319: socket creation remains provider-owned.
+            // Prompt/manual-bypass only updates driver internet-access state;
+            // the WFP driver enforces blocked traffic after the socket exists.
             //
 
         }
@@ -806,7 +803,7 @@ finish:
 // WSA_bind
 //---------------------------------------------------------------------------
 
-_FX int WSA_bind(
+_FX int WSAAPI WSA_bind(
     SOCKET         s,
     const void     *name,
     int            namelen)
@@ -1040,6 +1037,9 @@ _FX int WSA_bind_ip(
 
 _FX BOOLEAN WSA_GetIP(const short* addr, int addrlen, IP_ADDRESS* pIP)
 {
+    if (!addr || !pIP || addrlen < sizeof(USHORT))
+        return FALSE;
+
     //pIP->Type = (BYTE)addr[0];
     if ((BYTE)addr[0] == AF_INET6 && addrlen >= sizeof(SOCKADDR_IN6_LH)) {
         memcpy(pIP->Data, ((SOCKADDR_IN6_LH*)addr)->sin6_addr.u.Byte, 16);
@@ -1051,9 +1051,70 @@ _FX BOOLEAN WSA_GetIP(const short* addr, int addrlen, IP_ADDRESS* pIP)
         pIP->Data32[2] = 0xFFFF0000;
         pIP->Data32[3] = ((SOCKADDR_IN*)addr)->sin_addr.S_un.S_addr;
     }
-    else // something's wrong
+    else // SREV-068: unsupported or malformed family is not locally interpreted.
         return FALSE;
     return TRUE;
+}
+
+
+//---------------------------------------------------------------------------
+// WSA_IsConnectSockaddr
+//---------------------------------------------------------------------------
+
+
+_FX BOOLEAN WSA_IsConnectSockaddr(const void* addr, int addrlen, ADDRESS_FAMILY* af)
+{
+    ADDRESS_FAMILY family;
+
+    if (!addr || addrlen < (int)sizeof(USHORT))
+        return FALSE;
+
+    family = ((const SOCKADDR*)addr)->sa_family;
+
+    if (family == AF_INET) {
+        if (addrlen < (int)sizeof(SOCKADDR_IN))
+            return FALSE;
+    }
+    else if (family == AF_INET6) {
+        if (addrlen < (int)sizeof(SOCKADDR_IN6_LH))
+            return FALSE;
+    }
+    else
+        return FALSE;
+
+    if (af)
+        *af = family;
+
+    return TRUE;
+}
+
+
+//---------------------------------------------------------------------------
+// WSA_IsLocalhostAddress
+//---------------------------------------------------------------------------
+
+
+_FX BOOLEAN WSA_IsLocalhostAddress(const void* addr, int addrlen)
+{
+    ADDRESS_FAMILY af;
+
+    if (!WSA_IsConnectSockaddr(addr, addrlen, &af))
+        return FALSE;
+
+    if (af == AF_INET)
+        return ((const SOCKADDR_IN*)addr)->sin_addr.S_un.S_un_b.s_b1 == 127;
+
+    if (af == AF_INET6) {
+        static const BYTE loop6[16] = { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1 };
+        const BYTE* ip = ((const SOCKADDR_IN6_LH*)addr)->sin6_addr.u.Byte;
+        return memcmp(ip, loop6, sizeof(loop6)) == 0 ||
+               (ip[0] == 0 && ip[1] == 0 && ip[2] == 0 && ip[3] == 0 &&
+                ip[4] == 0 && ip[5] == 0 && ip[6] == 0 && ip[7] == 0 &&
+                ip[8] == 0 && ip[9] == 0 && ip[10] == 0xff && ip[11] == 0xff &&
+                ip[12] == 127);
+    }
+
+    return FALSE;
 }
 
 
@@ -1185,11 +1246,15 @@ _FX BOOLEAN WSA_BypassProxyImpl(NETPROXY_RULE* WSA_Proxy, const short* addr, int
 
 _FX BOOLEAN WSA_BypassProxy(const short *addr, int addrlen)
 {
-    const SOCKADDR* name = (SOCKADDR*)addr;
-    if (name->sa_family == AF_INET) {
+    ADDRESS_FAMILY af;
+
+    if (!WSA_IsConnectSockaddr(addr, addrlen, &af))
+        return FALSE;
+
+    if (af == AF_INET) {
         if (WSA_BypassProxyImpl(WSA_Proxy4, addr, addrlen))
             return TRUE;
-    } else if (name->sa_family == AF_INET6) {
+    } else if (af == AF_INET6) {
         if (WSA_BypassProxyImpl(WSA_Proxy6, addr, addrlen))
             return TRUE;
     }
@@ -1209,8 +1274,12 @@ _FX BOOLEAN WSA_GetProxy(const short *addr, int addrlen, void** proxy, int* prox
     // if non is matching take ipv6 when prsent else ipv4
     //
 
-    const SOCKADDR* name = (SOCKADDR*)addr;
-    if (name->sa_family == AF_INET && WSA_Proxy4) {
+    ADDRESS_FAMILY af;
+
+    if (!WSA_IsConnectSockaddr(addr, addrlen, &af))
+        return FALSE;
+
+    if (af == AF_INET && WSA_Proxy4) {
         if (WSA_ProxyThread) {
             *pWSA_Proxy = NULL; // indicate thread mode
 
@@ -1231,7 +1300,7 @@ _FX BOOLEAN WSA_GetProxy(const short *addr, int addrlen, void** proxy, int* prox
             *proxylen = sizeof(SOCKADDR_IN);
         }
     }
-    else if (name->sa_family == AF_INET6 && WSA_Proxy6) {
+    else if (af == AF_INET6 && WSA_Proxy6) {
         if (WSA_ProxyThread) {
             *pWSA_Proxy = NULL; // indicate thread mode
 
@@ -1329,7 +1398,7 @@ _FX int WSA_end_connect(WSA_SOCK* pSock, SOCKET s, int ret)
 //---------------------------------------------------------------------------
 
 
-_FX int WSA_connect(
+_FX int WSAAPI WSA_connect(
     SOCKET         s,
     const void     *name,
     int            namelen)
@@ -1368,7 +1437,8 @@ _FX int WSA_connect(
     int proxylen;
     NETPROXY_RULE* WSA_Proxy;
 
-    if (WSA_ProxyEnabled && !is_localhost(name) && !WSA_BypassProxy(name, namelen)) {
+    if (WSA_ProxyEnabled && WSA_IsConnectSockaddr(name, namelen, NULL) &&
+            !WSA_IsLocalhostAddress(name, namelen) && !WSA_BypassProxy(name, namelen)) {
 
         int ret = SOCKET_ERROR;
 
@@ -1410,7 +1480,7 @@ _FX int WSA_connect(
 //---------------------------------------------------------------------------
 
 
-_FX int WSA_WSAConnect(
+_FX int WSAAPI WSA_WSAConnect(
     SOCKET         s,
     const void     *name,
     int            namelen,
@@ -1449,7 +1519,8 @@ _FX int WSA_WSAConnect(
     int proxylen;
     NETPROXY_RULE* WSA_Proxy;
 
-    if (WSA_ProxyEnabled && !is_localhost(name) && !WSA_BypassProxy(name, namelen)) {
+    if (WSA_ProxyEnabled && WSA_IsConnectSockaddr(name, namelen, NULL) &&
+            !WSA_IsLocalhostAddress(name, namelen) && !WSA_BypassProxy(name, namelen)) {
 
         int ret = SOCKET_ERROR;
 
@@ -1491,7 +1562,7 @@ _FX int WSA_WSAConnect(
 //---------------------------------------------------------------------------
 
 
-_FX int WSA_ConnectEx(  
+_FX BOOL WSAAPI WSA_ConnectEx(
     SOCKET s,
     const void *name,
     int namelen,
@@ -1501,7 +1572,7 @@ _FX int WSA_ConnectEx(
     LPOVERLAPPED lpOverlapped)
 {
     if (WSA_IsBlockedTraffic(name, namelen, IPPROTO_TCP))
-        return SOCKET_ERROR;
+        return FALSE;
 
     // If BindIP is configured, try to bind the socket to the configured adapter
     // When StrictBindIP=n, we allow connections even if adapter is unavailable
@@ -1513,13 +1584,13 @@ _FX int WSA_ConnectEx(
         // If adapter is unavailable and StrictBindIP is enabled, fail immediately
         if (!bind_valid && strict) {
             __sys_WSASetLastError(WSAEADDRNOTAVAIL);
-            return SOCKET_ERROR;
+            return FALSE;
         }
         
         // If adapter is available, bind to it (regardless of strict mode)
         if (bind_valid) {
             if (WSA_bind_ip(s) != 0) {
-                return SOCKET_ERROR;
+                return FALSE;
             }
         }
         // If adapter unavailable but StrictBindIP=n, continue without binding
@@ -1530,7 +1601,8 @@ _FX int WSA_ConnectEx(
     int proxylen;
     NETPROXY_RULE* WSA_Proxy;
 
-    if (WSA_ProxyEnabled && !is_localhost(name) && !WSA_BypassProxy(name, namelen)) {
+    if (WSA_ProxyEnabled && WSA_IsConnectSockaddr(name, namelen, NULL) &&
+            !WSA_IsLocalhostAddress(name, namelen) && !WSA_BypassProxy(name, namelen)) {
 
         int ret = SOCKET_ERROR;
 
@@ -1575,7 +1647,7 @@ _FX int WSA_ConnectEx(
 
     BOOLEAN new_name = WSA_HandleAfUnix(&name, &namelen);
 
-    int ret = __sys_ConnectEx(s, name, namelen, lpSendBuffer, dwSendDataLength, lpdwBytesSent, lpOverlapped);
+    BOOL ret = __sys_ConnectEx(s, name, namelen, lpSendBuffer, dwSendDataLength, lpdwBytesSent, lpOverlapped);
 
     if (new_name) Dll_Free((void*)name);
 
@@ -1669,7 +1741,7 @@ _FX int WSA_AcceptEx(
 //---------------------------------------------------------------------------
 
 
-_FX int WSA_sendto(
+_FX int WSAAPI WSA_sendto(
     SOCKET         s,
     const char     *buf,
     int            len,
@@ -1707,7 +1779,7 @@ _FX int WSA_sendto(
 //---------------------------------------------------------------------------
 
 
-_FX int WSA_WSASendTo(
+_FX int WSAAPI WSA_WSASendTo(
     SOCKET                             s,
     LPWSABUF                           lpBuffers,
     DWORD                              dwBufferCount,
@@ -1749,7 +1821,7 @@ _FX int WSA_WSASendTo(
 //---------------------------------------------------------------------------
 
 
-_FX int WSA_recvfrom(
+_FX int WSAAPI WSA_recvfrom(
     SOCKET   s,
     char     *buf,
     int      len,
@@ -1796,7 +1868,7 @@ _FX int WSA_recvfrom(
 //---------------------------------------------------------------------------
 
 
-_FX int WSA_WSARecvFrom(
+_FX int WSAAPI WSA_WSARecvFrom(
     SOCKET                             s,
     LPWSABUF                           lpBuffers,
     DWORD                              dwBufferCount,
@@ -1847,7 +1919,7 @@ _FX int WSA_WSARecvFrom(
 //---------------------------------------------------------------------------
 
 
-_FX int WSA_closesocket(SOCKET s)
+_FX int WSAAPI WSA_closesocket(SOCKET s)
 {
     if (WSA_ProxyHack || WSA_BindIP)
         map_remove(&WSA_SockMap, (void*)s);
@@ -2001,6 +2073,7 @@ BOOLEAN WSA_ParseNetProxy(NETPROXY_RULE* proxy, const WCHAR* found_value)
         if (login_len > 255)
             return FALSE;
         wmemcpy(proxy->login, login_value, login_len);
+        proxy->login[login_len] = L'\0';
     }
 
     WCHAR* pass_value;
@@ -3003,7 +3076,7 @@ _FX HRESULT Net_Common_ImageNamePut(
 //---------------------------------------------------------------------------
 
 #ifdef PROXY_RESOLVE_HOST_NAMES
-_FX int WSA_GetAddrInfoW(
+_FX int WSAAPI WSA_GetAddrInfoW(
     PCWSTR pNodeName,
     PCWSTR pServiceName,
     const ADDRINFOW* pHints,

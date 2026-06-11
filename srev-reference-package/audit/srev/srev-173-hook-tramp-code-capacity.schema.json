@@ -1,0 +1,77 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "HOOK_TRAMP_CODE_CAPACITY",
+  "type": "object",
+  "required": [
+    "owner",
+    "data",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/hook_tramp.c"
+    },
+    "data": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "HOOK_TRAMP.code"
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "hook_tramp.c owns trampoline code emission and must bound check destination bytes against HOOK_TRAMP.code"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 2
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "official_references": [
+    "https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-probeforwrite"
+  ],
+  "contracts": [
+    "hook_inst.c owns source instruction analysis only and does not own destination trampoline capacity",
+    "hook_tramp.c owns trampoline code emission and must bound check destination bytes against HOOK_TRAMP.code",
+    "Hook_Tramp_EmitLength names the destination byte count for each local relocation shape before writes",
+    "Hook_Tramp_HasCodeSpace proves current emission and reserved final jump back stub fit inside HOOK_TRAMP.code",
+    "Hook_Tramp_Copy fails closed when expanded emission would overflow the trampoline code buffer",
+    "SREV-173 does not change instruction decoding source byte counting relocation semantics allocation page protection or instruction cache ownership"
+  ],
+  "owner": "Sandboxie/core/dll/hook_tramp.c",
+  "data": [
+    "Sandboxie/core/dll/hook_inst.c",
+    "Sandboxie/core/dll/hook_tramp.c",
+    "Sandboxie/core/dll/hook.h",
+    "Sandboxie/core/drv/hook.c",
+    "HOOK_INST",
+    "HOOK_TRAMP.code",
+    "Hook_Analyze",
+    "Hook_Tramp_Copy",
+    "Hook_Tramp_CountBytes",
+    "Hook_Tramp_EmitLength",
+    "Hook_Tramp_HasCodeSpace",
+    "Hook_Tramp_JumpBackSize",
+    "Hook_Api_Tramp",
+    "ProbeForWrite"
+  ],
+  "runtime_gate": "Windows x86 WoW64 and x64 hook install smoke plus synthetic expanded prologue overflow/fail closed proof"
+}

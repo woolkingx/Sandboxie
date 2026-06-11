@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "OBJ_OBJECT_TYPE_TABLE_BOUND",
+  "type": "object",
+  "required": [
+    "owner",
+    "data",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/drv/obj.c"
+    },
+    "data": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "Obj_ObjectTypes"
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "Obj_AddObjectType is the only writer and must prove an empty payload slot exists before writing a new POBJECT_TYPE"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 4
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/object-names",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-obreferenceobjectbyhandle",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-mmgetsystemroutineaddress",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-obquerynamestring"
+  ],
+  "contracts": [
+    "Obj_ObjectTypes is a fixed-capacity pointer table allocated by Obj_Init",
+    "the table is consumed as a NULL-terminated list by session.c",
+    "capacity includes one reserved sentinel slot",
+    "Obj_AddObjectType is the only writer and must prove an empty payload slot exists before writing a new POBJECT_TYPE",
+    "after each successful write the next slot remains NULL",
+    "if no payload slot remains initialization fails closed with a logged status instead of overwriting the sentinel or adjacent pool memory",
+    "does not change which object types Sandboxie recognizes object manager private probing ObQueryNameString name construction parse-proc hooks minifilter callbacks or session monitor semantics",
+    "Linux source gate is not Windows runtime proof"
+  ],
+  "owner": "Sandboxie/core/drv/obj.c",
+  "data": [
+    "Sandboxie/core/drv/obj.h",
+    "Sandboxie/core/drv/obj.c",
+    "Sandboxie/core/drv/session.c",
+    "Obj_ObjectTypes",
+    "Obj_Init",
+    "Obj_AddObjectType",
+    "ObReferenceObjectByName",
+    "STATUS_OBJECT_TYPE_MISMATCH"
+  ],
+  "runtime_gate": "Windows WDK driver build, boot/load smoke, object type recognition smoke, and session monitor IPC object-existence smoke"
+}

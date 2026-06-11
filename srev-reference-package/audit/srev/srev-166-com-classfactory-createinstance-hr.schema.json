@@ -1,0 +1,77 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "COM_CLASSFACTORY_CREATEINSTANCE_HRESULT",
+  "type": "object",
+  "required": [
+    "owner",
+    "data",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/svc/comserver9.c"
+    },
+    "data": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "ComServer_IClassFactory_CreateInstance"
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "S_OK is legal only when the requested interface pointer is returned"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 2
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/unknwn/nf-unknwn-iclassfactory-createinstance",
+    "https://learn.microsoft.com/en-us/windows/win32/com/rules-for-implementing-queryinterface"
+  ],
+  "contracts": [
+    "comserver9.c owns the simulated COM class factory implementation",
+    "CreateInstance must return E_POINTER for a null output pointer",
+    "CreateInstance must return CLASS_E_NOAGGREGATION when pUnkOuter is non-NULL",
+    "if pMyCreateInstance cannot create a matching object CreateInstance must return E_NOINTERFACE",
+    "if IUnknown_QueryInterface fails for riid CreateInstance must return that failure HRESULT and leave ppvObject null",
+    "S_OK is legal only when the requested interface pointer is returned",
+    "simulated IE WMP interface coverage reference counting COM registration message-loop lifetime and sandbox restart behavior are unchanged",
+    "Linux source gate is not Windows COM activation runtime proof"
+  ],
+  "owner": "Sandboxie/core/svc/comserver9.c",
+  "data": [
+    "Sandboxie/core/svc/comserver9.c",
+    "ComServer_IClassFactory_CreateInstance",
+    "IClassFactory::CreateInstance",
+    "IUnknown_QueryInterface",
+    "pMyCreateInstance",
+    "ppvObject",
+    "riid",
+    "S_OK",
+    "E_POINTER",
+    "CLASS_E_NOAGGREGATION",
+    "E_NOINTERFACE",
+    "HRESULT"
+  ],
+  "runtime_gate": "Windows COM-server build, simulated IE/WMP COM activation smoke, unsupported-interface CreateInstance smoke, aggregation smoke, and normal URL restart flow"
+}

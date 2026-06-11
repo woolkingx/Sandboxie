@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-053-dns-filter-begin-constructor.schema.json",
+  "title": "SREV-053 DNS filter begin constructor boundary contract",
+  "id": "DNS_FILTER_BEGIN_CONSTRUCTOR",
+  "api": "WSA_WSALookupServiceBeginW",
+  "owner": "Sandboxie/core/dll/dns_filter.c",
+  "type": "object",
+  "properties": {
+    "restriction": {
+      "type": "string",
+      "description": "Caller WSAQUERYSETW lookup restriction"
+    },
+    "lookup_state": {
+      "type": "string",
+      "description": "Constructed WSA_LOOKUP state stored in WSA_LookupMap"
+    },
+    "lookup_handle": {
+      "type": "string",
+      "description": "Caller-visible fake lookup handle"
+    }
+  },
+  "required": [
+    "restriction",
+    "lookup_state",
+    "lookup_handle"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "WSALookupServiceBeginW returns only a handle used by later WSALookupServiceNext calls",
+    "The filtered path requires a non-null lphLookup before publishing a fake lookup handle",
+    "WSA_LOOKUP state owns DomainName and optional ServiceClassId before the fake handle crosses to the caller",
+    "A fake lookup handle crosses the API boundary only after DomainName, optional ServiceClassId, Namespace, and entries or NoMore state are initialized",
+    "Allocation failure returns SOCKET_ERROR with WSA_NOT_ENOUGH_MEMORY and removes any inserted WSA_LookupMap state"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-wsalookupservicebeginw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsock2/ns-winsock2-wsaquerysetw"
+  ]
+}

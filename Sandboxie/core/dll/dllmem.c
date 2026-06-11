@@ -41,6 +41,9 @@
 
 
 static void *Dll_AllocFromPool(POOL *pool, ULONG size);
+static void *Dll_AllocFailure(void);
+static BOOLEAN Dll_AddUlong(ULONG value, ULONG addend, ULONG *result);
+static BOOLEAN Dll_RoundTlsNameBufferSize(ULONG size, ULONG *rounded_size);
 
 
 //---------------------------------------------------------------------------
@@ -103,23 +106,23 @@ _FX BOOLEAN Dll_InitMem(void)
 _FX void *Dll_AllocFromPool(POOL *pool, ULONG size)
 {
     UCHAR *ptr;
+    ULONG alloc_size = size;
 
 #ifdef DEBUG_MEMORY
-    size += 64 * 2;
+    if (! Dll_AddUlong(alloc_size, 64 * 2, &alloc_size))
+        return Dll_AllocFailure();
 #endif // DEBUG_MEMORY
 
-    size += sizeof(ULONG_PTR);
-    ptr = Pool_Alloc(pool, size);
-    if (! ptr) {
-        if (! Dll_BoxName)
-            return NULL;
-        SbieApi_Log(2305, NULL);
-        ExitProcess(-1);
-    }
+    if (! Dll_AddUlong(alloc_size, (ULONG)sizeof(ULONG_PTR), &alloc_size))
+        return Dll_AllocFailure();
+
+    ptr = Pool_Alloc(pool, alloc_size);
+    if (! ptr)
+        return Dll_AllocFailure();
 
 #ifdef DEBUG_MEMORY
     memset(ptr,             0xCC, 64);
-    memset(ptr + size - 64, 0xCC, 64);
+    memset(ptr + alloc_size - 64, 0xCC, 64);
     //{
     //WCHAR txt[64]; Sbie_snwprintf(txt, 64, L"Dll_Alloc for %-6d, block at %08X (%08X)\n", size, ptr, ptr + 64);
     //OutputDebugString(txt);
@@ -128,18 +131,65 @@ _FX void *Dll_AllocFromPool(POOL *pool, ULONG size)
 #endif // DEBUG_MEMORY
 
 #ifdef DEBUG_MEMORY
-    InterlockedExchangeAdd(&Dll_MemUsage, size);
+    InterlockedExchangeAdd(&Dll_MemUsage, alloc_size);
     if (Dll_MemTrace) {
         WCHAR txt[128];
-        Sbie_snwprintf(txt, 128, L"ALLOC %d POOL %s\n", size, (pool == Dll_Pool) ? L"Main" : (pool == Dll_PoolTemp) ? L"Temp" : L"?");
+        Sbie_snwprintf(txt, 128, L"ALLOC %d POOL %s\n", alloc_size, (pool == Dll_Pool) ? L"Main" : (pool == Dll_PoolTemp) ? L"Temp" : L"?");
         OutputDebugString(txt);
     }
 
 #endif // DEBUG_MEMORY
 
-    *(ULONG_PTR *)ptr = size;
+    *(ULONG_PTR *)ptr = alloc_size;
     ptr += sizeof(ULONG_PTR);
     return ptr;
+}
+
+
+//---------------------------------------------------------------------------
+// Dll_AllocFailure
+//---------------------------------------------------------------------------
+
+
+_FX void *Dll_AllocFailure(void)
+{
+    if (! Dll_BoxName)
+        return NULL;
+    SbieApi_Log(2305, NULL);
+    ExitProcess(-1);
+    return NULL;
+}
+
+
+//---------------------------------------------------------------------------
+// Dll_AddUlong
+//---------------------------------------------------------------------------
+
+
+_FX BOOLEAN Dll_AddUlong(ULONG value, ULONG addend, ULONG *result)
+{
+    if (value > (ULONG)-1 - addend)
+        return FALSE;
+
+    *result = value + addend;
+    return TRUE;
+}
+
+
+//---------------------------------------------------------------------------
+// Dll_RoundTlsNameBufferSize
+//---------------------------------------------------------------------------
+
+
+_FX BOOLEAN Dll_RoundTlsNameBufferSize(ULONG size, ULONG *rounded_size)
+{
+    if (! Dll_AddUlong(size, 64, &size))
+        return FALSE;
+    if (! Dll_AddUlong(size, PAGE_SIZE - 1, &size))
+        return FALSE;
+
+    *rounded_size = size & ~(PAGE_SIZE - 1);
+    return TRUE;
 }
 
 
@@ -261,9 +311,18 @@ _FX THREAD_DATA *Dll_GetTlsData(ULONG *pLastError)
         if (! data) {
 
             data = Dll_Alloc(sizeof(THREAD_DATA));
+            if (! data) {
+                SetLastError(LastError);
+                if (pLastError)
+                    *pLastError = LastError;
+                return NULL;
+            }
             memzero(data, sizeof(THREAD_DATA));
 
-            TlsSetValue(Dll_TlsIndex, data);
+            if (! TlsSetValue(Dll_TlsIndex, data)) {
+                Dll_Free(data);
+                data = NULL;
+            }
         }
 
         SetLastError(LastError);
@@ -329,12 +388,16 @@ ALIGNED WCHAR *Dll_GetTlsNameBuffer(THREAD_DATA *data, ULONG which, ULONG size)
     ULONG old_name_buffer_len;
     WCHAR **name_buffer;
     ULONG *name_buffer_len;
+    WCHAR *new_name_buffer;
 
     //
     // since we have more places where we may need a name buffer now
     // instead of sticking to "which" and doing our best to not reuse a particular buffer that's still needed
     // we just increment a counter and take a new buffer reach time we request one
     //
+
+    if (! data)
+        return NULL;
 
     if (which >= MISC_NAME_BUFFER)
         which = MISC_NAME_BUFFER + data->name_buffer_count[data->name_buffer_depth]++;
@@ -357,7 +420,9 @@ ALIGNED WCHAR *Dll_GetTlsNameBuffer(THREAD_DATA *data, ULONG which, ULONG size)
     // to a multiple of PAGE_SIZE.
     //
 
-    size = (size + 64 + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+    if (! Dll_RoundTlsNameBufferSize(size, &size))
+        return Dll_AllocFailure();
+
     if (size > *name_buffer_len) {
 
         //
@@ -368,13 +433,17 @@ ALIGNED WCHAR *Dll_GetTlsNameBuffer(THREAD_DATA *data, ULONG which, ULONG size)
         old_name_buffer     = *name_buffer;
         old_name_buffer_len = *name_buffer_len;
 
-        *name_buffer_len = size;
-        *name_buffer = Dll_Alloc(*name_buffer_len);
+        new_name_buffer = Dll_Alloc(size);
+        if (! new_name_buffer)
+            return NULL;
 
         if (old_name_buffer) {
-            memcpy(*name_buffer, old_name_buffer, old_name_buffer_len);
+            memcpy(new_name_buffer, old_name_buffer, old_name_buffer_len);
             Dll_Free(old_name_buffer);
         }
+
+        *name_buffer_len = size;
+        *name_buffer = new_name_buffer;
     }
 
     //
@@ -406,9 +475,17 @@ ALIGNED void Dll_PushTlsNameBuffer_(THREAD_DATA *data, char* func)
 ALIGNED void Dll_PushTlsNameBuffer(THREAD_DATA *data)
 #endif
 {
+    if (! data)
+        return;
+
 #ifdef NAME_BUFFER_DEBUG
     DbgTrace("Dll_PushTlsNameBuffer, %s, %d\r\n", func, data->name_buffer_depth);
 #endif
+
+    if (data->name_buffer_depth >= NAME_BUFFER_DEPTH - 1) {
+        SbieApi_Log(2310, L"%d", data->name_buffer_depth);
+        ExitProcess(-1);
+    }
 
     ++data->name_buffer_depth;
     data->name_buffer_count[data->name_buffer_depth] = 0; // initialize
@@ -431,6 +508,9 @@ _FX void Dll_PopTlsNameBuffer_(THREAD_DATA *data, char* func)
 _FX void Dll_PopTlsNameBuffer(THREAD_DATA *data)
 #endif
 {
+    if (! data)
+        return;
+
 #ifdef NAME_BUFFER_DEBUG
     DbgTrace("Dll_PopTlsNameBuffer, %s, %d\r\n", func, data->name_buffer_depth-1);
 #endif
@@ -452,8 +532,8 @@ _FX void Dll_PopTlsNameBuffer(THREAD_DATA *data)
     WCHAR txt[128];
 
     which = TRUE_NAME_BUFFER;
-    name_buffer     = &data->name_buffer    [which][data->depth];
-    name_buffer_len = &data->name_buffer_len[which][data->depth];
+    name_buffer     = &data->name_buffer    [which][data->name_buffer_depth];
+    name_buffer_len = &data->name_buffer_len[which][data->name_buffer_depth];
     debug_area      = ((UCHAR *)(*name_buffer)) + *name_buffer_len - 64;
     for (i = 0; i < 64 && (*name_buffer); ++i)
         if (debug_area[i] != 0xCC) {
@@ -464,8 +544,8 @@ _FX void Dll_PopTlsNameBuffer(THREAD_DATA *data)
         }
 
     which = COPY_NAME_BUFFER;
-    name_buffer     = &data->name_buffer    [which][data->depth];
-    name_buffer_len = &data->name_buffer_len[which][data->depth];
+    name_buffer     = &data->name_buffer    [which][data->name_buffer_depth];
+    name_buffer_len = &data->name_buffer_len[which][data->name_buffer_depth];
     debug_area      = ((UCHAR *)(*name_buffer)) + *name_buffer_len - 64;
     for (i = 0; i < 64 && (*name_buffer); ++i)
         if (debug_area[i] != 0xCC) {
@@ -479,8 +559,11 @@ _FX void Dll_PopTlsNameBuffer(THREAD_DATA *data)
 
 #endif // DEBUG_MEMORY
 
-    --data->name_buffer_depth;
-    if (data->name_buffer_depth < 0) {
+    if (data->name_buffer_depth <= 0) {
         SbieApi_Log(2310, L"%d", data->name_buffer_depth);
+        data->name_buffer_depth = 0;
+        return;
     }
+
+    --data->name_buffer_depth;
 }

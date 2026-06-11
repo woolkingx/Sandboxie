@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-142-queue-putreq-event-handle-ownership.schema.json",
+  "title": "SREV-142 Queue PutReq event handle ownership",
+  "id": "QUEUE_PUTREQ_EVENT_HANDLE_OWNERSHIP",
+  "owner": "Sandboxie/core/dll/callsvc.c and Sandboxie/core/svc/queueserver.cpp",
+  "type": "object",
+  "properties": {
+    "client_event_owner": {
+      "type": "string",
+      "description": "Client-side CreateEvent handle owner before transfer or close"
+    },
+    "wire_packet": {
+      "type": "string",
+      "description": "QUEUE_PUTREQ_REQ carries a numeric handle value but does not own the handle after the request buffer is freed"
+    },
+    "service_duplicate": {
+      "type": "string",
+      "description": "Service-side duplicated event handle with EVENT_MODIFY_STATE"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows GUI/User proxy queue request/reply runtime proof"
+    }
+  },
+  "required": [
+    "client_event_owner",
+    "wire_packet",
+    "service_duplicate",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "callsvc.c owns the caller original event handle returned by CreateEvent until it is transferred to out_EventHandle or closed",
+    "The allocated QUEUE_PUTREQ_REQ buffer is a wire packet and not the durable owner of the event handle after Dll_Free(req)",
+    "No cleanup path may read req->event_handle after Dll_Free(req)",
+    "queueserver.cpp owns only the duplicated service-side event handle returned by NtDuplicateObject",
+    "The service duplicate must request EVENT_MODIFY_STATE because the service later calls SetEvent on that handle",
+    "Failed PutReq calls close any caller-side event handle that was not transferred to the caller",
+    "Successful PutReq calls transfer the caller-side event handle only when out_EventHandle is non-null otherwise the local owner closes it"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createeventw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-setevent",
+    "https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-duplicatehandle",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openprocess",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getprocesstimes",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getexitcodeprocess"
+  ]
+}

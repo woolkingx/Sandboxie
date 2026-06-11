@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "SCM_DLL_SERVICE_START_SHIM",
+  "owner": "Sandboxie/core/dll/scm_misc.c",
+  "stage": "data -> schema -> topology -> logic -> action -> verify",
+  "contracts": [
+    "Scm_DllHack owns only a DLL-triggered host service-start compatibility request",
+    "Scm_DWriteDll maps dwrite.dll load to the FontCache service-start shim",
+    "Scm_OsppcDll maps osppc.dll load to the osppsvc service-start shim",
+    "boxed services must not be started through the host service-start shim",
+    "StartServiceW success must not be treated as proof that the service reached SERVICE_RUNNING",
+    "SREV-315 changes comments and proof only, not service-start behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/directwrite/introducing-directwrite",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openservicew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-startservicew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-queryservicestatusex",
+    "https://learn.microsoft.com/en-us/windows/win32/services/service-security-and-access-rights"
+  ],
+  "runtime_gate": "Windows DirectWrite FontCache smoke plus Office osppc smoke with no readiness-proof claim"
+}

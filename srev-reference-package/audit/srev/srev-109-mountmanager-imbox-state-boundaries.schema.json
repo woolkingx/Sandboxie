@@ -1,0 +1,69 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-109-mountmanager-imbox-state-boundaries.schema.json",
+  "title": "SREV-109 mountmanager imbox state boundaries",
+  "id": "MOUNTMANAGER_IMBOX_STATE_BOUNDARIES",
+  "owner": "Sandboxie/core/svc/MountManager.cpp",
+  "type": "object",
+  "properties": {
+    "mounted_folder_shape": {
+      "type": "string",
+      "description": "Official mounted-folder and reparse-point shape"
+    },
+    "drive_letter_shape": {
+      "type": "string",
+      "description": "Official logical-drive and DOS-device mapping shape"
+    },
+    "mount_state_shape": {
+      "type": "string",
+      "description": "Local ImBox, BOX_ROOT, BOX_MOUNT, and m_RootMap ownership"
+    },
+    "credential_shape": {
+      "type": "string",
+      "description": "Local request-supplied password boundary"
+    },
+    "source_change": {
+      "type": "string",
+      "description": "Comment-only source clarification preserving behavior"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows mounted-folder and ImDisk runtime proof"
+    }
+  },
+  "required": [
+    "mounted_folder_shape",
+    "drive_letter_shape",
+    "mount_state_shape",
+    "credential_shape",
+    "source_change",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "constructor does not rebuild m_RootMap from devices alone",
+    "FindImDisk recovers only ImDisk device identity by proxy name",
+    "reg_root and file_root ownership comes from IMBOX_MOUNT or AcquireBoxRoot requests",
+    "BOX_MOUNT Protected becomes true only after API_PROTECT_ROOT succeeds",
+    "recovered ImDisk devices do not imply protected-root state",
+    "IMBOX_UPDATE remains unsupported until resize/password rotation has a transaction contract",
+    "MountImDisk requires a temporary drive-letter path for initial format",
+    "unrequested drive-letter mappings are removed after device discovery",
+    "BoxPassword is not read from durable config in AcquireBoxRoot",
+    "encrypted image mounts require caller-supplied password until secure handoff exists",
+    "FSCTL_SET_REPARSE_POINT sets a reparse point with caller-provided reparse data",
+    "FSCTL_DELETE_REPARSE_POINT removes the reparse point but not the file or directory",
+    "DefineDosDeviceW removes exact raw target mappings with DDD_REMOVE_DEFINITION DDD_EXACT_MATCH_ON_REMOVE DDD_RAW_TARGET_PATH"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/fileio/volume-mount-points",
+    "https://learn.microsoft.com/en-us/windows/win32/fileio/reparse-points",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ifs/fsctl-set-reparse-point",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ifs/fsctl-get-reparse-point",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ifs/fsctl-delete-reparse-point",
+    "https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-deviceiocontrol",
+    "https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getlogicaldrives",
+    "https://learn.microsoft.com/en-us/windows/win32/api/FileAPI/nf-fileapi-definedosdevicew",
+    "https://learn.microsoft.com/en-us/windows/win32/fileio/enumerating-volume-mount-points"
+  ]
+}

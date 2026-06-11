@@ -252,7 +252,7 @@ MSG_HEADER *ProcessServer::KillAllHandler(MSG_HEADER *msg)
     WCHAR TargetBoxName[BOXNAME_COUNT];
     ULONG CallerSessionId;
     WCHAR CallerBoxName[BOXNAME_COUNT];
-    BOOLEAN TerminateJob;
+    BOOLEAN TerminateJob = FALSE;
     NTSTATUS status;
 
     //
@@ -365,7 +365,7 @@ NTSTATUS ProcessServer::KillAllHelper(const WCHAR *BoxName, ULONG SessionId, BOO
             Sleep(100);
         }
 
-        for (i = 0; i <= count; ++i)
+        for (i = 0; i < count; ++i)
             KillProcess(pids[i]);
     }
 
@@ -769,18 +769,26 @@ MSG_HEADER *ProcessServer::RunSandboxedHandler(MSG_HEADER *msg)
 WCHAR *ProcessServer::RunSandboxedCopyString(
     MSG_HEADER *msg, ULONG ofs, ULONG len)
 {
-    len *= sizeof(WCHAR);
+    if (len > (PIPE_MAX_DATA_LEN / sizeof(WCHAR)))
+        return NULL;
+
+    ULONG bytes = len * sizeof(WCHAR);
+
+    if (ofs > msg->length)
+        return NULL;
+
+    ULONG available = msg->length - ofs;
 
     if (    ofs         <= PIPE_MAX_DATA_LEN
-        &&  len         <= PIPE_MAX_DATA_LEN
-        &&  (ofs + len) <= msg->length) {
+        &&  bytes       <= PIPE_MAX_DATA_LEN
+        &&  bytes       <= available) {
 
-        WCHAR *buffer = (WCHAR *)HeapAlloc(GetProcessHeap(), 0, len + 4);
+        WCHAR *buffer = (WCHAR *)HeapAlloc(GetProcessHeap(), 0, bytes + sizeof(WCHAR));
         if (buffer) {
 
-            if (len)
-                memcpy(buffer, (UCHAR *)msg + ofs, len);
-            buffer[len / sizeof(WCHAR)] = L'\0';
+            if (bytes)
+                memcpy(buffer, (UCHAR *)msg + ofs, bytes);
+            buffer[bytes / sizeof(WCHAR)] = L'\0';
 
             return buffer;
         }
@@ -1073,6 +1081,7 @@ BOOL ProcessServer::RunSandboxedSetDacl(
     TOKEN_USER         *pUser = (TOKEN_USER *)WorkSpace;
     TOKEN_DEFAULT_DACL *pDacl = (TOKEN_DEFAULT_DACL *)(WorkSpace + 512);
 	PSID pSid;
+    PACL pNewAcl = NULL;
 
     //
     // get the token for the calling process, extract the user SID
@@ -1150,15 +1159,82 @@ BOOL ProcessServer::RunSandboxedSetDacl(
         goto finish;
 
     PACL pAcl = pDacl->DefaultDacl;
+    if (! pAcl) {
+        ok = FALSE;
+        LastError = ERROR_INVALID_ACL;
+        goto finish;
+    }
 
-    pAcl->AclSize += sizeof(ACCESS_ALLOWED_ACE)
-                   - sizeof(DWORD)              // minus SidStart member
-                   + (WORD)GetLengthSid(pSid);
+    ACL_SIZE_INFORMATION AclSizeInfo;
+    ok = GetAclInformation(
+            pAcl, &AclSizeInfo, sizeof(AclSizeInfo), AclSizeInformation);
+    LastError = GetLastError();
 
-    AddAccessAllowedAce(pAcl, ACL_REVISION, AccessMask, pSid);
+    if (! ok)
+        goto finish;
+
+    ACL_REVISION_INFORMATION AclRevisionInfo;
+    ok = GetAclInformation(
+            pAcl, &AclRevisionInfo, sizeof(AclRevisionInfo), AclRevisionInformation);
+    LastError = GetLastError();
+
+    if (! ok)
+        goto finish;
+
+    DWORD NewAceSize = sizeof(ACCESS_ALLOWED_ACE)
+                     - sizeof(DWORD)
+                     + GetLengthSid(pSid);
+
+    DWORD NewAclSize = AclSizeInfo.AclBytesInUse + NewAceSize;
+    NewAclSize = (NewAclSize + (sizeof(DWORD) - 1)) & ~(sizeof(DWORD) - 1);
+
+    if (NewAclSize > 0xFFFF) {
+        ok = FALSE;
+        LastError = ERROR_ALLOTTED_SPACE_EXCEEDED;
+        goto finish;
+    }
+
+    pNewAcl = (PACL)HeapAlloc(GetProcessHeap(), 0, NewAclSize);
+    if (! pNewAcl) {
+        ok = FALSE;
+        LastError = ERROR_NOT_ENOUGH_MEMORY;
+        goto finish;
+    }
+
+    ok = InitializeAcl(pNewAcl, NewAclSize, AclRevisionInfo.AclRevision);
+    LastError = GetLastError();
+
+    if (! ok)
+        goto finish;
+
+    for (DWORD i = 0; i < AclSizeInfo.AceCount; i++) {
+
+        LPVOID pAce;
+        ok = GetAce(pAcl, i, &pAce);
+        LastError = GetLastError();
+
+        if (! ok)
+            goto finish;
+
+        ok = AddAce(pNewAcl, AclRevisionInfo.AclRevision, MAXDWORD,
+                    pAce, ((PACE_HEADER)pAce)->AceSize);
+        LastError = GetLastError();
+
+        if (! ok)
+            goto finish;
+    }
+
+    ok = AddAccessAllowedAce(pNewAcl, AclRevisionInfo.AclRevision, AccessMask, pSid);
+    LastError = GetLastError();
+
+    if (! ok)
+        goto finish;
+
+    pDacl->DefaultDacl = pNewAcl;
 
     ok = SetTokenInformation(
-            NewTokenHandle, TokenDefaultDacl, pDacl, (8192 - 512));
+            NewTokenHandle, TokenDefaultDacl, pDacl,
+            sizeof(TOKEN_DEFAULT_DACL) + NewAclSize);
     LastError = GetLastError();
 
     //
@@ -1167,7 +1243,10 @@ BOOL ProcessServer::RunSandboxedSetDacl(
 
 finish:
 
-    HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, WorkSpace);
+    if (pNewAcl)
+        HeapFree(GetProcessHeap(), 0, pNewAcl);
+
+    HeapFree(GetProcessHeap(), 0, WorkSpace);
 
     if (! ok)
         SetLastError(LastError);
@@ -1224,6 +1303,7 @@ BOOL ProcessServer::RunSandboxedStartProcess(
     STARTUPINFO *si, PROCESS_INFORMATION *pi)
 {
     HANDLE ImpersonationTokenHandle = NULL;
+    HANDLE Session0PrimaryTokenHandle = NULL;
     ULONG LastError;
     BOOL ok = TRUE;
     bool CmdAltered = false;
@@ -1305,18 +1385,22 @@ BOOL ProcessServer::RunSandboxedStartProcess(
         // Note: BoxNameOrModelPid > 0 is only true when the caller is not sandboxed
         bool bSession0 = (BoxNameOrModelPid > 0) && ((si->dwFlags & 0x80000000) != 0);
         if (bSession0) {
-            OpenProcessToken(GetCurrentProcess(), TOKEN_IMPERSONATE | TOKEN_QUERY | TOKEN_DUPLICATE | STANDARD_RIGHTS_READ, &PrimaryTokenHandle);
+            ok = OpenProcessToken(
+                    GetCurrentProcess(),
+                    TOKEN_ASSIGN_PRIMARY | TOKEN_DUPLICATE | TOKEN_IMPERSONATE | TOKEN_QUERY | STANDARD_RIGHTS_READ,
+                    &Session0PrimaryTokenHandle);
+            LastError = GetLastError();
+            if (ok)
+                PrimaryTokenHandle = Session0PrimaryTokenHandle;
         }
 
         // impersonate caller in case they have a different device map
         // with different drive mappings
-        ok = DuplicateToken(PrimaryTokenHandle,
-                            SecurityImpersonation,
-                            &ImpersonationTokenHandle);
-
-        if (bSession0) {
-            CloseHandle(PrimaryTokenHandle);
-            PrimaryTokenHandle = NULL;
+        if (ok) {
+            ok = DuplicateToken(PrimaryTokenHandle,
+                                SecurityImpersonation,
+                                &ImpersonationTokenHandle);
+            LastError = GetLastError();
         }
 
         if (ok)
@@ -1376,6 +1460,8 @@ BOOL ProcessServer::RunSandboxedStartProcess(
     SetThreadToken(NULL, NULL);
     if (ImpersonationTokenHandle)
         CloseHandle(ImpersonationTokenHandle);
+    if (Session0PrimaryTokenHandle)
+        CloseHandle(Session0PrimaryTokenHandle);
 
     if (CmdAltered)
         HeapFree(GetProcessHeap(), 0, cmd);
@@ -1523,9 +1609,19 @@ MSG_HEADER *ProcessServer::RunUpdaterHandler(MSG_HEADER *msg)
     if (req->h.length < sizeof(PROCESS_RUN_UPDATER_REQ))
         return SHORT_REPLY(STATUS_INVALID_PARAMETER);
 
-    if (!(   req->cmd_ofs                           <= PIPE_MAX_DATA_LEN
-        &&  (req->cmd_len * sizeof(WCHAR))          <= PIPE_MAX_DATA_LEN
-        &&  (req->cmd_ofs + (req->cmd_len * sizeof(WCHAR))) <= req->h.length))
+    if (req->cmd_len > (PIPE_MAX_DATA_LEN / sizeof(WCHAR)))
+        return SHORT_REPLY(ERROR_INVALID_PARAMETER);
+
+    ULONG cmd_bytes = req->cmd_len * sizeof(WCHAR);
+
+    if (req->cmd_ofs > req->h.length)
+        return SHORT_REPLY(ERROR_INVALID_PARAMETER);
+
+    ULONG available = req->h.length - req->cmd_ofs;
+
+    if (!(   req->cmd_ofs  <= PIPE_MAX_DATA_LEN
+        &&  cmd_bytes     <= PIPE_MAX_DATA_LEN
+        &&  cmd_bytes     <= available))
         return SHORT_REPLY(ERROR_INVALID_PARAMETER);
 
     ULONG CallerPid = PipeServer::GetCallerProcessId();
@@ -1549,6 +1645,8 @@ MSG_HEADER *ProcessServer::RunUpdaterHandler(MSG_HEADER *msg)
 
     ULONG len = MAX_PATH * 2 + req->cmd_len;
     WCHAR *cmd = (WCHAR*)HeapAlloc(GetProcessHeap(), 0, len * sizeof(WCHAR));
+    if (! cmd)
+        return SHORT_REPLY(ERROR_NOT_ENOUGH_MEMORY);
 
     cmd[0] = L'\"';
     GetModuleFileName(NULL, &cmd[1], MAX_PATH);
@@ -1558,7 +1656,7 @@ MSG_HEADER *ProcessServer::RunUpdaterHandler(MSG_HEADER *msg)
     wcscat(cmd, L"UpdUtil.exe\" ");
     ptr = wcschr(cmd, L'\0');
 
-    memcpy(ptr, ((UCHAR *)&req->h) + req->cmd_ofs, req->cmd_len * sizeof(WCHAR));
+    memcpy(ptr, ((UCHAR *)&req->h) + req->cmd_ofs, cmd_bytes);
     ptr[req->cmd_len] = L'\0';
 
     //
@@ -2173,6 +2271,8 @@ MSG_HEADER *ProcessServer::SuspendOneHandler(MSG_HEADER *msg)
     //
 
     HANDLE hProcess = OpenProcess(PROCESS_SUSPEND_RESUME, FALSE, req->pid);
+    if (! hProcess)
+        return SHORT_REPLY(STATUS_INVALID_CID);
 
     if (req->suspend)
         status = NtSuspendProcess(hProcess);
@@ -2264,7 +2364,7 @@ MSG_HEADER *ProcessServer::SuspendAllHandler(MSG_HEADER *msg)
         }
     }
     
-    HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, pids);
+    HeapFree(GetProcessHeap(), 0, pids);
 
     return SHORT_REPLY(STATUS_SUCCESS);
 }

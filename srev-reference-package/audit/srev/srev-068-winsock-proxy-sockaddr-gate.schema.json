@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-068-winsock-proxy-sockaddr-gate.schema.json",
+  "title": "SREV-068 Winsock proxy sockaddr gate contract",
+  "id": "WINSOCK_PROXY_SOCKADDR_GATE",
+  "api": "connect / WSAConnect / ConnectEx proxy routing",
+  "owner": "Sandboxie/core/dll/net.c",
+  "type": "object",
+  "properties": {
+    "connect_address": {
+      "type": "string",
+      "description": "Caller-provided sockaddr pointer and namelen byte count"
+    },
+    "family_gate": {
+      "type": "string",
+      "description": "AF_INET and AF_INET6 length validation before local proxy interpretation"
+    },
+    "fallback": {
+      "type": "string",
+      "description": "Malformed or unsupported addresses fall through to the underlying Winsock API"
+    }
+  },
+  "required": [
+    "connect_address",
+    "family_gate",
+    "fallback"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Winsock connect-family APIs receive a sockaddr pointer plus namelen byte count",
+    "The first u_short in a valid sockaddr is the address family",
+    "AF_INET may be locally interpreted only when namelen is at least sizeof(SOCKADDR_IN)",
+    "AF_INET6 may be locally interpreted only when namelen is at least sizeof(SOCKADDR_IN6_LH)",
+    "Null, too-small, or unsupported-family addresses must not enter Sandboxie proxy routing",
+    "Malformed connect addresses must fall through to the underlying Winsock API for provider-owned errors",
+    "WSA_GetIP unsupported-family fallback comments must name the SREV-068 local interpretation gate"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-connect",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-wsaconnect",
+    "https://learn.microsoft.com/en-us/windows/win32/api/mswsock/nc-mswsock-lpfn_connectex",
+    "https://learn.microsoft.com/en-us/windows/win32/winsock/sockaddr-2"
+  ]
+}

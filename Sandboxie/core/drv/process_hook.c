@@ -176,9 +176,14 @@ _FX ULONG_PTR Process_BuildHookEntry(
 _FX void Process_DisableHookEntry(ULONG_PTR HookEntry)
 {
     HOOK_TRAMP *tramp = HOOK_TRAMP_CODE_TO_TRAMP_HEAD(HookEntry);
-    UCHAR *code = &tramp->code[0];
+    UCHAR *code;
     UCHAR *test;
     UCHAR hotpatch[2];
+
+    if ((! HookEntry) || tramp->eyecatcher != tzuk)
+        return;
+
+    code = &tramp->code[0];
 
     //
     // change 'test eax,eax' into 'xor eax,eax'.  this effectively

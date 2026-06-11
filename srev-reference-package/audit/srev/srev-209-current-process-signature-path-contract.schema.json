@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "CURRENT_PROCESS_SIGNATURE_PATH_CONTRACT",
+  "owner": "Sandboxie/core/drv/verify.h",
+  "implementation": "Sandboxie/core/drv/verify.c",
+  "status": "patched-source-level-after-official-counted-unicode-string-shape-review-needs-windows-runtime-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-selocateprocessimagename",
+    "https://learn.microsoft.com/en-us/windows/win32/api/subauth/ns-subauth-unicode_string",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntstrsafe/nf-ntstrsafe-rtlunicodestringcat"
+  ],
+  "contracts": [
+    "verify.h owns the public driver verification declaration boundary",
+    "verify.c owns the current-process signature sidecar path builder",
+    "SeLocateProcessImageName output is a counted UNICODE_STRING not a trusted null-terminated source string",
+    "The sidecar path allocation reserves processFileName Length bytes plus .sig plus one Unicode terminator",
+    "signatureFileName Length excludes the terminator and signatureFileName MaximumLength includes it",
+    "The implementation must not use wcscpy or wcscat on the returned process image buffer"
+  ],
+  "runtime_gate": "Windows driver build plus signed-process verification smoke where the process image path has normal and near-limit lengths, and malformed or missing image-name state fails without reading past the counted UNICODE_STRING"
+}

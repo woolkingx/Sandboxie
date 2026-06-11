@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "GUI_SENDPOST_SYSTEM_MESSAGE_POLICY_COMMENT",
+  "title": "GUI send/post system message policy comment",
+  "type": "object",
+  "owner": "Sandboxie/core/svc/GuiServer.cpp",
+  "stage": "schema -> boundary -> topology -> verify",
+  "source_functions": [
+    "GuiServer::SendPostMessageSlave",
+    "GuiServer::AllowSendPostMessage"
+  ],
+  "contracts": [
+    "AllowSendPostMessage owns the cross-sandbox send/post message policy decision",
+    "Input-shaped messages are allowed before the system-message denylist",
+    "Selected messages below WM_USER are denied because they carry lifecycle shutdown notification or shell-control semantics",
+    "Explorer WM_USER class exceptions remain a separate compatibility policy",
+    "This SREV changes comments and proof only and preserves the message id denylist"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/winmsg/about-messages-and-message-queues",
+    "https://learn.microsoft.com/en-us/windows/win32/winmsg/wm-close",
+    "https://learn.microsoft.com/en-us/windows/win32/shutdown/wm-queryendsession",
+    "https://learn.microsoft.com/en-us/windows/win32/winmsg/wm-quit",
+    "https://learn.microsoft.com/en-us/windows/win32/menurc/wm-syscommand",
+    "https://learn.microsoft.com/en-us/windows/win32/controls/wm-notify"
+  ],
+  "local_edges": [
+    "SendPostMessageSlave -> CheckWindowAccessible -> integrity gate -> AllowSendPostMessage",
+    "AllowSendPostMessage -> OpenAllWinClasses allow",
+    "AllowSendPostMessage -> input message allow",
+    "AllowSendPostMessage -> system-message denylist below WM_USER",
+    "AllowSendPostMessage -> Explorer WM_USER class exceptions"
+  ],
+  "runtime_gate": "none for comment-only clarification; Windows runtime proof required before behavior changes",
+  "status": "patched-comment-topology-after-official-window-message-review-no-behavior-change"
+}

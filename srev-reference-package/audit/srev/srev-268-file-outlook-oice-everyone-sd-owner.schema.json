@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-268-file-outlook-oice-everyone-sd-owner.schema.json",
+  "id": "FILE_OUTLOOK_OICE_EVERYONE_SD_OWNER",
+  "title": "File Outlook OICE Everyone SD owner",
+  "type": "object",
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/file.c"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 5
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 3
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/dll/file.c",
+  "contracts": [
+    "The branch is a compatibility security-descriptor override for Outlook OICE_ previewer files",
+    "The override is legal only when Dll_ImageType is DLL_IMAGE_OFFICE_OUTLOOK and the true path contains an OICE_ path segment",
+    "The override must use Secure_EveryoneSD not a NULL DACL or caller-supplied descriptor mutation",
+    "Secure_EveryoneSD must remain an explicit local DACL that includes Authenticated Users and Everyone with low-integrity support owned by secure.c",
+    "This SREV changes comments and proof only; Outlook previewer compatibility still needs Windows runtime proof"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/ntdef/ns-ntdef-_object_attributes",
+    "https://learn.microsoft.com/en-us/windows/win32/secauthz/security-descriptors",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtlsetdaclsecuritydescriptor"
+  ],
+  "runtime_gate": "Windows Outlook 2010/Office previewer test where an embedded restricted-token previewer can use the OICE_ file, while non-Outlook callers and non-OICE_ paths do not receive this descriptor override"
+}

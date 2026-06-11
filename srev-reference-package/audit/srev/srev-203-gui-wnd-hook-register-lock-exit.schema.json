@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "GUI_WND_HOOK_REGISTER_LOCK_EXIT",
+  "owner": "Sandboxie/core/svc/GuiServer.h",
+  "implementation": "Sandboxie/core/svc/GuiServer.cpp",
+  "status": "patched-source-level-after-official-critical-section-thread-handle-shape-review-needs-windows-runtime-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-entercriticalsection",
+    "https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-leavecriticalsection",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openthread",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getprocessidofthread",
+    "https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-closehandle",
+    "https://learn.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heapalloc"
+  ],
+  "contracts": [
+    "Every exit after EnterCriticalSection in WndHookRegisterSlave passes through LeaveCriticalSection",
+    "OpenThread failure preserves an outer failure status only after the critical section is released",
+    "Thread owner mismatch closes the thread handle before the failure edge",
+    "A new WND_HOOK entry is inserted only after HeapAlloc succeeds",
+    "Successful GUI_WND_HOOK_REGISTER reply shape is preserved"
+  ],
+  "runtime_gate": "Windows service build plus malformed/stale GUI_WND_HOOK_REGISTER request smoke proving subsequent GUI proxy requests do not hang behind m_SlavesLock"
+}

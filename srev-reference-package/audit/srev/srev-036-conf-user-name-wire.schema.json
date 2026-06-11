@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-036-conf-user-name-wire.schema.json",
+  "title": "SREV-036 conf user name wire",
+  "id": "CONF_SET_USER_NAME_COUNTED_STRING",
+  "owner": "Sandboxie/core/drv/conf_user.c",
+  "type": "object",
+  "properties": {
+    "audit_contract": {
+      "type": "string",
+      "description": "API: Conf_Api_SetUserName / API_SET_USER_NAME | wire: {\"request\": \"API_SET_USER_NAME_ARGS\", \"fields\": [{\"name\": \"sidstring\", \"type\": \"UNICODE_STRING64*\", \"unit\": \"bytes\", \"nul_terminated\": false}, {\"name\": \"username\", \"type\": \"UNICODE_STRING64*\", \"unit\": \"bytes\", \"nul_terminated\": false}]}"
+    },
+    "validation_invariants": {
+      "type": "string",
+      "description": "All contracts listed in the contracts metadata must hold before any data is trusted past the validation boundary"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate proves contracts hold under normal and malformed inputs"
+    }
+  },
+  "required": [
+    "audit_contract",
+    "validation_invariants",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "UNICODE_STRING64.Length is a byte count and must be aligned to sizeof(WCHAR)",
+    "UNICODE_STRING64.Length must be nonzero, <= 1024, and <= MaximumLength",
+    "sidstring and username are counted strings; embedded NUL is invalid before CONF_USER C-string storage is derived",
+    "CONF_USER.sid_len and CONF_USER.name_len are WCHAR counts derived from the validated byte counts",
+    "CONF_USER.name storage starts after the full counted sidstring plus one local trailing NUL",
+    "the service-side sender validates sidstring as a string SID before calling SbieApi_SetUserName"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/ntdef/ns-ntdef-_unicode_string",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-probeforread",
+    "https://learn.microsoft.com/en-us/windows/win32/api/sddl/nf-sddl-convertstringsidtosidw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-lookupaccountsida"
+  ]
+}

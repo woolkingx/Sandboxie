@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:sandboxie:srev-044-token-handle-writeback",
+  "title": "SREV-044 token handle writeback contract",
+  "type": "object",
+  "id": "TOKEN_HANDLE_WRITEBACK",
+  "api": "Thread_OpenProcessToken_Common / Thread_OpenThreadToken_Common",
+  "owner": "Sandboxie/core/drv/thread_token.c",
+  "data": {
+    "input": [
+      "TokenHandle user HANDLE* output pointer",
+      "MyTokenHandle opened token handle"
+    ],
+    "output": "user receives the token handle only after successful writeback"
+  },
+  "contracts": [
+    "TokenHandle is a user HANDLE* output pointer and must be probed for sizeof(HANDLE) with sizeof(HANDLE) alignment",
+    "opened MyTokenHandle ownership remains driver-owned until written to TokenHandle",
+    "if TokenHandle writeback fails, MyTokenHandle must be closed with ZwClose and cleared",
+    "successful writeback transfers handle ownership to the caller",
+    "Thread_OpenProcessToken_Common and Thread_OpenThreadToken_Common use the same writeback helper"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-probeforwrite",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwclose"
+  ],
+  "required": [
+    "TokenHandle",
+    "MyTokenHandle"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "TokenHandle": {
+      "type": "object",
+      "required": [
+        "kind",
+        "alignment",
+        "writeback"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "user HANDLE* output pointer" },
+        "alignment": { "const": "sizeof(HANDLE)" },
+        "writeback": { "const": "try/except protected" }
+      }
+    },
+    "MyTokenHandle": {
+      "type": "object",
+      "required": [
+        "owner_until",
+        "on_writeback_failure"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "owner_until": { "const": "successful TokenHandle writeback" },
+        "on_writeback_failure": { "const": "ZwClose and clear" }
+      }
+    }
+  }
+}

@@ -195,6 +195,15 @@ static BOOLEAN Secure_IsSameBox(HANDLE idProcess);
 
 static BOOLEAN Secure_IsBuiltInAdmin();
 
+typedef RPC_STATUS (RPC_ENTRY *P_RpcBindingInqObject)(
+    RPC_BINDING_HANDLE Binding,
+    UUID *ObjectUuid);
+
+static BOOLEAN Secure_IsElevationBindingGuid(
+    void *BindingHandle,
+    const UCHAR *BindingGuid,
+    ULONG BindingGuidOffset);
+
 //---------------------------------------------------------------------------
 
 
@@ -216,6 +225,7 @@ static P_NtDuplicateToken           __sys_NtDuplicateToken          = NULL;
 static P_NtFilterToken              __sys_NtFilterToken             = NULL;
 static P_RtlQueryElevationFlags     __sys_RtlQueryElevationFlags    = NULL;
 static P_RtlCheckTokenMembershipEx  __sys_RtlCheckTokenMembershipEx = NULL;
+static P_RpcBindingInqObject        __sys_RpcBindingInqObject       = NULL;
 
 
 //---------------------------------------------------------------------------
@@ -479,7 +489,8 @@ _FX BOOLEAN Secure_Init(void)
 
         SBIEDLL_HOOK(Secure_,RtlQueryElevationFlags);
 
-        // $Workaround$ - 3rd party fix
+        // SREV-325: allowlist for RtlQueryElevationFlags zero-flag faking.
+        // IE, SbieSvc/RpcSs brokers, and Synaptics callers are handled below.
         Secure_ShouldFakeRunningAsAdmin = 
                     Dll_ImageType == DLL_IMAGE_SANDBOXIE_SBIESVC
                 ||  Dll_ImageType == DLL_IMAGE_SANDBOXIE_RPCSS
@@ -1154,20 +1165,56 @@ NTSTATUS Ldr_NtAccessCheckByType(PSECURITY_DESCRIPTOR SecurityDescriptor, PSID P
 {
     NTSTATUS rc;
     HANDLE hTokenReal = NULL;
+    BOOLEAN allowlisted_bits_wuau = FALSE;
 
     if (Dll_OsBuild >= 9600) {
-        // todo: is that right? It seems wrong
-        if (Dll_ImageType == DLL_IMAGE_SANDBOXIE_BITS ||
+        allowlisted_bits_wuau =
+           (Dll_ImageType == DLL_IMAGE_SANDBOXIE_BITS ||
             Dll_ImageType == DLL_IMAGE_SANDBOXIE_WUAU ||
-            Dll_ImageType == DLL_IMAGE_WUAUCLT) {
-            *GrantedAccess = 0xFFFFFFFF;
-            *AccessStatus = TRUE;
+            Dll_ImageType == DLL_IMAGE_WUAUCLT);
+    }
+
+    Ldr_TestToken(ClientToken, &hTokenReal, TRUE);
+
+    if (allowlisted_bits_wuau) {
+
+        //
+        // SREV-326: official access-check semantics first. Let the native
+        // descriptor/token/object-type path decide when the real-token route
+        // can run; keep the synthetic BITS/WUAU grant only as a compatibility
+        // fallback when the native API itself fails.
+        //
+
+        rc = __sys_NtAccessCheckByType(
+            SecurityDescriptor, PrincipalSelfSid, hTokenReal ? hTokenReal : ClientToken,
+            DesiredAccess, ObjectTypeList, ObjectTypeListLength, GenericMapping,
+            PrivilegeSet, PrivilegeSetLength, GrantedAccess, AccessStatus);
+
+        if (NT_SUCCESS(rc)) {
+
+            if (hTokenReal)
+                NtClose(hTokenReal);
+
+            return rc;
+        }
+
+        {
+            ACCESS_MASK granted_access = DesiredAccess;
+
+            if ((DesiredAccess & MAXIMUM_ALLOWED) && GenericMapping)
+                granted_access = GenericMapping->GenericAll
+                               | (DesiredAccess & ~MAXIMUM_ALLOWED);
+
+            *GrantedAccess = granted_access;
+            *AccessStatus = STATUS_SUCCESS;
             SetLastError(0);
-            return TRUE;
+
+            if (hTokenReal)
+                NtClose(hTokenReal);
+
+            return STATUS_SUCCESS;
         }
     }
-    
-    Ldr_TestToken(ClientToken, &hTokenReal, TRUE);
 
     rc = __sys_NtAccessCheckByType(SecurityDescriptor, PrincipalSelfSid, hTokenReal ? hTokenReal : ClientToken, DesiredAccess, ObjectTypeList, ObjectTypeListLength, GenericMapping, PrivilegeSet, PrivilegeSetLength, GrantedAccess, AccessStatus);
 
@@ -1820,6 +1867,64 @@ static BOOLEAN Secure_Elevation_HookDisabled = FALSE;
 
 
 //---------------------------------------------------------------------------
+// Secure_IsElevationBindingGuid
+//---------------------------------------------------------------------------
+
+
+static BOOLEAN Secure_IsElevationBindingGuid(
+    void *BindingHandle,
+    const UCHAR *BindingGuid,
+    ULONG BindingGuidOffset)
+{
+    RPC_STATUS status;
+    UUID ObjectUuid;
+    HMODULE module;
+    UCHAR *ptr;
+
+    if (!BindingHandle)
+        return FALSE;
+
+    if (!__sys_RpcBindingInqObject) {
+
+        module = GetModuleHandle(DllName_rpcrt4);
+        if (module) {
+
+            __sys_RpcBindingInqObject = (P_RpcBindingInqObject)
+                GetProcAddress(module, "RpcBindingInqObject");
+        }
+    }
+
+    //
+    // SREV-327: prefer the official RPC binding API. RpcBindingInqObject
+    // returns the object UUID associated with a binding handle. The fixed
+    // offset memory probe below is only a compatibility fallback for observed
+    // AppInfo layouts that the RPC runtime does not classify as a binding.
+    //
+
+    if (__sys_RpcBindingInqObject) {
+
+        status = __sys_RpcBindingInqObject(
+            (RPC_BINDING_HANDLE)BindingHandle, &ObjectUuid);
+        if (status == RPC_S_OK)
+            return (memcmp(&ObjectUuid, BindingGuid, 16) == 0);
+    }
+
+    ptr = (UCHAR *)BindingHandle;
+
+    //
+    // SREV-327 fallback: observed AppInfo binding layout probe, not official
+    // RPC handle shape. Keep the small-handle guard before reading the local
+    // binding GUID offset.
+    //
+
+    if (ptr < (UCHAR*)0x1fff)
+        return FALSE;
+
+    return (memcmp(ptr + BindingGuidOffset, BindingGuid, 16) == 0);
+}
+
+
+//---------------------------------------------------------------------------
 // Secure_CheckElevation
 //---------------------------------------------------------------------------
 
@@ -1848,8 +1953,6 @@ ALIGNED BOOLEAN __cdecl Secure_CheckElevation(
 #endif _WIN64
 
     RPC_ASYNC_STATE *AsyncState;
-    UCHAR *ptr;
-
     BOOLEAN ok = FALSE;
 
     __try {
@@ -1901,13 +2004,8 @@ ALIGNED BOOLEAN __cdecl Secure_CheckElevation(
         //
 
 #define IS_BINDING_GUID(n) \
-    (0 == memcmp(ptr + OFFSET_OF_BINDING_GUID, elevation_binding_##n, 16))
-
-        ptr = (UCHAR *)Args->BindingHandle;
-        // The name "BindingHandle" implies a handle.  But the original code treats it as a ptr to mem (see memcmp above).
-        // Windows 10 is passing in real handles sometimes.  We need a better solution that this HACK to filter out handles.
-        if (! ptr || ptr < (UCHAR*)0x1fff)
-            __leave;
+    Secure_IsElevationBindingGuid( \
+        Args->BindingHandle, elevation_binding_##n, OFFSET_OF_BINDING_GUID)
 
         if (IS_BINDING_GUID(1)) {
 
@@ -1917,6 +2015,10 @@ ALIGNED BOOLEAN __cdecl Secure_CheckElevation(
             //
 
             if (! Args->u.Args1.ProcessHandle)
+                __leave;
+            if (! Args->u.Args1.ApplicationName ||
+                    ! Args->u.Args1.CommandLine ||
+                    ! Args->u.Args1.CurrentDirectory)
                 __leave;
 
             Secure_Elevation_Type = 1;
@@ -2024,6 +2126,8 @@ ALIGNED ULONG_PTR __cdecl Secure_HandleElevation(
             + sizeof(ULONG);
 
     pkt = Dll_Alloc(pkt_len);
+    if (! pkt)
+        return 0;
 
     pkt->tzuk = tzuk;
     pkt->len = pkt_len;

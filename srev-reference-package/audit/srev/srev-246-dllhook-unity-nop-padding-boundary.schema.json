@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-246-dllhook-unity-nop-padding-boundary.schema.json",
+  "id": "DLLHOOK_UNITY_NOP_PADDING_BOUNDARY",
+  "title": "DLL Hook Unity NOP padding boundary",
+  "type": "object",
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/dllhook.c"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 7
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 3
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/dll/dllhook.c",
+  "contracts": [
+    "hook_tramp.c owns copied-instruction byte counting",
+    "dllhook.c owns only the active detour envelope it writes at the source function entry",
+    "The entry detour transfers normal control flow before any tail bytes execute",
+    "NOP-padding from UsedCount to ByteCount changes the writable code span and compatibility surface",
+    "The old Unity breakage is runtime compatibility evidence, not proof that NOP padding is impossible",
+    "A future NOP-padding patch must first publish a checked ByteCount and UsedCount contract from the trampoline owner",
+    "This SREV does not change detour bytes trampoline generation page protection cache flushing or hook policy"
+  ],
+  "official_references": [
+    "https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html",
+    "https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualprotect",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-flushinstructioncache"
+  ],
+  "runtime_gate": "Any future source behavior change that enables NOP padding must run Windows x86 WoW64 x64 hook smoke tests third-party detour-envelope compatibility tests and a Unity runtime smoke"
+}

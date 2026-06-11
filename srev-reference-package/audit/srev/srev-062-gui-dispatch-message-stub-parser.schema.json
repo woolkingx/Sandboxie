@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-062-gui-dispatch-message-stub-parser.schema.json",
+  "title": "SREV-062 GUI DispatchMessage stub parser contract",
+  "id": "GUI_DISPATCH_MESSAGE_STUB_PARSER",
+  "api": "Gui_Hook_DispatchMessage8",
+  "owner": "Sandboxie/core/dll/guimsg.c",
+  "type": "object",
+  "properties": {
+    "dispatch_message_a_stub": {
+      "type": "string",
+      "description": "DispatchMessageA exported entry bytes accepted by the local parser"
+    },
+    "dispatch_message_w_stub": {
+      "type": "string",
+      "description": "DispatchMessageW exported entry bytes accepted by the local parser"
+    },
+    "worker_target": {
+      "type": "string",
+      "description": "Shared worker address derived only after both stubs are schema-valid"
+    }
+  },
+  "required": [
+    "dispatch_message_a_stub",
+    "dispatch_message_w_stub",
+    "worker_target"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "DispatchMessageA and DispatchMessageW are same-shape User32 exported APIs, but their entry byte layout is not a Win32 API contract",
+    "The local A-stub parser accepts only BA 01 00 00 00 followed by EB rel8 or E9 rel32",
+    "The local W-stub parser accepts only 33 D2 followed by EB rel8 or E9 rel32",
+    "Unknown A-side or W-side opcodes must fail closed before derived-target comparison",
+    "The DispatchMessage8 hook may be installed only when the A-side and W-side derived targets are equal"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-dispatchmessagea",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-dispatchmessagew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getprocaddress"
+  ]
+}

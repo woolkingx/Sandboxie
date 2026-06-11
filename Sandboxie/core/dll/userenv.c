@@ -39,6 +39,10 @@ static ULONG UserEnv_GetAppliedGPOList(
 static NTSTATUS UserEnv_RtlGetVersion(LPOSVERSIONINFOEXW lpVersionInfo);
 static BOOL UserEnv_GetVersionExW(LPOSVERSIONINFOEXW lpVersionInfo);
 static BOOL UserEnv_GetVersionExA(LPOSVERSIONINFOEXA lpVersionInfo);
+static BOOL UserEnv_VerifyVersionInfoW(
+    LPOSVERSIONINFOEXW lpVersionInformation,
+    DWORD dwTypeMask,
+    DWORDLONG dwlConditionMask);
 
 static HRESULT UserEnv_CreateAppContainerProfile(
     PCWSTR              pszAppContainerName,
@@ -62,6 +66,14 @@ typedef ULONG (*P_GetAppliedGPOList)(
 typedef NTSTATUS(*P_RtlGetVersion)(LPOSVERSIONINFOEXW);
 typedef BOOL (*P_GetVersionExW)(LPOSVERSIONINFOEXW lpVersionInfo);
 typedef BOOL (*P_GetVersionExA)(LPOSVERSIONINFOEXA lpVersionInfo);
+typedef BOOL (*P_VerifyVersionInfoW)(
+    LPOSVERSIONINFOEXW lpVersionInformation,
+    DWORD dwTypeMask,
+    DWORDLONG dwlConditionMask);
+typedef ULONGLONG (WINAPI *P_VerSetConditionMask)(
+    ULONGLONG ConditionMask,
+    DWORD TypeMask,
+    BYTE Condition);
 
 typedef BOOL(*P_CreateAppContainerProfile)(
     PCWSTR              pszAppContainerName,
@@ -82,6 +94,8 @@ static P_GetAppliedGPOList          __sys_GetAppliedGPOList         = NULL;
 static P_RtlGetVersion              __sys_RtlGetVersion = NULL;
 static P_GetVersionExW              __sys_GetVersionExW             = NULL;
 static P_GetVersionExA              __sys_GetVersionExA             = NULL;
+static P_VerifyVersionInfoW         __sys_VerifyVersionInfoW        = NULL;
+static P_VerSetConditionMask        __sys_VerSetConditionMask       = NULL;
 
 static P_CreateAppContainerProfile  __sys_CreateAppContainerProfile = NULL;
 
@@ -97,6 +111,7 @@ _FX BOOLEAN UserEnv_InitVer(HMODULE module)
     void* RtlGetVersion;
     void* GetVersionExW;
     void* GetVersionExA;
+    void* VerifyVersionInfoW;
 
     WCHAR str[32];
     if (SbieDll_GetSettingsForName(NULL, Dll_ImageName, L"OverrideOsBuild", str, sizeof(str), NULL))
@@ -108,11 +123,23 @@ _FX BOOLEAN UserEnv_InitVer(HMODULE module)
     RtlGetVersion = GetProcAddress(GetModuleHandleW(L"ntdll"), "RtlGetVersion");
     GetVersionExW = (P_GetVersionExW)GetProcAddress(module, "GetVersionExW");
     GetVersionExA = (P_GetVersionExA)GetProcAddress(module, "GetVersionExA");
+    VerifyVersionInfoW = GetProcAddress(module, "VerifyVersionInfoW");
+    __sys_VerSetConditionMask = (P_VerSetConditionMask)
+        GetProcAddress(module, "VerSetConditionMask");
+    if (!__sys_VerSetConditionMask && Dll_Kernel32)
+        __sys_VerSetConditionMask = (P_VerSetConditionMask)
+            GetProcAddress(Dll_Kernel32, "VerSetConditionMask");
+
     SBIEDLL_HOOK(UserEnv_, RtlGetVersion);
     SBIEDLL_HOOK(UserEnv_, GetVersionExW);
     SBIEDLL_HOOK(UserEnv_, GetVersionExA);
-
-    // todo, also hook RtlSwitchedVVI <- BOOL __stdcall VerifyVersionInfoW(LPOSVERSIONINFOEXW lpVersionInformation, DWORD dwTypeMask, DWORDLONG dwlConditionMask)
+    if (VerifyVersionInfoW) {
+        *(ULONG_PTR *)&__sys_VerifyVersionInfoW = (ULONG_PTR)
+            SbieDll_Hook("VerifyVersionInfoW", VerifyVersionInfoW,
+                UserEnv_VerifyVersionInfoW, module);
+        if (!__sys_VerifyVersionInfoW)
+            return FALSE;
+    }
 
     return TRUE;
 }
@@ -308,6 +335,272 @@ _FX BOOL UserEnv_GetVersionExA(LPOSVERSIONINFOEXA lpVersionInfo)
     }
 
     return rc;
+}
+
+
+//---------------------------------------------------------------------------
+// UserEnv_VerifyVersionInfoW
+//---------------------------------------------------------------------------
+
+
+static BOOLEAN UserEnv_GetVersionCondition(
+    DWORD TypeMask,
+    DWORDLONG ConditionMask,
+    BYTE *Condition)
+{
+    DWORDLONG fieldMask = 0;
+    BYTE i;
+
+    if (!__sys_VerSetConditionMask)
+        return FALSE;
+
+    for (i = VER_EQUAL; i <= VER_OR; ++i)
+        fieldMask |= __sys_VerSetConditionMask(0, TypeMask, i);
+
+    ConditionMask &= fieldMask;
+
+    for (i = VER_EQUAL; i <= VER_OR; ++i) {
+        if (ConditionMask == __sys_VerSetConditionMask(0, TypeMask, i)) {
+            *Condition = i;
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+
+static BOOLEAN UserEnv_CompareVersionValue(
+    DWORD Current,
+    DWORD Required,
+    BYTE Condition)
+{
+    switch (Condition) {
+    case VER_EQUAL:
+        return Current == Required;
+    case VER_GREATER:
+        return Current > Required;
+    case VER_GREATER_EQUAL:
+        return Current >= Required;
+    case VER_LESS:
+        return Current < Required;
+    case VER_LESS_EQUAL:
+        return Current <= Required;
+    }
+
+    return FALSE;
+}
+
+
+static BOOLEAN UserEnv_IsVersionValueCondition(BYTE Condition)
+{
+    return (Condition >= VER_EQUAL && Condition <= VER_LESS_EQUAL);
+}
+
+
+static BOOLEAN UserEnv_CompareVersionSuite(
+    WORD Current,
+    WORD Required,
+    BYTE Condition)
+{
+    switch (Condition) {
+    case VER_AND:
+        return (Current & Required) == Required;
+    case VER_OR:
+        return (Current & Required) != 0;
+    }
+
+    return FALSE;
+}
+
+
+static BOOLEAN UserEnv_VerifyOneVersionField(
+    DWORD Current,
+    DWORD Required,
+    DWORD TypeMask,
+    DWORDLONG ConditionMask,
+    BYTE *Condition,
+    BOOLEAN *Different,
+    BOOLEAN *InvalidParameter)
+{
+    if (!UserEnv_GetVersionCondition(TypeMask, ConditionMask, Condition))
+        *InvalidParameter = TRUE;
+    else if (!UserEnv_IsVersionValueCondition(*Condition))
+        *InvalidParameter = TRUE;
+
+    if (*InvalidParameter)
+        return FALSE;
+
+    if (!UserEnv_CompareVersionValue(Current, Required, *Condition))
+        return FALSE;
+
+    *Different = (Current != Required);
+    return TRUE;
+}
+
+
+static BOOLEAN UserEnv_VerifyVersionNumbers(
+    const OSVERSIONINFOEXW *CurrentVersion,
+    const OSVERSIONINFOEXW *RequiredVersion,
+    DWORD TypeMask,
+    DWORDLONG ConditionMask,
+    BOOLEAN *InvalidParameter)
+{
+    BYTE condition;
+    BOOLEAN different;
+
+    if (TypeMask & VER_MAJORVERSION) {
+        if (!UserEnv_VerifyOneVersionField(
+                CurrentVersion->dwMajorVersion, RequiredVersion->dwMajorVersion,
+                VER_MAJORVERSION, ConditionMask, &condition, &different,
+                InvalidParameter))
+            return FALSE;
+        if (different)
+            return TRUE;
+    }
+
+    if (TypeMask & VER_MINORVERSION) {
+        if (!UserEnv_VerifyOneVersionField(
+                CurrentVersion->dwMinorVersion, RequiredVersion->dwMinorVersion,
+                VER_MINORVERSION, ConditionMask, &condition, &different,
+                InvalidParameter))
+            return FALSE;
+        if (different)
+            return TRUE;
+    }
+
+    if (TypeMask & VER_SERVICEPACKMAJOR) {
+        if (!UserEnv_VerifyOneVersionField(
+                CurrentVersion->wServicePackMajor,
+                RequiredVersion->wServicePackMajor,
+                VER_SERVICEPACKMAJOR, ConditionMask, &condition, &different,
+                InvalidParameter))
+            return FALSE;
+        if (different)
+            return TRUE;
+    }
+
+    if (TypeMask & VER_SERVICEPACKMINOR) {
+        if (!UserEnv_VerifyOneVersionField(
+                CurrentVersion->wServicePackMinor,
+                RequiredVersion->wServicePackMinor,
+                VER_SERVICEPACKMINOR, ConditionMask, &condition, &different,
+                InvalidParameter))
+            return FALSE;
+    }
+
+    return TRUE;
+}
+
+
+_FX BOOL UserEnv_VerifyVersionInfoW(
+    LPOSVERSIONINFOEXW lpVersionInformation,
+    DWORD dwTypeMask,
+    DWORDLONG dwlConditionMask)
+{
+    OSVERSIONINFOEXW CurrentVersion;
+    NTSTATUS status;
+    BYTE condition;
+    BOOLEAN invalidParameter = FALSE;
+    const DWORD SupportedTypeMask =
+        VER_BUILDNUMBER | VER_MAJORVERSION | VER_MINORVERSION |
+        VER_PLATFORMID | VER_SERVICEPACKMAJOR | VER_SERVICEPACKMINOR |
+        VER_SUITENAME | VER_PRODUCT_TYPE;
+
+    if (!UserEnv_dwBuildNumber || !__sys_VerSetConditionMask)
+        return __sys_VerifyVersionInfoW(
+            lpVersionInformation, dwTypeMask, dwlConditionMask);
+
+    if (!lpVersionInformation ||
+            lpVersionInformation->dwOSVersionInfoSize !=
+                sizeof(OSVERSIONINFOEXW) ||
+            !dwTypeMask ||
+            (dwTypeMask & ~SupportedTypeMask)) {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return FALSE;
+    }
+
+    memzero(&CurrentVersion, sizeof(CurrentVersion));
+    CurrentVersion.dwOSVersionInfoSize = sizeof(CurrentVersion);
+
+    status = __sys_RtlGetVersion(&CurrentVersion);
+    if (!NT_SUCCESS(status)) {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return FALSE;
+    }
+
+    UserEnv_MkVersionEx(
+        &CurrentVersion.dwBuildNumber,
+        &CurrentVersion.dwMajorVersion,
+        &CurrentVersion.dwMinorVersion,
+        &CurrentVersion.wServicePackMajor,
+        &CurrentVersion.wServicePackMinor);
+
+    if (!UserEnv_VerifyVersionNumbers(
+            &CurrentVersion, lpVersionInformation,
+            dwTypeMask, dwlConditionMask, &invalidParameter)) {
+        if (invalidParameter)
+            goto invalid_parameter;
+        goto old_version;
+    }
+
+    if (dwTypeMask & VER_BUILDNUMBER) {
+        if (!UserEnv_GetVersionCondition(
+                VER_BUILDNUMBER, dwlConditionMask, &condition))
+            goto invalid_parameter;
+        if (!UserEnv_IsVersionValueCondition(condition))
+            goto invalid_parameter;
+        if (!UserEnv_CompareVersionValue(
+                CurrentVersion.dwBuildNumber,
+                lpVersionInformation->dwBuildNumber, condition))
+            goto old_version;
+    }
+
+    if (dwTypeMask & VER_PLATFORMID) {
+        if (!UserEnv_GetVersionCondition(
+                VER_PLATFORMID, dwlConditionMask, &condition))
+            goto invalid_parameter;
+        if (!UserEnv_IsVersionValueCondition(condition))
+            goto invalid_parameter;
+        if (!UserEnv_CompareVersionValue(
+                CurrentVersion.dwPlatformId,
+                lpVersionInformation->dwPlatformId, condition))
+            goto old_version;
+    }
+
+    if (dwTypeMask & VER_PRODUCT_TYPE) {
+        if (!UserEnv_GetVersionCondition(
+                VER_PRODUCT_TYPE, dwlConditionMask, &condition))
+            goto invalid_parameter;
+        if (!UserEnv_IsVersionValueCondition(condition))
+            goto invalid_parameter;
+        if (!UserEnv_CompareVersionValue(
+                CurrentVersion.wProductType,
+                lpVersionInformation->wProductType, condition))
+            goto old_version;
+    }
+
+    if (dwTypeMask & VER_SUITENAME) {
+        if (!UserEnv_GetVersionCondition(
+                VER_SUITENAME, dwlConditionMask, &condition))
+            goto invalid_parameter;
+        if (condition != VER_AND && condition != VER_OR)
+            goto invalid_parameter;
+        if (!UserEnv_CompareVersionSuite(
+                CurrentVersion.wSuiteMask,
+                lpVersionInformation->wSuiteMask, condition))
+            goto old_version;
+    }
+
+    return TRUE;
+
+invalid_parameter:
+    SetLastError(ERROR_INVALID_PARAMETER);
+    return FALSE;
+
+old_version:
+    SetLastError(ERROR_OLD_WIN_VERSION);
+    return FALSE;
 }
 
 

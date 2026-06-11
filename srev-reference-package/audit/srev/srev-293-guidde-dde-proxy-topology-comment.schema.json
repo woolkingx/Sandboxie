@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "GUIDDE_DDE_PROXY_TOPOLOGY_COMMENT",
+  "title": "GuiDDE DDE proxy topology comment",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/guidde.c",
+  "stage": "schema -> boundary -> topology -> verify",
+  "source_scope": "DDE conversation topology comment",
+  "contracts": [
+    "guidde.c owns local DDE hook and proxy translation logic",
+    "SbieSvc GUI Proxy owns the out-of-process DDE proxy window and transport edge",
+    "private win32k call-stack names are observation evidence not API contract",
+    "the legal protocol shape remains documented DDE messages and payload helpers",
+    "SREV-084 owns DDE ACK lParam forwarding behavior",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/about-dynamic-data-exchange",
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/wm-dde-ack",
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/wm-dde-execute",
+    "https://learn.microsoft.com/en-us/windows/win32/api/dde/nf-dde-packddelparam",
+    "https://learn.microsoft.com/en-us/windows/win32/api/dde/nf-dde-unpackddelparam",
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/wm-copydata"
+  ],
+  "local_edges": [
+    "Gui_DDE_INITIATE_Received -> proxy HWND substitution and TLS edge",
+    "Gui_DDE_ACK_Sending -> real client HWND restoration",
+    "Gui_DDE_COPYDATA_Received -> copied proxy payload to posted DDE messages",
+    "Gui_DDE_Post_In_Box -> in-sandbox DDE bridge",
+    "GuiServer::DdeProxyThreadSlave -> SbieSvc proxy transport",
+    "SREV-084 -> received ACK lParam forwarding contract"
+  ],
+  "runtime_gate": "SREV-084 DDE proxy Windows proof plus external DDE client sandboxed server smoke for INITIATE EXECUTE REQUEST ACK and WM_COPYDATA bridge behavior",
+  "status": "patched-comment-topology-after-official-dde-protocol-and-srev-084-review-no-behavior-change"
+}

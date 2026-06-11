@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "SBOXDLL32_DEF_EXPORT_ABI_CONTRACT",
+  "title": "SboxDll32 DEF export ABI contract",
+  "type": "object",
+  "required": [
+    "owner",
+    "severity",
+    "contracts",
+    "official_references",
+    "runtime_gates"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/SboxDll32.def"
+    },
+    "severity": {
+      "const": "minor"
+    },
+    "contracts": {
+      "type": "array",
+      "minItems": 8,
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "SboxDll32.def is the Win32 linker-owned public export alias table for SbieDll"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "string",
+        "format": "uri"
+      }
+    },
+    "runtime_gates": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "contracts": [
+    "SboxDll32.def is the Win32 linker-owned public export alias table for SbieDll",
+    "Win32 project configurations select SboxDll32.def as the ModuleDefinitionFile",
+    "x64 ARM64EC and ARM64 project configurations do not select SboxDll32.def",
+    "Dll_Ordinal1 remains exported by ordinal 1 with NONAME for injection startup compatibility",
+    "Every public Win32 alias in SboxDll32.def maps to an x86 decorated internal symbol",
+    "The x86 decorated internal symbol suffix records the byte count for the stdcall parameter list",
+    "The DEF file preserves undecorated public SbieApi and SbieDll names for clients",
+    "SboxDll64.def remains a separate minimal 64-bit export table",
+    "This SREV records the export ABI shape and does not change source behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/cpp/build/reference/module-definition-dot-def-files?view=msvc-170",
+    "https://learn.microsoft.com/en-us/cpp/build/reference/exports?view=msvc-170",
+    "https://learn.microsoft.com/en-us/cpp/build/reference/decorated-names?view=msvc-170",
+    "https://learn.microsoft.com/en-us/cpp/build/reference/def-specify-module-definition-file?view=msvc-170"
+  ],
+  "runtime_gates": [
+    "Windows Win32 SboxDll build",
+    "dumpbin /exports proving Dll_Ordinal1 is ordinal-only NONAME at ordinal 1",
+    "dumpbin /exports proving the public undecorated SbieApi and SbieDll aliases resolve to the expected x86 decorated internals",
+    "client import-library smoke proving existing Win32 callers still link by public alias"
+  ]
+}

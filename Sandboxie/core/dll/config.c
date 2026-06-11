@@ -639,6 +639,17 @@ BOOLEAN SbieDll_CheckStringInList(const WCHAR* string, const WCHAR* boxname, con
 //---------------------------------------------------------------------------
 
 
+static BOOLEAN Config_IsEqualAnsiString(const WCHAR* wide, const char* ansi)
+{
+    while (*wide && *ansi && *wide == (WCHAR)(UCHAR)*ansi) {
+        ++wide;
+        ++ansi;
+    }
+
+    return (*wide == L'\0' && *ansi == '\0');
+}
+
+
 BOOLEAN SbieDll_CheckStringInListA(const char* string, const WCHAR* boxname, const WCHAR* setting)
 {
     WCHAR buf[66];
@@ -647,9 +658,7 @@ BOOLEAN SbieDll_CheckStringInListA(const char* string, const WCHAR* boxname, con
         NTSTATUS status = SbieApi_QueryConfAsIs(boxname, setting, index, buf, 64 * sizeof(WCHAR));
         ++index;
         if (NT_SUCCESS(status)) {
-            WCHAR* ptr = buf;
-            for (const char* tmp = string; *ptr && *tmp && *ptr == *tmp; ptr++, tmp++);
-            if (*ptr == L'\0') {
+            if (Config_IsEqualAnsiString(buf, string)) {
                 return TRUE;
             }
         }

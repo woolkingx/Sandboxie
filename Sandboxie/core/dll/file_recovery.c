@@ -224,10 +224,12 @@ _FX BOOLEAN File_IsRecoverable(
             ULONG len1   = wcslen(ptr + 1);
             ULONG len2   = (File_MupLen + len1 + 8) * sizeof(WCHAR);
             WCHAR *path2 = Dll_Alloc(len2);
-            wmemcpy(path2, File_Mup, File_MupLen);
-            wmemcpy(path2 + File_MupLen, ptr + 1, len1 + 1);
+            if (path2) {
+                wmemcpy(path2, File_Mup, File_MupLen);
+                wmemcpy(path2 + File_MupLen, ptr + 1, len1 + 1);
 
-            TruePath = (const WCHAR *)path2;
+                TruePath = (const WCHAR *)path2;
+            }
         }
     }
 
@@ -718,7 +720,8 @@ _FX ULONG File_DoAutoRecover_4(
 _FX BOOLEAN File_MsoDll(HMODULE module)
 {
     //
-    // hack for File_IsRecoverable
+    // SREV-285: mso.dll is a module-presence signal for the
+    // Office recovery filter in File_IsRecoverable.
     //
 
     File_MsoDllLoaded = TRUE;

@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-085-pca-restart-command-line-shape.schema.json",
+  "title": "SREV-085 PCA restart command-line shape",
+  "id": "PCA_RESTART_COMMAND_LINE_SHAPE",
+  "owner": "Sandboxie/core/dll/dllmain.c and Sandboxie/core/dll/proc.c",
+  "type": "object",
+  "properties": {
+    "process_flags": {
+      "type": "string",
+      "description": "Driver-projected process flags used by dllmain restart decision"
+    },
+    "command_line": {
+      "type": "string",
+      "description": "System-owned GetCommandLine input copied into restart payload"
+    },
+    "directory": {
+      "type": "string",
+      "description": "Current directory payload used for restarted process"
+    },
+    "service_boundary": {
+      "type": "string",
+      "description": "SbieSvc RunSandboxed process-creation owner"
+    },
+    "third_party_module": {
+      "type": "string",
+      "description": "Digital Guardian module-presence compatibility flag"
+    }
+  },
+  "required": [
+    "process_flags",
+    "command_line",
+    "directory",
+    "service_boundary",
+    "third_party_module"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "PCA/job detection decides whether restart is needed before sandbox job attach",
+    "AppContainer processes do not use the PCA restart path",
+    "GetCommandLine returns system-owned read-only input",
+    "restart command line storage is sized from the actual command-line length",
+    "the restart payload must not copy a variable-length command line into a fixed local buffer",
+    "Digital Guardian detection remains an early module-presence compatibility flag"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects",
+    "https://learn.microsoft.com/en-us/windows/win32/procthread/nested-jobs",
+    "https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-assignprocesstojobobject",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processenv/nf-processenv-getcommandlinew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getcurrentdirectory"
+  ]
+}

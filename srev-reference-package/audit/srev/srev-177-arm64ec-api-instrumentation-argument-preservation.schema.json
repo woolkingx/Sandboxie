@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "ARM64EC_API_INSTRUMENTATION_ARGUMENT_PRESERVATION",
+  "type": "object",
+  "required": [
+    "owner",
+    "data",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/util_EC.asm"
+    },
+    "data": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "ApiInstrumentationAsm"
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "ApiInstrumentationAsm preserves x0-x7 before calling ApiInstrumentation"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 4
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/arm/arm64ec",
+    "https://learn.microsoft.com/en-us/windows/arm/arm64ec-abi",
+    "https://learn.microsoft.com/en-us/cpp/build/arm64-windows-abi-conventions?view=msvc-170",
+    "https://learn.microsoft.com/en-us/cpp/build/arm64ec-windows-abi-conventions?view=msvc-170"
+  ],
+  "contracts": [
+    "util_EC.asm owns ARM64EC API instrumentation assembly state preservation",
+    "dllhook.c emits ARM64EC API trace detours with x17 pointing at the trace entry header and x16 pointing at ApiInstrumentationAsm",
+    "ApiInstrumentationAsm preserves x0-x7 before calling ApiInstrumentation",
+    "ApiInstrumentationAsm passes pName in x0 and the saved argument frame in x1",
+    "the saved argument frame begins at the saved x0 x1 pair and pArgs[-1] is the saved LR consumed as ReturnAddress",
+    "ApiInstrumentationAsm preserves x16 x17 across the instrumentation call before loading the detour target from [x17]",
+    "ApiInstrumentationAsm keeps SP 16-byte aligned across stack accesses and the C call",
+    "RPC NDR ARM64EC wrappers keep their ARM64EC variadic stack pointer size contract and are not changed by this SREV",
+    "SREV-177 does not change trace entry layout monitor logging RPC hook policy instrumentation callback policy or ARM64 native util_arm.asm",
+    "Linux source gate is not Windows ARM64EC build runtime proof"
+  ],
+  "owner": "Sandboxie/core/dll/util_EC.asm",
+  "data": [
+    "Sandboxie/core/dll/util_EC.asm",
+    "Sandboxie/core/dll/util_arm.asm",
+    "Sandboxie/core/dll/dllhook.c",
+    "Sandboxie/core/dll/trace.c",
+    "Sandboxie/core/dll/SboxDll.vcxproj",
+    "ApiInstrumentationAsm",
+    "ApiInstrumentation",
+    "x0",
+    "x1",
+    "x2",
+    "x3",
+    "x4",
+    "x5",
+    "x6",
+    "x7",
+    "x16",
+    "x17",
+    "fp",
+    "lr",
+    "ARM64EC variadic NDR wrappers"
+  ],
+  "runtime_gate": "Windows ARM64EC SboxDll build plus API trace smoke with eight integer pointer arguments and RPC NDR hook smoke"
+}

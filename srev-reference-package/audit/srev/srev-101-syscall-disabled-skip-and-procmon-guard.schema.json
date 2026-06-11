@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-101-syscall-disabled-skip-and-procmon-guard.schema.json",
+  "title": "SREV-101 syscall disabled skip and procmon guard",
+  "id": "SYSCALL_DISABLED_SKIP_AND_PROCMON_GUARD",
+  "owner": "Sandboxie/core/drv/syscall.c",
+  "type": "object",
+  "properties": {
+    "native_service_surface": {
+      "type": "string",
+      "description": "Nt/Zw native-service syscall enumeration and hook surface"
+    },
+    "disabled_skip_comments": {
+      "type": "string",
+      "description": "Inactive YieldExecution and MapViewOfSection compatibility skip branches"
+    },
+    "procmon_stack_guard": {
+      "type": "string",
+      "description": "QuerySystemInformation class 0xb9 guard for Procmon stack support"
+    },
+    "source_change": {
+      "type": "string",
+      "description": "Comment-only clarification preserving hook behavior"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows syscall hook runtime proof"
+    }
+  },
+  "required": [
+    "native_service_surface",
+    "disabled_skip_comments",
+    "procmon_stack_guard",
+    "source_change",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Syscall_Init enumerates NTDLL Zw exports and builds the Sandboxie syscall table",
+    "YieldExecution and MapViewOfSection compatibility skip branches are intentionally inactive comments",
+    "the inactive skip branches must not be described as active third-party workaround policy",
+    "MapViewOfSection hook policy must not be changed from stale Chrome wow_helper comments alone",
+    "QuerySystemInformation is registered through Syscall_Set3 with Syscall_QuerySystemInfo_SupportProcmonStack",
+    "SystemInformationClass 0xb9 is a private runtime guard value and is not a public SYSTEM_INFORMATION_CLASS contract",
+    "NtQuerySystemInformation is a variable native API surface and must be treated as runtime-version gated",
+    "this SREV does not change syscall hook registration, skip behavior, or QuerySystemInformation return policy"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-nt-and-zw-versions-of-the-native-system-services-routines",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwmapviewofsection",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/managing-memory-sections",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntquerysysteminformation",
+    "https://learn.microsoft.com/en-us/windows/win32/sysinfo/zwquerysysteminformation"
+  ]
+}

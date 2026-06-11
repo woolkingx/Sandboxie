@@ -175,9 +175,11 @@ _FX BOOLEAN Gui_ShouldCreateTitle(HWND hWnd)
                     return FALSE;
             }
 
-            // $Workaround$ - 3rd party fix
             WCHAR clsnm[256];
-            UINT nChars = __sys_RealGetWindowClassW(hWnd, clsnm, sizeof(clsnm) - 1);
+            UINT nChars = __sys_RealGetWindowClassW(hWnd, clsnm, ARRAYSIZE(clsnm));
+            if (nChars >= ARRAYSIZE(clsnm))
+                nChars = ARRAYSIZE(clsnm) - 1;
+            clsnm[nChars] = L'\0';
 
             // MS stupidly added a WS_CAPTION attribute to some hidden window that comes up with the Office splash screens -- but they don't actually
             // have any captions. When we replace the caption, Office doesn't like it and goes into an infinite loop calling SetWindowPos.

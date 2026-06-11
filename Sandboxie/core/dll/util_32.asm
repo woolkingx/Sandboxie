@@ -140,12 +140,15 @@ Ldr_Inject_Entry32@0        PROC C PUBLIC
     ; assumes the stack is zero
     ;
     
-    ; $Workaround$ - 3rd party fix
-    lea edi,[esp-200h]
+    ; F-Secure compatibility: clear the former injection frame only while
+    ; this stub owns that stack range.
+    sub esp,200h
+    mov edi,esp
     mov ecx,200h/4
     xor eax,eax
     cld
     rep stosd
+    add esp,200h
     
     ret
     

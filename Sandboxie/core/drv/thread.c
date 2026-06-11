@@ -528,10 +528,12 @@ _FX NTSTATUS Thread_MyImpersonateClient(
     // allow the calling thread to open any securable objects, not even
     // its own thread token
     //
-    // to work around this, we intentionally call PsImpersonateClient
-    // with SecurityIdentification so it can impersonate the specified
-    // token directly, and then we adjust the impersonation level stored
-    // in the thread object to SecurityImpersonation
+    // Sandboxie needs the original token to satisfy the syscall and then
+    // reverts the thread after dispatch. The supported API can downgrade this
+    // path to SecurityIdentification, so this compatibility shim calls
+    // PsImpersonateClient at that level, then updates the locally-known
+    // ETHREAD client-security field to the recorded level. If the dynamic
+    // offset cannot be verified against TokenObject, the path fails closed.
     //
     // see also Token_AssignPrimary
     //

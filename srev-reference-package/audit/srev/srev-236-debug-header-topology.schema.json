@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "DEBUG_HEADER_TOPOLOGY_CONTRACT",
+  "owner": "Sandboxie/core/dll/debug.h",
+  "related_owners": [
+    "Sandboxie/core/dll/debug.c",
+    "Sandboxie/core/dll/dllmain.c",
+    "Sandboxie/core/dll/SboxDll.vcxproj",
+    "docs/plan/ledger/srev-146.md"
+  ],
+  "status": "docs-only-source-topology-reviewed-needs-windows-dll-build-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/debugapi/nf-debugapi-isdebuggerpresent",
+    "https://learn.microsoft.com/en-us/windows/win32/api/debugapi/nf-debugapi-outputdebugstringw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-sleep",
+    "https://learn.microsoft.com/en-us/windows/win32/api/debugapi/nf-debugapi-debugbreak"
+  ],
+  "contracts": [
+    "debug.h is the DLL debug helper declaration header",
+    "The header may declare Debug_Wait conditionally declare Debug_Init and keep local debug-only break-image macros",
+    "The header does not own debugger wait policy config reads debug hook installation output formatting debugger event handling or DbgPrint DbgTrace buffer safety",
+    "Runtime behavior changes belong to debug.c dllmain.c or SboxDll.vcxproj depending on the transition",
+    "Future header changes must prove caller topology and concrete runtime owner before behavior claims"
+  ],
+  "runtime_gate": "Windows SboxDll build continues to compile debug.h and wire debug callers to debug.c; runtime behavior remains covered by existing and future concrete-owner SREV Windows gates."
+}

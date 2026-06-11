@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-270-file-msi-config-msi-query-directory-retry.schema.json",
+  "id": "FILE_MSI_CONFIG_MSI_QUERY_DIRECTORY_RETRY",
+  "title": "File MSI Config.Msi query directory retry",
+  "type": "object",
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/file.c"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 5
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 4
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/dll/file.c",
+  "contracts": [
+    "The retry is legal only for DLL_IMAGE_MSI_INSTALLER after STATUS_OBJECT_NAME_NOT_FOUND",
+    "The path match is the exact 17-WCHAR NT DOS-device path shape represented by Length == 34",
+    "Because CreateDirectory consumes a NUL-terminated path MaximumLength must prove room for the trailing NUL and the NUL must be present",
+    "The Config.Msi suffix comparison must be length-bounded and must not rely on _wcsicmp walking past Length",
+    "This SREV does not change the MSI image gate status gate target path shape default security attributes or retry count"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/ntdef/ns-ntdef-_unicode_string",
+    "https://learn.microsoft.com/en-us/windows/win32/devnotes/ntqueryattributesfile",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createdirectory",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntcreatefile"
+  ],
+  "runtime_gate": "Windows MSI install/repair smoke that probes \\\\??\\\\C:\\\\Config.Msi, creates the directory when missing, retries attributes successfully, and does not take the retry for non-MSI callers, non-Config.Msi paths, or non-NUL-terminated object names"
+}

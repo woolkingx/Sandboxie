@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "DRIVER_EVENT_LOG_ENTRY_SIZE_GATE",
+  "type": "object",
+  "required": [
+    "owner",
+    "data",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/drv/log.c"
+    },
+    "data": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "Sandboxie/core/drv/log.h"
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "event-log EntrySize must be proven strictly less than ERROR_LOG_MAXIMUM_SIZE before casting to UCHAR"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 4
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-ioallocateerrorlogentry",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_io_error_log_packet",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-iowriteerrorlogentry",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntstrsafe/nf-ntstrsafe-rtlstringcblengtha"
+  ],
+  "contracts": [
+    "log.c owns the driver event-log packet construction path",
+    "log.h is the driver logging API surface not the packet-size authority",
+    "IoAllocateErrorLogEntry is the kernel DDI boundary and accepts a UCHAR entry size",
+    "event-log EntrySize must be proven strictly less than ERROR_LOG_MAXIMUM_SIZE before casting to UCHAR",
+    "insertion strings must be null-terminated within the remaining packet budget before any copy into IO_ERROR_LOG_PACKET storage",
+    "RtlStringCbLengthW is the bounded local string-length gate for this path",
+    "oversize or unterminated insertion strings skip only the best-effort event-log record",
+    "does not change Sandboxie policy popup logging service wakeup message ids monitor logging or Api_AddMessage wire shape",
+    "Linux source gate is not Windows driver build or runtime proof"
+  ],
+  "owner": "Sandboxie/core/drv/log.c",
+  "data": [
+    "Sandboxie/core/drv/log.h",
+    "Sandboxie/core/drv/log.c",
+    "Log_Event_Msg",
+    "Log_Msg_Process",
+    "IO_ERROR_LOG_PACKET",
+    "IoAllocateErrorLogEntry",
+    "IoWriteErrorLogEntry",
+    "RtlStringCbLengthW",
+    "ERROR_LOG_MAXIMUM_SIZE",
+    "UCHAR EntrySize"
+  ],
+  "runtime_gate": "Windows WDK driver build, event-log insertion-string smoke, over-budget insertion-string smoke, and popup/service log regression smoke"
+}

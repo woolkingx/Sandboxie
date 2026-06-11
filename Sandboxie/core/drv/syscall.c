@@ -237,7 +237,7 @@ _FX BOOLEAN Syscall_Init_List(void)
         if (name[0] != 'Z' || name[1] != 'w')
             break;
         name += 2;                  // skip Zw prefix
-        for (name_len = 0; (name_len < 64) && name[name_len]; ++name_len)
+        for (name_len = 0; (name_len < SYSCALL_NAME_MAX_CHARS) && name[name_len]; ++name_len)
             ;
 
         //DbgPrint("    Found SysCall %s\n", name);
@@ -278,8 +278,9 @@ _FX BOOLEAN Syscall_Init_List(void)
               goto next_zwxxx;
 
 
-        // ICD-10607 - McAfee uses it to pass its own data in the stack. The call is not important to us. 
-        //if (    IS_PROC_NAME(14, "YieldExecution")) // $Workaround$ - 3rd party fix
+        // Historical disabled skip: McAfee used YieldExecution stack data for
+        // ICD-10607, but this branch is intentionally inactive.
+        //if (    IS_PROC_NAME(14, "YieldExecution"))
         //    goto next_zwxxx;
 
         //
@@ -288,7 +289,9 @@ _FX BOOLEAN Syscall_Init_List(void)
         // Vista, this particular syscall is not very important to us, so
         // for sake of consistency, we skip hooking it on all platforms
         //
-        //if (    IS_PROC_NAME(16,  "MapViewOfSection")) // $Workaround$ - 3rd party fix
+        // Historical disabled skip: Chrome wow_helper compatibility remains
+        // documented here, but this branch is intentionally inactive.
+        //if (    IS_PROC_NAME(16,  "MapViewOfSection"))
         //    goto next_zwxxx;
 
         //if (Syscall_HookMapMatch(name, name_len, &disabled_hooks))
@@ -554,10 +557,10 @@ _FX BOOLEAN Syscall_Set3(const UCHAR *name, P_Syscall_Handler3_Support_Procmon_S
 
 _FX void Syscall_ErrorForAsciiName(const UCHAR *name_a)
 {
-    WCHAR name_w[66];
+    WCHAR name_w[SYSCALL_NAME_LOG_CHARS];
     ULONG i;
 
-    for (i = 0; (i < 64) && name_a[i]; ++i)
+    for (i = 0; (i < SYSCALL_NAME_MAX_CHARS) && name_a[i]; ++i)
         name_w[i] = name_a[i];
     name_w[i] = '\0';
 
@@ -647,14 +650,14 @@ _FX NTSTATUS Syscall_Api_Invoke(PROCESS *proc, ULONG64 *parms)
             ANSI_STRING64* uni = (ANSI_STRING64*)parms[3];
             SIZE_T callNameLen = 0;
             UCHAR* callNameBuff = 0;
-            UCHAR callName[66];
+            UCHAR callName[SYSCALL_NAME_SLOT_BYTES];
 
             ProbeForRead(uni, sizeof(ANSI_STRING64), sizeof(ULONG_PTR));
             callNameLen = uni->Length;
             callNameBuff = (UCHAR*)uni->Buffer;
-            ProbeForRead(callNameBuff, callNameLen, sizeof(UCHAR));
-            if(callNameLen >= sizeof(callName))
+            if(callNameLen > SYSCALL_NAME_MAX_CHARS)
                 ExRaiseStatus(STATUS_INVALID_PARAMETER_3);
+            ProbeForRead(callNameBuff, callNameLen, sizeof(UCHAR));
             memcpy(callName, callNameBuff, callNameLen);
             callName[callNameLen] = '\0';
 
@@ -924,8 +927,9 @@ _FX NTSTATUS Syscall_Api_Invoke(PROCESS *proc, ULONG64 *parms)
     // clear any thread impersonation set during the syscall, to restore
     // use of the highly restricted primary token in this thread
     //
-    // note that in one special case we leave the impersonation token as
-    // was set by Thread_SetInformationThread_ChangeNotifyToken, see there
+    // SREV-341: only the current-thread SetInformationThread sentinel from
+    // Thread_SetInformationThread_ChangeNotifyToken keeps impersonation
+    // active across the syscall return path.
     //
 
     if (status == STATUS_THREAD_NOT_IN_PROCESS
@@ -984,7 +988,7 @@ _FX NTSTATUS Syscall_Api_Query(PROCESS *proc, ULONG64 *parms)
     buf_len = sizeof(ULONG)         // size of buffer
             + sizeof(ULONG)         // offset to extra data (for SbieSvc)
             + (NATIVE_FUNCTION_SIZE * NATIVE_FUNCTION_COUNT) // saved code from ntdll
-            + List_Count(&Syscall_List) * ((sizeof(ULONG) * 2) + (add_names ? 64 : 0))
+            + List_Count(&Syscall_List) * ((sizeof(ULONG) * 2) + (add_names ? SYSCALL_NAME_SLOT_BYTES : 0))
             + sizeof(ULONG) * 2     // final terminator entry
             ;
 
@@ -1032,7 +1036,7 @@ _FX NTSTATUS Syscall_Api_Query(PROCESS *proc, ULONG64 *parms)
         if (add_names) {
             memcpy(ptr, entry->name, entry->name_len);
             ((char*)ptr)[entry->name_len] = 0;
-            ptr += 16; // 16 * sizeog(ULONG) = 64
+            ptr += SYSCALL_NAME_SLOT_ULONGS;
         }
     }
 
@@ -1096,7 +1100,7 @@ _FX BOOLEAN Syscall_QuerySystemInfo_SupportProcmonStack(
     // and PspSetContextThreadInternal (Warbird operation?) to deliver a apc call in the current
     // thread in user mode. Warbird needs the real thread context.
     // https://github.com/xpn/warbird_exploit
-    // this exploit only works on x86 windows but can still crash a x64 one
+    // this exploit only works on x86 windows but can still destabilize x64 context
 
     // It seems only NtQuerySystemInfomation is doing this.
     // Call Syscall_Set3 in Syscall_Init if we see a different syscall does this in the future.

@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-025-samr-set-security-object.schema.json",
+  "title": "SREV-025 SAMR SetSecurityObject trusted Sandboxie image gate",
+  "id": "SAMR_SET_SECURITY_OBJECT_GATE",
+  "owner": "Sandboxie/core/drv/ipc_sam.c",
+  "type": "object",
+  "properties": {
+    "ms_samr_shape": {
+      "type": "string",
+      "description": "MS-SAMR opnum 2 SamrSetSecurityObject sets access control on a SAM server, domain, user, group, or alias object; it is a security-descriptor update, not a read-only query"
+    },
+    "endpoint_filter_topology": {
+      "type": "string",
+      "description": "Sandboxie filters SAM RPC messages at \\RPC Control\\samss lpc before reaching SAM; mutating SAM methods are denied; query/open methods are allowed"
+    },
+    "image_sbie_marker": {
+      "type": "string",
+      "description": "proc->image_sbie is true only when the process image path is under the Sandboxie install directory"
+    },
+    "exception_scope": {
+      "type": "string",
+      "description": "SamrSetSecurityObject is allowed only when proc->image_sbie is true; all other sandboxed callers fall through to the mutating-SAM deny list"
+    },
+    "deny_invariant": {
+      "type": "string",
+      "description": "Existing mutating SAM opnums (SamSetInformationDomain, SamCreateGroupInDomain, SamCreateUserInDomain, SamCreateAliasInDomain, ...) remain denied; read/query opnums remain unaffected"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate: SandboxieCrypto.exe completes SAM operation needing opnum 2; non-Sandboxie sandboxed process still denied on opnum 2; existing blocked SAM mutation opnums remain denied; read/query unaffected"
+    }
+  },
+  "required": [
+    "ms_samr_shape",
+    "endpoint_filter_topology",
+    "image_sbie_marker",
+    "exception_scope",
+    "deny_invariant",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "SamrSetSecurityObject is denied for ordinary sandboxed clients",
+    "SamrSetSecurityObject is allowed only when proc->image_sbie is true",
+    "image_sbie is not user-settable; it is derived from image path under Sandboxie install directory",
+    "Blanket allow of opnum 2 is rejected as too broad"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-samr/6666a066-58cf-4118-bf4b-dd54ed55ecf0",
+    "https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-samr/8aaff2f7-1edd-41a0-ab58-4807ac6124c5"
+  ]
+}

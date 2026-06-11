@@ -62,7 +62,7 @@ HMODULE Dll_Ntdll = NULL;
 HMODULE Dll_Kernel32 = NULL;
 HMODULE Dll_KernelBase = NULL;
 HMODULE Dll_Win32u = NULL;
-// $Workaround$ - 3rd party fix
+// Digital Guardian module-presence flag; not a reference owner.
 HMODULE Dll_DigitalGuardian = NULL;
 
 const WCHAR *Dll_BoxName = NULL;
@@ -98,7 +98,8 @@ BOOLEAN Dll_IsWow64 = FALSE;
 #endif
 #ifdef _M_ARM64EC
 BOOLEAN Dll_IsArm64ec = FALSE;
-void* Dll_xtajit64 = NULL;
+UINT_PTR Dll_xtajit64 = 0;
+UINT_PTR Dll_xtajit64_End = 0;
 #endif
 #ifndef _WIN64
 BOOLEAN Dll_IsXtAjit = FALSE;
@@ -176,7 +177,8 @@ _FX BOOL WINAPI DllMain(
 
     } else if (dwReason == DLL_PROCESS_ATTACH) {
 
-        // $Workaround$ - 3rd party fix
+        // Seed Digital Guardian presence if its DLL is already mapped before
+        // Sandboxie's loader callback observes it.
 #ifdef _WIN64
         Dll_DigitalGuardian = GetModuleHandleA("DgApi64.dll");
 #else
@@ -927,7 +929,20 @@ _FX VOID Dll_Ordinal1(INJECT_DATA * inject)
 #endif
 #ifdef _M_ARM64EC
     Dll_IsArm64ec = data->flags.is_arm64ec == 1; // x64 on arm64
-	Dll_xtajit64 = GetModuleHandle(L"xtajit64.dll");
+    Dll_xtajit64 = (UINT_PTR)GetModuleHandle(L"xtajit64.dll");
+    Dll_xtajit64_End = 0;
+    if (Dll_xtajit64) {
+        PIMAGE_DOS_HEADER dosHeader = (PIMAGE_DOS_HEADER)Dll_xtajit64;
+        if (dosHeader->e_magic == IMAGE_DOS_SIGNATURE) {
+            PIMAGE_NT_HEADERS64 ntHeader =
+                (PIMAGE_NT_HEADERS64)(Dll_xtajit64 + dosHeader->e_lfanew);
+            if (ntHeader->Signature == IMAGE_NT_SIGNATURE &&
+                    ntHeader->OptionalHeader.SizeOfImage &&
+                    Dll_xtajit64 + ntHeader->OptionalHeader.SizeOfImage > Dll_xtajit64) {
+                Dll_xtajit64_End = Dll_xtajit64 + ntHeader->OptionalHeader.SizeOfImage;
+            }
+        }
+    }
 #endif
 #ifndef _WIN64
     Dll_IsXtAjit = data->flags.is_xtajit == 1; // x86 on arm64
@@ -957,11 +972,9 @@ _FX VOID Dll_Ordinal1(INJECT_DATA * inject)
         }
 
         //
-        // workaround for Program Compatibility Assistant (PCA), we have
-        // to start a second instance of this process outside the PCA job,
-        // see also Proc_RestartProcessOutOfPcaJob
-        // 
-		// note: restart fails if running as AppContainer
+        // SREV-085 owns this PCA job restart topology.  Processes already in a
+        // PCA job are replaced through SbieSvc before Sandboxie job attach;
+        // AppContainer processes skip this restart path.
         //
 
         int MustRestartProcess = 0;

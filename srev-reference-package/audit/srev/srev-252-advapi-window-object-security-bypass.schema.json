@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-252-advapi-window-object-security-bypass.schema.json",
+  "id": "ADVAPI_WINDOW_OBJECT_SECURITY_BYPASS",
+  "title": "Advapi window object security bypass",
+  "type": "object",
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/advapi.c"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 6
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 3
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/dll/advapi.c",
+  "contracts": [
+    "SetSecurityInfo sets security information for an object identified by a handle",
+    "SE_WINDOW_OBJECT is the object type for window stations and desktops",
+    "Sandboxie Chrome compatibility bypass returns ERROR_SUCCESS only for Chrome SE_WINDOW_OBJECT calls with a null handle",
+    "AdvApi_SetSecurityInfo and Ntmarta_SetSecurityInfo must keep the same bypass predicate until Windows Chrome runtime proof supports narrowing it",
+    "GetSecurityInfo dummy-window-station DACL fallback remains owned by SREV-116 and SREV-126 adjacency",
+    "This SREV does not change DACL mutation behavior handle ownership hook selection ntmarta forwarding or Chrome image detection"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-setsecurityinfo",
+    "https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-getsecurityinfo",
+    "https://learn.microsoft.com/en-us/windows/desktop/api/AccCtrl/ne-accctrl-se_object_type"
+  ],
+  "runtime_gate": "Windows Chrome 38 or compatible Chrome sandbox launch matrix capturing SetSecurityInfo arguments before predicate narrowing"
+}

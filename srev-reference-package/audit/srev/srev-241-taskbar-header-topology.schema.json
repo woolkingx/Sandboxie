@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "TASKBAR_HEADER_TOPOLOGY_CONTRACT",
+  "owner": "Sandboxie/core/dll/taskbar.h",
+  "related_owners": [
+    "Sandboxie/core/dll/taskbar.c",
+    "Sandboxie/core/dll/sh.c",
+    "Sandboxie/core/dll/gui.c",
+    "Sandboxie/core/dll/guidlg.c",
+    "Sandboxie/core/dll/ldr.c",
+    "Sandboxie/core/dll/dll.h",
+    "docs/plan/ledger/srev-004.md",
+    "docs/plan/ledger/srev-228.md"
+  ],
+  "status": "docs-only-source-topology-reviewed-needs-windows-dll-build-proof",
+  "official_references": [
+    "docs/plan/srev-004-taskbar-appid-process-parameters.md",
+    "docs/plan/srev-228-taskbar-property-store-query-interface.md"
+  ],
+  "contracts": [
+    "taskbar.h is the declaration header for shell taskbar entry points used by shell and GUI hook modules",
+    "taskbar.c owns the implementation hook installation AppUserModelID state property-store wrapper COM behavior and Shell property rewriting",
+    "sh.c gui.c and guidlg.c are legal local callers for the functions declared by taskbar.h",
+    "Taskbar_SHCore_Init is intentionally declared in dll.h not taskbar.h because loader initialization uses the central DLL init table",
+    "Behavior changes must target taskbar.c or the concrete caller loader owner not the declaration header",
+    "SREV-004 and SREV-228 remain the concrete behavior owners for existing AppUserModelID and IPropertyStore fixes"
+  ],
+  "runtime_gate": "Windows DLL build continues to compile taskbar.h and wire taskbar lifecycle through sh.c, ldr.c, gui.c, guidlg.c, and taskbar.c; runtime behavior remains covered by existing and future concrete-owner SREV Windows gates."
+}

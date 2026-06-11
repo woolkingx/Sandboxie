@@ -1,0 +1,326 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-092-322-user-lifecycle-runtime-capture.schema.json",
+  "title": "SREV-092/SREV-322 user lifecycle runtime capture evidence",
+  "id": "USER_LIFECYCLE_RUNTIME_CAPTURE_EVIDENCE",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "record_id",
+    "windows_build",
+    "architecture",
+    "sandboxie_commit",
+    "box_name",
+    "process_image",
+    "capture_tool",
+    "timestamp_utc",
+    "test_case_id",
+    "feature_path",
+    "route_result",
+    "msi_lifecycle",
+    "werfault_lifecycle",
+    "negative_control",
+    "evidence"
+  ],
+  "properties": {
+    "record_id": {"type": "string"},
+    "windows_build": {"type": "string"},
+    "architecture": {
+      "type": "string",
+      "enum": ["x86", "x64", "wow64", "arm64"]
+    },
+    "sandboxie_commit": {"type": "string"},
+    "box_name": {"type": "string"},
+    "process_image": {"type": "string"},
+    "capture_tool": {"type": "string"},
+    "timestamp_utc": {"type": "string"},
+    "test_case_id": {"type": "string"},
+    "feature_path": {
+      "type": "string",
+      "enum": ["msi-last-user-event", "werfault-localdumps-boundary", "combined"]
+    },
+    "route_result": {
+      "type": "string",
+      "enum": [
+        "msi-event-held",
+        "msi-event-released",
+        "msi-server-exited",
+        "msi-server-kept-alive",
+        "werfault-first-resumed",
+        "werfault-duplicate-terminated",
+        "werfault-nonmatch-resumed",
+        "negative-control-passed",
+        "combined"
+      ]
+    },
+    "msi_lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entry_path",
+        "client_shape",
+        "module_lifecycle",
+        "event_lifecycle",
+        "msi_handle_lifecycle",
+        "msiserver_lifecycle"
+      ],
+      "properties": {
+        "entry_path": {
+          "type": "string",
+          "enum": ["install", "repair", "uninstall", "advertised-repair", "custom-action", "negative-control", "not_applicable"]
+        },
+        "client_shape": {
+          "type": "string",
+          "enum": ["one-client", "multiple-concurrent-clients", "nested-custom-action", "early-client-crash", "non-msi-process", "not_applicable"]
+        },
+        "module_lifecycle": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "msi_dll_load_notification",
+            "msi_dll_unload_notification",
+            "ldr_load_state",
+            "ldr_unload_state",
+            "scm_msidll_call_count"
+          ],
+          "properties": {
+            "msi_dll_load_notification": {"type": "boolean"},
+            "msi_dll_unload_notification": {"type": "boolean"},
+            "ldr_load_state": {"type": "string"},
+            "ldr_unload_state": {"type": "string"},
+            "scm_msidll_call_count": {"type": "integer", "minimum": 0}
+          }
+        },
+        "event_lifecycle": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "create_event_result",
+            "client_event_handle_open",
+            "client_event_handle_close",
+            "msiserver_open_event_success",
+            "msiserver_open_event_failure",
+            "closehandle_msi_server_in_use_event"
+          ],
+          "properties": {
+            "create_event_result": {"type": "string"},
+            "client_event_handle_open": {"type": "boolean"},
+            "client_event_handle_close": {"type": "boolean"},
+            "msiserver_open_event_success": {"type": "boolean"},
+            "msiserver_open_event_failure": {"type": "boolean"},
+            "closehandle_msi_server_in_use_event": {"type": "boolean"}
+          }
+        },
+        "msi_handle_lifecycle": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "msi_open_package",
+            "msi_open_product",
+            "msi_get_active_database",
+            "msi_database_open_view",
+            "msi_view_fetch",
+            "msi_close_handle",
+            "cross_thread_handle_owner",
+            "msi_close_all_handles_diagnostic_count"
+          ],
+          "properties": {
+            "msi_open_package": {"type": "boolean"},
+            "msi_open_product": {"type": "boolean"},
+            "msi_get_active_database": {"type": "boolean"},
+            "msi_database_open_view": {"type": "boolean"},
+            "msi_view_fetch": {"type": "boolean"},
+            "msi_close_handle": {"type": "boolean"},
+            "cross_thread_handle_owner": {"type": "boolean"},
+            "msi_close_all_handles_diagnostic_count": {"type": "integer", "minimum": 0}
+          }
+        },
+        "msiserver_lifecycle": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sandboxed_msiserver_start",
+            "waiter_poll_count",
+            "last_user_exit_observed",
+            "non_exit_while_installer_handle_active",
+            "non_exit_while_custom_action_active"
+          ],
+          "properties": {
+            "sandboxed_msiserver_start": {"type": "boolean"},
+            "waiter_poll_count": {"type": "integer", "minimum": 0},
+            "last_user_exit_observed": {"type": "boolean"},
+            "non_exit_while_installer_handle_active": {"type": "boolean"},
+            "non_exit_while_custom_action_active": {"type": "boolean"}
+          }
+        }
+      }
+    },
+    "werfault_lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "wer_configuration",
+        "sandbox_configuration",
+        "crash_source",
+        "werfault_path",
+        "dump_output",
+        "handle_semantics"
+      ],
+      "properties": {
+        "wer_configuration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "global_localdumps",
+            "per_application_localdumps",
+            "dump_folder",
+            "dump_count",
+            "dump_type",
+            "custom_dump_flags",
+            "folder_acl",
+            "wer_disabled",
+            "automatic_debugger_configured",
+            "missing_localdumps_keys"
+          ],
+          "properties": {
+            "global_localdumps": {"type": "boolean"},
+            "per_application_localdumps": {"type": "boolean"},
+            "dump_folder": {"type": "string"},
+            "dump_count": {"type": "integer", "minimum": 0},
+            "dump_type": {"type": "string"},
+            "custom_dump_flags": {"type": "string"},
+            "folder_acl": {"type": "string"},
+            "wer_disabled": {"type": "boolean"},
+            "automatic_debugger_configured": {"type": "boolean"},
+            "missing_localdumps_keys": {"type": "boolean"}
+          }
+        },
+        "sandbox_configuration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enable_minidump", "box_class", "dump_folder_write_blocked"],
+          "properties": {
+            "enable_minidump": {"type": "boolean"},
+            "box_class": {
+              "type": "string",
+              "enum": ["default-box", "restricted-token-box", "blocked-write-box", "not_applicable"]
+            },
+            "dump_folder_write_blocked": {"type": "boolean"}
+          }
+        },
+        "crash_source": {
+          "type": "string",
+          "enum": ["deterministic-native-crash", "repeated-crash-same-box", "custom-crash-reporter", "non-crashing-child", "werfault-outside-predicate", "not_applicable"]
+        },
+        "werfault_path": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "first_process_id",
+            "duplicate_process_ids",
+            "exact_predicate_match",
+            "resume_thread_result",
+            "terminate_process_result",
+            "wait_result",
+            "exit_code",
+            "sbie_log_2224",
+            "duplicate_state_flag"
+          ],
+          "properties": {
+            "first_process_id": {"type": "integer", "minimum": 0},
+            "duplicate_process_ids": {"type": "array", "items": {"type": "integer", "minimum": 0}},
+            "exact_predicate_match": {"type": "boolean"},
+            "resume_thread_result": {"type": "integer"},
+            "terminate_process_result": {"type": "boolean"},
+            "wait_result": {"type": "string"},
+            "exit_code": {"type": "string"},
+            "sbie_log_2224": {"type": "boolean"},
+            "duplicate_state_flag": {"type": "boolean"}
+          }
+        },
+        "dump_output": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "dump_path",
+            "dump_count_observed",
+            "timestamp_order",
+            "dump_type_observed",
+            "process_identity",
+            "dumpcount_replacement_observed",
+            "no_dump_reason"
+          ],
+          "properties": {
+            "dump_path": {"type": "string"},
+            "dump_count_observed": {"type": "integer", "minimum": 0},
+            "timestamp_order": {"type": "string"},
+            "dump_type_observed": {"type": "string"},
+            "process_identity": {"type": "string"},
+            "dumpcount_replacement_observed": {"type": "boolean"},
+            "no_dump_reason": {"type": "string"}
+          }
+        },
+        "handle_semantics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "process_handle_valid",
+            "thread_handle_valid",
+            "get_exit_code_process_result",
+            "wait_for_single_object_result",
+            "close_handle_result",
+            "path_class"
+          ],
+          "properties": {
+            "process_handle_valid": {"type": "boolean"},
+            "thread_handle_valid": {"type": "boolean"},
+            "get_exit_code_process_result": {"type": "string"},
+            "wait_for_single_object_result": {"type": "string"},
+            "close_handle_result": {"type": "string"},
+            "path_class": {
+              "type": "string",
+              "enum": ["first-werfault", "duplicate-werfault", "non-werfault", "failure-path", "not_applicable"]
+            }
+          }
+        }
+      }
+    },
+    "negative_control": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "expected_result", "observed_result", "passed"],
+      "properties": {
+        "name": {"type": "string"},
+        "expected_result": {"type": "string"},
+        "observed_result": {"type": "string"},
+        "passed": {"type": "boolean"}
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event_trace",
+        "process_trace",
+        "loader_trace",
+        "msi_api_trace",
+        "wer_dump_snapshot",
+        "sandboxie_log",
+        "handle_readback",
+        "json_record_path",
+        "notes"
+      ],
+      "properties": {
+        "event_trace": {"type": "string"},
+        "process_trace": {"type": "string"},
+        "loader_trace": {"type": "string"},
+        "msi_api_trace": {"type": "string"},
+        "wer_dump_snapshot": {"type": "string"},
+        "sandboxie_log": {"type": "string"},
+        "handle_readback": {"type": "string"},
+        "json_record_path": {"type": "string"},
+        "notes": {"type": "string"}
+      }
+    }
+  }
+}

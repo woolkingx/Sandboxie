@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-013-relative-symlink-canonicalizer.schema.json",
+  "title": "SREV-013 relative symlink canonicalizer shape",
+  "id": "RELATIVE_SYMLINK_CANONICALIZER_SHAPE",
+  "owner": "Sandboxie/core/dll/file_dir.c",
+  "type": "object",
+  "properties": {
+    "mscc_symlink_shape": {
+      "type": "string",
+      "description": "MS-FSCC symbolic-link reparse buffer permits a relative substitute name; either pathname may contain dot directory names; SubstituteNameLength is the only legal length source"
+    },
+    "input_buffer_invariant": {
+      "type": "string",
+      "description": "File_CanonizePath treats relative_path as a length-bounded buffer of rel_path_len WCHARs and never reads past that bound"
+    },
+    "bounds_owner": {
+      "type": "string",
+      "description": "Dot-segment detection uses explicit `i + 1 < rel_path_len` and `i + 2 < rel_path_len` checks before reading relative_path[i+1] or relative_path[i+2]"
+    },
+    "root_floor_invariant": {
+      "type": "string",
+      "description": "root_floor is computed from absolute_path leading `\\` or drive letter; parent traversal stops at root_floor and returns NULL if `..` would climb above it"
+    },
+    "fail_closed_invariant": {
+      "type": "string",
+      "description": "File_SetReparsePoint fails closed when relative symlink canonicalization cannot produce an absolute path"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate: relative symlinks with normal, dot, and dotdot segments canonicalize correctly; one-character or excessive .. inputs fail closed"
+    }
+  },
+  "required": [
+    "mscc_symlink_shape",
+    "input_buffer_invariant",
+    "bounds_owner",
+    "root_floor_invariant",
+    "fail_closed_invariant",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Relative symlink substitute name length is SubstituteNameLength bytes; no trailing NUL is guaranteed",
+    "File_CanonizePath uses unsigned index i bounded by `i < rel_path_len` for all reads",
+    "Multi-character dot patterns read relative_path[i+1] and relative_path[i+2] only when `i + 1 < rel_path_len` and `i + 2 < rel_path_len`",
+    "Parent traversal stops at root_floor; climbing above root_floor returns NULL",
+    "Output buffer size is (abs_path_len + rel_path_len + 1) * sizeof(WCHAR)"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/b41f1cbf-10df-4a47-98d4-1c52a833d913"
+  ]
+}

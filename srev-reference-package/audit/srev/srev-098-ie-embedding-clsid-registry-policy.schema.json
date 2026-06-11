@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-098-ie-embedding-clsid-registry-policy.schema.json",
+  "title": "SREV-098 IE embedding CLSID registry policy",
+  "id": "IE_EMBEDDING_CLSID_REGISTRY_POLICY",
+  "owner": "Sandboxie/core/drv/key_flt.c",
+  "type": "object",
+  "properties": {
+    "registry_callback": {
+      "type": "string",
+      "description": "Vista+ CmRegisterCallbackEx create/open pre-notification policy surface"
+    },
+    "com_clsid": {
+      "type": "string",
+      "description": "InternetExplorer COM CLSID lookup denied by the policy"
+    },
+    "caller_gate": {
+      "type": "string",
+      "description": "Host-side process allowlist where proc is NULL"
+    },
+    "force_process_boundary": {
+      "type": "string",
+      "description": "Registry lookup denial is separate from process-launch forcing"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows Office/IE COM activation runtime proof"
+    }
+  },
+  "required": [
+    "registry_callback",
+    "com_clsid",
+    "caller_gate",
+    "force_process_boundary",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Key_Callback handles only RegNtPreCreateKeyEx and RegNtPreOpenKeyEx for this policy",
+    "BlockIEEmbedding is a registry lookup denial policy, not a process launch owner",
+    "the denied key is the local InternetExplorer CLSID",
+    "the policy applies only to selected host callers where proc is NULL",
+    "the selected host callers are winword.exe, powerpnt.exe, excel.exe, explorer.exe, and svchost.exe",
+    "the policy returns STATUS_ACCESS_DENIED before ordinary sandbox key redirection",
+    "SearchUnicodeString is the CompleteName matcher and remains null-safe",
+    "normal sandboxed registry redirection remains owned by Key_MyParseProc_2"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/registering-for-notifications",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/handling-notifications",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ne-wdm-_reg_notify_class",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_reg_create_key_information_v1",
+    "https://learn.microsoft.com/en-us/windows/win32/com/registering-com-servers",
+    "https://learn.microsoft.com/en-us/windows/win32/com/localserver32",
+    "https://learn.microsoft.com/en-us/windows/win32/com/inprocserver32",
+    "https://learn.microsoft.com/en-us/windows/win32/api/exdisp/nn-exdisp-iwebbrowser2"
+  ]
+}

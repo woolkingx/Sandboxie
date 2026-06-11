@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-056-file-del-path-tree-buffer.schema.json",
+  "title": "SREV-056 file delete path tree buffer boundary contract",
+  "id": "FILE_DEL_PATH_TREE_BUFFER",
+  "api": "File_SavePathTree_internal",
+  "owner": "Sandboxie/core/dll/file_del.c",
+  "type": "object",
+  "properties": {
+    "path_buffer": {
+      "type": "string",
+      "description": "Fixed temporary WCHAR path buffer"
+    },
+    "path_capacity": {
+      "type": "integer",
+      "const": 32768,
+      "description": "0x7FFF + 1 WCHAR capacity"
+    },
+    "path_node": {
+      "type": "string",
+      "description": "PATH_NODE component appended during recursive serialization"
+    },
+    "translated_path": {
+      "type": "string",
+      "description": "Allocated DOS-style path returned by File_TranslateNtToDosPathForDatFile"
+    }
+  },
+  "required": [
+    "path_buffer",
+    "path_capacity",
+    "path_node",
+    "translated_path"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "The path tree serializer owns a fixed 0x7FFF + 1 WCHAR buffer",
+    "A recursive slash append is legal only when Length + 1 is below PathCapacity",
+    "A child component append is legal only when the component plus NUL fits in PathCapacity",
+    "The path buffer allocation must be checked before recursion",
+    "Translation requires a non-null non-empty NUL-terminated NtPath",
+    "The DOS path allocation must be checked before wcscpy, wcschr, or wmemmove"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/cpp/c-runtime-library/unicode-the-wide-character-set",
+    "https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/strchr-wcschr-mbschr-mbschr-l",
+    "https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/memmove-wmemmove"
+  ]
+}

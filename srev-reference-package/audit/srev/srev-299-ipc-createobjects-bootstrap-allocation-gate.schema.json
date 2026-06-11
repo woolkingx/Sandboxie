@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "IPC_CREATEOBJECTS_BOOTSTRAP_ALLOCATION_GATE",
+  "title": "IPC CreateObjects bootstrap allocation gate",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/ipc.c",
+  "stage": "schema -> boundary -> topology -> logic -> verify",
+  "source_function": "Ipc_CreateObjects",
+  "contracts": [
+    "Ipc_CreateObjects owns local bootstrap storage and dummy event handle cleanup",
+    "buffer, BNOLINKS, buffer2, and GLOBAL must be allocation-proven before string writes",
+    "the dummy event handle must be closed on normal and failure exits",
+    "SbieApi_CreateDirOrLink owns the driver-side directory or symbolic-link creation request",
+    "SREV-037 must accept the box-level BNOLINKS bootstrap auxiliary path without broadening normal IPC path creation",
+    "the broader symbolic-link reparse design remains a separate runtime design gate"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/object-directories",
+    "https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createeventw",
+    "https://learn.microsoft.com/en-us/windows/win32/sysinfo/kernel-objects",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntqueryobject",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-iocreatesymboliclink"
+  ],
+  "local_edges": [
+    "CreateEvent dummy object -> Ipc_GetName -> CopyPath",
+    "CopyPath -> SbieApi_CreateDirOrLink main directory",
+    "CopyPath -> box-level BNOLINKS -> SbieApi_CreateDirOrLink link topology",
+    "Global Local Session buffers -> symbolic-link creation requests",
+    "SREV-037 -> driver-side counted-string and boxed-path owner",
+    "SREV-299 -> DLL-side bootstrap allocation and handle cleanup owner"
+  ],
+  "runtime_gate": "Windows IPC namespace bootstrap, Ipc_GetName failure, and allocation-failure injection; symbolic-link reparse design remains open",
+  "status": "patched-source-level-local-bootstrap-allocation-gate-needs-windows-runtime-proof"
+}

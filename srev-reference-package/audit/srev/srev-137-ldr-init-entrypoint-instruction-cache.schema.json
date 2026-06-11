@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-137-ldr-init-entrypoint-instruction-cache.schema.json",
+  "title": "SREV-137 Ldr init entrypoint instruction cache coherency",
+  "id": "LDR_INIT_ENTRYPOINT_INSTRUCTION_CACHE_COHERENCY",
+  "owner": "Sandboxie/core/dll/ldr_init.c",
+  "type": "object",
+  "properties": {
+    "initial_patch": {
+      "type": "string",
+      "description": "Ldr_Inject_Init writes architecture-specific executable entrypoint stub bytes"
+    },
+    "restore_patch": {
+      "type": "string",
+      "description": "Ldr_Inject_Entry restores the saved original executable entrypoint bytes"
+    },
+    "mutated_range": {
+      "type": "string",
+      "description": "entrypoint plus LDR_INJECT_NUM_SAVE_BYTES"
+    },
+    "flush_gate": {
+      "type": "string",
+      "description": "NtFlushInstructionCache covers the mutated entrypoint range after code bytes are written"
+    },
+    "policy_invariant": {
+      "type": "string",
+      "description": "Patch bytes, entrypoint routing, host-injection policy, and DLL loading order are unchanged"
+    }
+  },
+  "required": [
+    "initial_patch",
+    "restore_patch",
+    "mutated_range",
+    "flush_gate",
+    "policy_invariant"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "VirtualProtect changes committed page protection but does not by itself prove instruction-cache coherency",
+    "Generated or modified executable code must be followed by FlushInstructionCache",
+    "Ldr_Inject_Init must flush entrypoint, LDR_INJECT_NUM_SAVE_BYTES after writing the architecture-specific entrypoint stub",
+    "Ldr_Inject_Entry must flush entrypoint, LDR_INJECT_NUM_SAVE_BYTES after restoring saved original bytes and restoring page protection",
+    "The entrypoint mutation range remains LDR_INJECT_NUM_SAVE_BYTES on ARM64, x64, and x86",
+    "This SREV does not change entrypoint patch bytes, entrypoint address calculation, host-injection policy, F-Secure stack-zero compatibility, or DLL loading order"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualprotect",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-flushinstructioncache"
+  ]
+}

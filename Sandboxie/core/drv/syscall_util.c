@@ -79,9 +79,9 @@ _FX int Syscall_HookMapMatch(const UCHAR *name, ULONG name_len, LIST *list)
     PATTERN* pat;
     int match_len = 0;
 
-    WCHAR wname[68];
+    WCHAR wname[SYSCALL_NAME_LOG_CHARS];
     ULONG i;
-    for (i = 0; i < min(name_len, 64); i++)
+    for (i = 0; i < min(name_len, SYSCALL_NAME_MAX_CHARS); i++)
         wname[i] = name[i];
     wname[i] = 0;
 

@@ -81,7 +81,18 @@ _FX BOOLEAN Box_IsValidName(const WCHAR *name)
 
 _FX BOX *Box_Alloc(POOL *pool, const WCHAR *boxname, ULONG session_id)
 {
-    BOX *box = Mem_Alloc(pool, sizeof(BOX));
+    NTSTATUS status;
+    BOX *box;
+
+    if ((! boxname) || (! Box_IsValidName(boxname))) {
+
+        Log_Status_Ex_Session(
+            MSG_BOX_CREATE, 0x14, STATUS_INVALID_PARAMETER,
+            boxname ? L"(invalid)" : L"(null)", session_id);
+        return NULL;
+    }
+
+    box = Mem_Alloc(pool, sizeof(BOX));
     if (! box) {
 
         Log_Status_Ex_Session(
@@ -92,7 +103,12 @@ _FX BOX *Box_Alloc(POOL *pool, const WCHAR *boxname, ULONG session_id)
 
     memzero(box, sizeof(BOX));
 
-    wcscpy(box->name, boxname);
+    status = RtlStringCchCopyW(box->name, BOXNAME_COUNT, boxname);
+    if (! NT_SUCCESS(status)) {
+        Log_Status_Ex_Session(MSG_BOX_CREATE, 0x15, status, boxname, session_id);
+        Box_Free(box);
+        return NULL;
+    }
     box->name_len = (wcslen(box->name) + 1) * sizeof(WCHAR);
 
     return box;

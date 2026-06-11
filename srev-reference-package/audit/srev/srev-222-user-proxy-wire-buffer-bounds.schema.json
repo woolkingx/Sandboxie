@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "USER_PROXY_WIRE_BUFFER_BOUNDS",
+  "owners": [
+    "Sandboxie/core/svc/UserServer.cpp",
+    "Sandboxie/core/svc/UserWire.h",
+    "Sandboxie/core/dll/file.c"
+  ],
+  "status": "patched-source-level-after-official-unicode-string-ntcreatefile-shell-execute-wire-bound-review-needs-windows-runtime-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/subauth/ns-subauth-unicode_string",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtlinitstring",
+    "https://learn.microsoft.com/en-us/windows/win32/api/ntdef/nf-ntdef-initializeobjectattributes",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntcreatefile",
+    "https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shellexecuteexw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/shellapi/ns-shellapi-shellexecuteinfow"
+  ],
+  "contracts": [
+    "Queue request data is caller-controlled wire data until the user proxy validates the request length and offsets",
+    "QueueCallbackWorker2 may read a msgid only after data_len is at least sizeof(ULONG)",
+    "USER_OPEN_FILE_REQ FileNameOffset must point inside the received request buffer after the fixed header on a WCHAR boundary to a contained NUL-terminated string",
+    "USER_SHELL_EXEC_REQ FileNameOffset must point inside the received request buffer after the fixed header on a WCHAR boundary to a contained NUL-terminated string",
+    "USER_OPEN_FILE_REQ EaBufferOffset is optional, but a nonzero EA buffer range must stay inside the received request buffer",
+    "File_NtCreateFileProxy copies exactly ObjectName Length bytes from the counted UNICODE_STRING source and synthesizes the NUL terminator locally",
+    "The fix does not change EFS policy, path-list matching, queue ownership, requested access, shell verb choice, or broker handle duplication"
+  ],
+  "runtime_gate": "Windows service/DLL build, malformed USERPROXY queue request smokes for short msgid/path/EA ranges, and positive EFS USER_OPEN_FILE plus BreakoutDocument smokes."
+}

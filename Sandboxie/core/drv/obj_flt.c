@@ -179,11 +179,11 @@ _FX OB_PREOP_CALLBACK_STATUS Obj_PreOperationCallback(
     _In_ PVOID RegistrationContext, _Inout_ POB_PRE_OPERATION_INFORMATION PreInfo)
 {
     //
-    // Filter only if request made outside of the kernel
+    // Skip kernel-handle callbacks. Non-kernel process/thread handles still
+    // pass through DesiredAccess policy before the handle is granted.
     //
 
-    //if (ExGetPreviousMode() == KernelMode)
-    if (PreInfo->KernelHandle == 1)
+    if (PreInfo->KernelHandle)
         return OB_PREOP_SUCCESS;
 
     //

@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "DRIVERASSIST_INJECT_PROCESS_HANDLE_STATE",
+  "title": "DriverAssist InjectLow process handle state",
+  "type": "object",
+  "required": [
+    "owner",
+    "severity",
+    "contracts",
+    "official_references",
+    "runtime_gates"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/svc/DriverAssistInject.cpp"
+    },
+    "severity": {
+      "const": "major"
+    },
+    "contracts": {
+      "type": "array",
+      "minItems": 8,
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "InjectLow owns a process handle state variable initialized to NULL before any finish edge"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "string",
+        "format": "uri"
+      }
+    },
+    "runtime_gates": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "contracts": [
+    "InjectLow owns a process handle state variable initialized to NULL before any finish edge",
+    "InjectLow_OpenProcess returns a real process handle only after OpenProcess succeeds and creation time matches",
+    "OpenProcess failure and creation-time mismatch leave InjectLow hProcess NULL",
+    "finish cleanup tests only the initialized hProcess state before API_INJECT_COMPLETE failure notification and CloseHandle",
+    "CloseHandle is called only for a non-null process handle produced by InjectLow_OpenProcess",
+    "driver-not-ready early exit does not read an uninitialized process handle",
+    "path allocation cleanup remains independent from process handle cleanup",
+    "successful injection GuiServer MountManager and API_INJECT_COMPLETE topology are unchanged",
+    "failed injection still reports API_INJECT_COMPLETE error only when a target process handle was legally opened"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openprocess",
+    "https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-closehandle",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getprocesstimes"
+  ],
+  "runtime_gates": [
+    "Windows service build for DriverAssistInject.cpp",
+    "driver-not-ready injection request proving no invalid handle read and no CloseHandle call",
+    "OpenProcess failure injection proving hProcess remains NULL and cleanup skips process-handle actions",
+    "creation-time mismatch injection proving opened process handle is closed inside InjectLow_OpenProcess and outer cleanup skips process-handle actions",
+    "successful open followed by later failure proving API_INJECT_COMPLETE error notification and CloseHandle still run once"
+  ]
+}

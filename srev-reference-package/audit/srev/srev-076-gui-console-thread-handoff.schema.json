@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-076-gui-console-thread-handoff.schema.json",
+  "title": "SREV-076 GUI console thread handoff contract",
+  "id": "GUI_CONSOLE_THREAD_HANDOFF",
+  "owner": "Sandboxie/core/dll/guicon.c",
+  "type": "object",
+  "properties": {
+    "context": {
+      "type": "string",
+      "description": "Allocated worker-owned handle context"
+    },
+    "parent_handles": {
+      "type": "string",
+      "description": "Parent-owned ready event and helper thread handles used for startup wait"
+    },
+    "worker_handles": {
+      "type": "string",
+      "description": "Worker-owned main-thread wait handle used after startup"
+    },
+    "cleanup": {
+      "type": "string",
+      "description": "Failure and exit cleanup rules"
+    }
+  },
+  "required": [
+    "context",
+    "parent_handles",
+    "worker_handles",
+    "cleanup"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "allocated handle context exists before any handle slot write",
+    "OpenThread, CreateEvent, and CreateThread failure paths do not publish partial ownership",
+    "parent startup wait uses parent-owned ready-event and helper-thread handles",
+    "worker owns the main-thread wait handle after successful CreateThread handoff",
+    "parent must not close a handle while the worker can still wait on it",
+    "worker early exits and normal exit close the main-thread handle and free the context"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openthread",
+    "https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createeventw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createthread",
+    "https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitformultipleobjects",
+    "https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-closehandle"
+  ]
+}

@@ -272,7 +272,7 @@ LONG SbieApi_GetFileName(
     HANDLE FileHandle,
     WCHAR *NameBuf,
     ULONG *NameLen,
-    ULONG *ObjType);
+    ULONG *ObjTypeReserved);
 
 //SBIEAPI_EXPORT
 LONG SbieApi_OpenFile(

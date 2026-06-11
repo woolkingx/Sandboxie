@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "GUIPROP_NONRUDEHWND_SETPROP_SUPPRESSION",
+  "title": "GuiProp NonRudeHWND SetProp suppression",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/guiprop.c",
+  "stage": "schema -> boundary -> topology -> verify",
+  "source_functions": [
+    "Gui_InitProp",
+    "Gui_SetPropW",
+    "Gui_SetPropA"
+  ],
+  "contracts": [
+    "UseNonRudeHwndHack controls the NonRudeHWND SetPropA/W suppression",
+    "SetPropA/W reports success without storing the NonRudeHWND property when the policy is enabled",
+    "UnrestrictedToken is a broader token/UI-restriction owner in token.c and GuiServer.cpp",
+    "the default keeps NonRudeHWND suppression enabled outside app-compartment mode",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setpropw",
+    "https://learn.microsoft.com/en-us/windows/win32/winmsg/window-properties",
+    "https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-createrestrictedtoken",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-jobobject_basic_ui_restrictions"
+  ],
+  "local_edges": [
+    "UseNonRudeHwndHack -> Gui_NonRudeHWND_Hack",
+    "Gui_NonRudeHWND_Hack -> Gui_SetPropW NonRudeHWND string suppression",
+    "Gui_NonRudeHWND_Hack -> Gui_SetPropA NonRudeHWND string suppression",
+    "UnrestrictedToken -> token.c Token_DuplicateToken",
+    "UnrestrictedToken -> GuiServer.cpp skip UIRestrictions"
+  ],
+  "runtime_gate": "Windows fullscreen behavior for apps that set NonRudeHWND still needs targeted runtime proof before policy default changes",
+  "status": "patched-comment-topology-no-behavior-change"
+}

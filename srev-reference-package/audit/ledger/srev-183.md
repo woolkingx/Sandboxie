@@ -1,0 +1,25 @@
+---
+kind: srev-ledger-entry
+id: SREV-183
+title: Token Handle DACL Status Gate
+status: patched-source-level-after-official-security-descriptor-ddi-review-needs-windows-driver-build-and-runtime-proof
+owner: Sandboxie/core/drv/token.c
+spec: docs/plan/srev-183-token-handle-dacl-status-gate.md
+schema: docs/plan/srev-183-token-handle-dacl-status-gate.schema.json
+checker: docs/plan/check-srev-183.py
+runtime_gate: Windows driver build, restricted-token launch smoke, failure-injection proof for security descriptor DDI failures, and object-open smoke after admin-group filtering
+---
+### SREV-183: Token Handle DACL Status Gate
+
+| Field | Content |
+|---|---|
+| Severity | [major] |
+| Status | patched source-level after official security-descriptor DDI review; needs Windows driver build and runtime proof |
+| Evidence | `Sandboxie/core/drv/token.h` was the highest-ranked unnamed reviewable core file after SREV-182 and exposes the token owner API surface. The behavior risk is in the private token owner implementation `Sandboxie/core/drv/token.c`: `Token_FilterDacl` rebuilds a token default DACL, then calls private `Token_SetHandleDacl` for the token handle, current process, and current thread. Before this SREV, `Token_SetHandleDacl` ignored the `NTSTATUS` returned by `RtlCreateSecurityDescriptor` and `RtlSetDaclSecurityDescriptor`, then called `ZwSetSecurityObject(DACL_SECURITY_INFORMATION)` with a descriptor whose DACL state was not locally proven. Microsoft documents both descriptor construction DDIs as status-returning and documents `ZwSetSecurityObject` invalid descriptor/ACL/handle/access failure modes. |
+| Data | `Sandboxie/core/drv/token.c`, `Sandboxie/core/drv/token.h`, `Token_FilterDacl`, `Token_SetHandleDacl`, `TOKEN_DEFAULT_DACL`, `ACL`, `RtlCreateSecurityDescriptor`, `RtlSetDaclSecurityDescriptor`, `ZwSetSecurityObject`, `DACL_SECURITY_INFORMATION`, `STATUS_INVALID_ACL`, token handle, current process handle, and current thread handle. |
+| Schema | `TOKEN_HANDLE_DACL_STATUS_GATE` says `Token_FilterDacl` owns the restricted-token DACL update route after token filtering; `Token_SetHandleDacl` builds an absolute security descriptor for an existing DACL and applies it to token, process, or thread handles; security descriptor construction DDIs return `NTSTATUS` and must fail closed before `ZwSetSecurityObject`; `RtlSetDaclSecurityDescriptor` references the supplied ACL and the local route requires the rebuilt ACL to be non-NULL; `ZwSetSecurityObject(DACL_SECURITY_INFORMATION)` is the only executor that mutates the target object DACL in this helper; `Sandboxie/core/drv/token.h` was reviewed as the public declaration surface, but `Token_SetHandleDacl` remains private to `token.c`; token filtering policy, SID selection, default-DACL sizing, object targets, handle ownership, and access masks must not change. |
+| Topology | Restricted-token construction flows from `Token_Filter` to `Token_FilterDacl`, queries `TokenUser` and `TokenDefaultDacl`, builds `x_dacl_ptr`, opens the token object through `ObOpenObjectByPointer(OBJ_KERNEL_HANDLE)`, then applies the same rebuilt ACL through `Token_SetHandleDacl(TokenHandle)`, `Token_SetHandleDacl(NtCurrentProcess())`, and `Token_SetHandleDacl(NtCurrentThread())`. Inside the helper, legal flow is `RtlCreateSecurityDescriptor` success -> `RtlSetDaclSecurityDescriptor` success -> `ZwSetSecurityObject(DACL_SECURITY_INFORMATION)`. |
+| Logic Risk | Ignoring descriptor-construction status hid the true failing API and allowed a later security-object mutation attempt to decide failure from a descriptor that might not have been initialized or populated with the intended DACL. The official DACL setter also permits a NULL DACL, which grants unrestricted access; this helper is not a NULL-DACL policy route, so the local contract rejects NULL with `STATUS_INVALID_ACL`. |
+| Official Shape | `docs/plan/srev-183-token-handle-dacl-status-gate.md` records Microsoft `RtlCreateSecurityDescriptor`, `RtlSetDaclSecurityDescriptor`, and `ZwSetSecurityObject` references. `docs/plan/srev-183-token-handle-dacl-status-gate.schema.json` records the JSON Schema draft-07 local `TOKEN_HANDLE_DACL_STATUS_GATE` contract. |
+| Fix | `Token_SetHandleDacl` now rejects NULL DACL input with `STATUS_INVALID_ACL`, checks the status from `RtlCreateSecurityDescriptor`, checks the status from `RtlSetDaclSecurityDescriptor`, and calls `ZwSetSecurityObject` only after both construction steps succeed. No token filtering policy, SID selection, default-DACL buffer shape, target object list, handle acquisition, or access mask changed. |
+| Acceptance Gate | `docs/plan/check-srev-183.py` validates the draft-07 schema, official references, private helper source shape, checked DDI order, stale unchecked patterns, public token declaration surface review, and ledger fragment; `docs/plan/check-srev-183.sh` is the matrix wrapper. Runtime gate: Windows driver build, restricted-token launch smoke, failure-injection proof for security descriptor DDI failures, and object-open smoke after admin-group filtering. |

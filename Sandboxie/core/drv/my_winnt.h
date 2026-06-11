@@ -18,6 +18,7 @@
 #ifndef _MY_WINNT_H
 #define _MY_WINNT_H
 
+#pragma warning(push)
 #pragma warning(disable : 4267)     //  warning C4267: '=': conversion from 'size_t' to 'ULONG', possible loss of data
 
 #include <ntifs.h>
@@ -818,5 +819,7 @@ NTOS_NTSTATUS   ZwQueryInformationThread(
 
 
 typedef ULONG MEMORY_INFORMATION_CLASS;
+
+#pragma warning(pop)
 
 #endif

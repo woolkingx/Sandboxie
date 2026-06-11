@@ -132,6 +132,8 @@ _FX BOOLEAN Api_Init(void)
 	//
 
 	Api_LogBuffer = log_buffer_init(8 * 8 * 1024);
+    if (! Api_LogBuffer)
+        return FALSE;
 
     //
     // initialize lock
@@ -670,7 +672,7 @@ _FX void Api_AddMessage(
 {
 	KIRQL irql;
 
-	if (!Api_Initialized)
+	if (!Api_Initialized || !Api_LogBuffer)
 		return;
 
 	//
@@ -724,6 +726,9 @@ _FX NTSTATUS Api_GetMessage(PROCESS *proc, ULONG64 *parms)
 
 	if (proc) // sandboxed processes can't read the log
 		return STATUS_NOT_IMPLEMENTED;
+
+    if (!Api_LogBuffer)
+        return STATUS_DEVICE_NOT_READY;
 
     if (PsGetCurrentProcessId() != Api_ServiceProcessId) {
         // non service queries can be only performed for the own session
@@ -1021,14 +1026,25 @@ _FX NTSTATUS Api_SetServicePort(PROCESS *proc, ULONG64 *parms)
 _FX BOOLEAN Api_CopyBoxNameFromUser(
     WCHAR *boxname34, const WCHAR *user_boxname)
 {
+    ULONG i;
+
     wmemzero(boxname34, BOXNAME_COUNT);
-    if (user_boxname) {
-        ProbeForRead((WCHAR *)user_boxname,
-                     sizeof(WCHAR) * (BOXNAME_COUNT - 2),
-                     sizeof(UCHAR));
-        if (user_boxname[0])
-            wcsncpy(boxname34, user_boxname, (BOXNAME_COUNT - 2));
+    if (! user_boxname)
+        return FALSE;
+
+    ProbeForRead((WCHAR *)user_boxname,
+                 sizeof(WCHAR) * (BOXNAME_COUNT - 2),
+                 sizeof(WCHAR));
+
+    for (i = 0; i < (BOXNAME_COUNT - 2); ++i) {
+        if (user_boxname[i] == L'\0')
+            break;
+        boxname34[i] = user_boxname[i];
     }
+
+    if ((! i) || (i == (BOXNAME_COUNT - 2)))
+        return FALSE;
+
     if (boxname34[0] && Box_IsValidName(boxname34))
         return TRUE;
     return FALSE;
@@ -1043,13 +1059,24 @@ _FX BOOLEAN Api_CopyBoxNameFromUser(
 _FX BOOLEAN Api_CopySidStringFromUser(
     WCHAR *sidstring96, const WCHAR *user_sidstring)
 {
+    ULONG i;
+
     wmemzero(sidstring96, 96);
-    if (user_sidstring) {
-        ProbeForRead(
-            (WCHAR *)user_sidstring, sizeof(WCHAR) * 96, sizeof(UCHAR));
-        if (user_sidstring[0])
-            wcsncpy(sidstring96, user_sidstring, 94);
+    if (! user_sidstring)
+        return FALSE;
+
+    ProbeForRead(
+        (WCHAR *)user_sidstring, sizeof(WCHAR) * 96, sizeof(WCHAR));
+
+    for (i = 0; i < 94; ++i) {
+        if (user_sidstring[i] == L'\0')
+            break;
+        sidstring96[i] = user_sidstring[i];
     }
+
+    if ((! i) || (i == 94))
+        return FALSE;
+
     if (sidstring96[0] == L'S' && sidstring96[1] == L'-')
         return TRUE;
     return FALSE;
@@ -1065,12 +1092,23 @@ _FX void Api_CopyStringToUser(
     UNICODE_STRING64 *uni, WCHAR *str, size_t len)
 {
     if (uni) {
+        WCHAR *buf;
+
+        if (len & (sizeof(WCHAR) - 1))
+            ExRaiseStatus(STATUS_INVALID_PARAMETER);
+        if (len && (len < sizeof(WCHAR) || (! str)))
+            ExRaiseStatus(STATUS_INVALID_PARAMETER);
+
         ProbeForRead(uni, sizeof(UNICODE_STRING64), sizeof(ULONG_PTR));
         ProbeForWrite(uni, sizeof(UNICODE_STRING64), sizeof(ULONG_PTR));
+        if (uni->MaximumLength & (sizeof(WCHAR) - 1))
+            ExRaiseStatus(STATUS_INVALID_PARAMETER);
         if (len > uni->MaximumLength)
             ExRaiseStatus(STATUS_BUFFER_TOO_SMALL);
         else {
-            WCHAR *buf = (WCHAR *)uni->Buffer;
+            buf = (WCHAR *)uni->Buffer;
+            if (len && (! buf))
+                ExRaiseStatus(STATUS_INVALID_PARAMETER);
             ProbeForWrite(buf, len, sizeof(WCHAR));
             if (len) {
                 memcpy(buf, str, len);
@@ -1087,19 +1125,48 @@ _FX void Api_CopyStringToUser(
 //---------------------------------------------------------------------------
 
 
+static BOOLEAN Api_ContainsWChar(const WCHAR *text, size_t byte_len, WCHAR ch)
+{
+    size_t i;
+    size_t count = byte_len / sizeof(WCHAR);
+
+    for (i = 0; i < count; ++i) {
+        if (text[i] == ch)
+            return TRUE;
+    }
+
+    return FALSE;
+}
+
+
 _FX NTSTATUS Api_CopyStringFromUser(
 	WCHAR** str, size_t* len, UNICODE_STRING64* uni)
 {
 	if (uni) {
+		WCHAR* buff;
+
 		ProbeForRead(uni, sizeof(UNICODE_STRING64), sizeof(ULONG_PTR));
+		if (uni->Length & (sizeof(WCHAR) - 1))
+			return STATUS_INVALID_PARAMETER;
+		if (uni->Length > uni->MaximumLength)
+			return STATUS_INVALID_PARAMETER;
 		*len = uni->Length + sizeof(WCHAR);
-		WCHAR* buff = (WCHAR*)uni->Buffer;
-        ProbeForRead(buff, *len, sizeof(WCHAR));
+		buff = (WCHAR*)uni->Buffer;
+		if (uni->Length && (! buff))
+			return STATUS_INVALID_PARAMETER;
+        ProbeForRead(buff, uni->Length, sizeof(WCHAR));
 		*str = (WCHAR*)Mem_Alloc(Driver_Pool, *len);
         if(!*str)
 			return STATUS_INSUFFICIENT_RESOURCES;
-		memcpy(*str, buff, *len);
-		(*str)[*len / sizeof(WCHAR)] = L'\0';
+		if (uni->Length)
+			memcpy(*str, buff, uni->Length);
+		if (Api_ContainsWChar(*str, uni->Length, L'\0')) {
+			Mem_Free(*str, *len);
+			*str = NULL;
+			*len = 0;
+			return STATUS_INVALID_PARAMETER;
+		}
+		(*str)[uni->Length / sizeof(WCHAR)] = L'\0';
 	} 
     return STATUS_SUCCESS;
 }
@@ -1210,22 +1277,24 @@ _FX NTSTATUS Api_QueryDriverInfo(PROCESS* proc, ULONG64* parms)
                 FeatureFlags |= SBIE_FEATURE_FLAG_WIN32K_HOOK;
 #endif
 
-            if (Verify_CertInfo.active)
+            BOOLEAN test_mode = MyIsTestMode();
+
+            if (test_mode || Verify_CertInfo.active)
                 FeatureFlags |= SBIE_FEATURE_FLAG_CERTIFIED;
 
-            if (Verify_CertInfo.opt_sec) {
+            if (test_mode || Verify_CertInfo.opt_sec) {
                 FeatureFlags |= SBIE_FEATURE_FLAG_SECURITY_MODE;
                 FeatureFlags |= SBIE_FEATURE_FLAG_PRIVACY_MODE;
                 FeatureFlags |= SBIE_FEATURE_FLAG_COMPARTMENTS;
             }
 
-            if (Verify_CertInfo.opt_enc)
+            if (test_mode || Verify_CertInfo.opt_enc)
                 FeatureFlags |= SBIE_FEATURE_FLAG_ENCRYPTION;
 
-            if (Verify_CertInfo.opt_net)
+            if (test_mode || Verify_CertInfo.opt_net)
                 FeatureFlags |= SBIE_FEATURE_FLAG_NET_PROXY;
 
-            if (Verify_CertInfo.type == eCertDeveloper)
+            if (test_mode || Verify_CertInfo.type == eCertDeveloper)
                 FeatureFlags |= SBIE_FEATURE_FLAG_NO_SIG;
 
             if (Dyndata_Active) {

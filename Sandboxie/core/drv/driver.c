@@ -203,7 +203,7 @@ _FX NTSTATUS DriverEntry(
 
     if (ok) {
         Driver_RegistryPath =
-            Mem_AllocStringEx(Driver_Pool, RegistryPath->Buffer, TRUE);
+            Mem_AllocUnicodeStringEx(Driver_Pool, RegistryPath, TRUE);
         if (! Driver_RegistryPath)
             ok = FALSE;
     }
@@ -380,9 +380,13 @@ _FX BOOLEAN Driver_CheckOsVersion(void)
 _FX BOOLEAN Driver_InitPublicSecurity(void)
 {
 #define MyAddAccessAllowedAce(pAcl,pSid)                                \
-    RtlAddAccessAllowedAceEx(pAcl, ACL_REVISION,                        \
+    status = RtlAddAccessAllowedAceEx(pAcl, ACL_REVISION,               \
         CONTAINER_INHERIT_ACE | OBJECT_INHERIT_ACE | INHERITED_ACE,     \
-        GENERIC_ALL, pSid);
+        GENERIC_ALL, pSid);                                             \
+    if (! NT_SUCCESS(status))                                            \
+        return FALSE;
+
+    NTSTATUS status;
 
     //
     // create a security descriptor with a DACL that permits
@@ -412,7 +416,9 @@ _FX BOOLEAN Driver_InitPublicSecurity(void)
     if (! Driver_PublicAcl)
         return FALSE;
 
-    RtlCreateAcl(Driver_PublicAcl, 128, ACL_REVISION);
+    status = RtlCreateAcl(Driver_PublicAcl, 128, ACL_REVISION);
+    if (! NT_SUCCESS(status))
+        return FALSE;
     MyAddAccessAllowedAce(Driver_PublicAcl, &AuthSid);
     MyAddAccessAllowedAce(Driver_PublicAcl, &WorldSid);
 
@@ -420,10 +426,15 @@ _FX BOOLEAN Driver_InitPublicSecurity(void)
     if (! Driver_PublicSd)
         return FALSE;
 
-    RtlCreateSecurityDescriptor(
+    status = RtlCreateSecurityDescriptor(
         Driver_PublicSd, SECURITY_DESCRIPTOR_REVISION);
-    RtlSetDaclSecurityDescriptor(
+    if (! NT_SUCCESS(status))
+        return FALSE;
+
+    status = RtlSetDaclSecurityDescriptor(
         Driver_PublicSd, TRUE, Driver_PublicAcl, FALSE);
+    if (! NT_SUCCESS(status))
+        return FALSE;
 
     //
     // on Windows Vista, create a security descriptor which
@@ -461,13 +472,21 @@ _FX BOOLEAN Driver_InitPublicSecurity(void)
         LowLabelAcl1 = Mem_AllocEx(Driver_Pool, 128, TRUE);
         if (! LowLabelAcl1)
             return FALSE;
-        RtlCreateAcl(LowLabelAcl1, 128, ACL_REVISION);
-        RtlAddAce(LowLabelAcl1, ACL_REVISION, 0, pAce, pAce->Header.AceSize);
+        status = RtlCreateAcl(LowLabelAcl1, 128, ACL_REVISION);
+        if (! NT_SUCCESS(status))
+            return FALSE;
+
+        status = RtlAddAce(LowLabelAcl1, ACL_REVISION, 0, pAce, pAce->Header.AceSize);
+        if (! NT_SUCCESS(status))
+            return FALSE;
 
         LowLabelAcl2 = Mem_AllocEx(Driver_Pool, 128, TRUE);
         if (! LowLabelAcl2)
             return FALSE;
-        RtlCreateAcl(LowLabelAcl2, 128, ACL_REVISION);
+        status = RtlCreateAcl(LowLabelAcl2, 128, ACL_REVISION);
+        if (! NT_SUCCESS(status))
+            return FALSE;
+
         MyAddAccessAllowedAce(LowLabelAcl2, &AuthSid);
         MyAddAccessAllowedAce(LowLabelAcl2, &WorldSid);
         MyAddAccessAllowedAce(LowLabelAcl2, &RestrSid);
@@ -476,12 +495,20 @@ _FX BOOLEAN Driver_InitPublicSecurity(void)
         if (! Driver_LowLabelSd)
             return FALSE;
 
-        RtlCreateSecurityDescriptor(
+        status = RtlCreateSecurityDescriptor(
             Driver_LowLabelSd, SECURITY_DESCRIPTOR_REVISION);
-        RtlSetDaclSecurityDescriptor(
+        if (! NT_SUCCESS(status))
+            return FALSE;
+
+        status = RtlSetDaclSecurityDescriptor(
             Driver_LowLabelSd, TRUE, LowLabelAcl2, FALSE);
-        RtlSetSaclSecurityDescriptor(
+        if (! NT_SUCCESS(status))
+            return FALSE;
+
+        status = RtlSetSaclSecurityDescriptor(
             Driver_LowLabelSd, TRUE, LowLabelAcl1, FALSE);
+        if (! NT_SUCCESS(status))
+            return FALSE;
     }
 
     return TRUE;
@@ -542,7 +569,7 @@ _FX BOOLEAN Driver_FindHomePath(UNICODE_STRING *RegistryPath)
     //
 
     InitializeObjectAttributes(&objattrs,
-        RegistryPath, OBJ_CASE_INSENSITIVE, NULL, NULL);
+        RegistryPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
 
     status = ZwOpenKey(&handle, KEY_READ, &objattrs);
     if (! NT_SUCCESS(status)) {
@@ -551,7 +578,7 @@ _FX BOOLEAN Driver_FindHomePath(UNICODE_STRING *RegistryPath)
     }
 
     InitializeObjectAttributes(&objattrs,
-        &uni, OBJ_CASE_INSENSITIVE, NULL, NULL);
+        &uni, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
 
     RtlInitUnicodeString(&uni, L"ImagePath");
     len = sizeof(info);
@@ -601,7 +628,7 @@ _FX BOOLEAN Driver_FindHomePath(UNICODE_STRING *RegistryPath)
     RtlInitUnicodeString(&uni, path);
 
     InitializeObjectAttributes(&objattrs,
-        &uni, OBJ_CASE_INSENSITIVE, NULL, NULL);
+        &uni, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
 
     status = ZwCreateFile(
         &handle,

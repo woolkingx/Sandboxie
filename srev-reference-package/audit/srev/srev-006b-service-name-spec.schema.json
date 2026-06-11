@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-006b-service-name-spec.schema.json",
+  "title": "SREV-006B service broker name shape",
+  "id": "SERVICE_BROKER_NAME_SHAPE",
+  "owner": "Sandboxie/core/svc/serviceserver.cpp",
+  "type": "object",
+  "properties": {
+    "openservicew_shape": {
+      "type": "string",
+      "description": "OpenServiceW accepts lpServiceName as LPCWSTR; service object name maximum length is 256 characters; SCM rejects invalid names"
+    },
+    "wire_layout": {
+      "type": "string",
+      "description": "SERVICE_START_REQ and SERVICE_QUERY_REQ carry ULONG name_len plus WCHAR name[1] inline counted by h.length"
+    },
+    "name_gate_owner": {
+      "type": "string",
+      "description": "Service_CheckName(msg_len, offset, name_len, name) enforces name_len <= 256, offset <= msg_len, (name_len+1)*sizeof(WCHAR) inside message, name[name_len] == L'\\0' before OpenServiceW"
+    },
+    "policy_invariant": {
+      "type": "string",
+      "description": "Service authorization and SCM access masks are unchanged; only the name shape is gated"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate: malformed broker messages return ERROR_INVALID_PARAMETER; normal service start/query requests still work"
+    }
+  },
+  "required": [
+    "openservicew_shape",
+    "wire_layout",
+    "name_gate_owner",
+    "policy_invariant",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "OpenServiceW lpServiceName maximum length is 256 characters",
+    "DLL caller sends name_len = wcslen(name) and includes the terminating WCHAR in h.length",
+    "Service-name gate must reject name_len > 256",
+    "Service-name gate must require (name_len+1)*sizeof(WCHAR) bytes inside the received message",
+    "Service-name gate must require name[name_len] == L'\\0' before OpenServiceW",
+    "Start-service and query-service handlers both call Service_CheckName before OpenServiceW",
+    "OpenServiceW is not called for unterminated or overlong names"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openservicew"
+  ]
+}

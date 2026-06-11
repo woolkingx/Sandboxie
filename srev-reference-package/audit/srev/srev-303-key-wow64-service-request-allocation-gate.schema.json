@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "KEY_WOW64_SERVICE_REQUEST_ALLOCATION_GATE",
+  "title": "Key WOW64 service request allocation gate",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/key.c",
+  "stage": "data -> schema -> topology -> logic -> action -> verify",
+  "source_functions": [
+    "Key_FixNameWow64",
+    "Key_FixNameWow64_2"
+  ],
+  "contracts": [
+    "Key_FixNameWow64 owns the 64-bit caller KEY_WOW64_32KEY service-assisted route",
+    "Key_FixNameWow64_2 must prove FILE_OPEN_WOW64_KEY_REQ allocation before writing the request",
+    "filewire.h owns the FILE_OPEN_WOW64_KEY_REQ byte-counted key path shape",
+    "FileServer::OpenWow64Key owns the server-side RegOpenKeyEx KEY_WOW64_32KEY operation",
+    "SREV-303 does not change WOW64 flag semantics or duplicate Wow6432Node cleanup"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/winprog64/accessing-an-alternate-registry-view",
+    "https://learn.microsoft.com/en-us/windows/win32/winprog64/registry-redirector",
+    "https://learn.microsoft.com/en-us/windows/win32/sysinfo/32-bit-and-64-bit-application-data-in-the-registry"
+  ],
+  "local_edges": [
+    "64-bit caller KEY_WOW64_32KEY -> Key_FixNameWow64_2",
+    "Dll_AllocTemp(req_len) -> allocation gate -> FILE_OPEN_WOW64_KEY_REQ writes",
+    "MSGID_FILE_OPEN_WOW64_KEY -> FileServer::OpenWow64Key",
+    "RegOpenKeyEx KEY_WOW64_32KEY -> returned key path -> Key_GetName"
+  ],
+  "runtime_gate": "Windows x64 registry smoke with KEY_WOW64_32KEY callers, shared-key no-op, and allocation-failure injection",
+  "status": "patched-source-level-wow64-service-request-allocation-gate-needs-windows-runtime-proof"
+}

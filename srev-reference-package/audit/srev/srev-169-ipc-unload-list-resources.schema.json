@@ -1,0 +1,88 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "IPC_UNLOAD_LIST_RESOURCES",
+  "type": "object",
+  "required": [
+    "owner",
+    "data",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/drv/ipc.h"
+    },
+    "data": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "IPC_DYNAMIC_PORTS"
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "Ipc_Unload must free dynamic port list nodes before freeing Ipc_Dynamic_Ports.pPortLock"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 4
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/unload-routine-functionality",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/releasing-driver-allocated-resources",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-exacquireresourceexclusivelite",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-exreleaseresourcelite"
+  ],
+  "contracts": [
+    "ipc.h owns the IPC_DYNAMIC_PORT and IPC_DYNAMIC_PORTS data shape",
+    "ipc_port.c may allocate dynamic port nodes and insert them under Ipc_Dynamic_Ports.pPortLock",
+    "Ipc_Unload must free dynamic port list nodes before freeing Ipc_Dynamic_Ports.pPortLock",
+    "dynamic port unload must acquire pPortLock exclusively inside a critical region",
+    "dynamic port unload must clear pSpoolerPort after draining the list",
+    "Ipc_Unload must close each Ipc_ObjDirs handle and free each DIR_OBJ_HANDLE node before freeing Ipc_DirLock",
+    "Linux source gate is not Windows driver unload runtime proof"
+  ],
+  "owner": "Sandboxie/core/drv/ipc.h",
+  "data": [
+    "Sandboxie/core/drv/ipc.h",
+    "Sandboxie/core/drv/ipc.c",
+    "Sandboxie/core/drv/ipc_port.c",
+    "IPC_DYNAMIC_PORT",
+    "IPC_DYNAMIC_PORTS",
+    "Ipc_Dynamic_Ports",
+    "Ipc_Dynamic_Ports.Ports",
+    "Ipc_Dynamic_Ports.pPortLock",
+    "Ipc_Dynamic_Ports.pSpoolerPort",
+    "Ipc_Api_OpenDynamicPort",
+    "Ipc_CreateDynamicPort",
+    "Ipc_Unload",
+    "DIR_OBJ_HANDLE",
+    "Ipc_ObjDirs",
+    "Ipc_DirLock",
+    "List_Remove",
+    "Mem_Free",
+    "Mem_FreeLockResource",
+    "ExAcquireResourceExclusiveLite",
+    "ExReleaseResourceLite",
+    "KeEnterCriticalRegion",
+    "KeLeaveCriticalRegion"
+  ],
+  "runtime_gate": "Windows driver build, driver load unload smoke after dynamic RPC port registration, driver load unload smoke after IPC directory creation, and Driver Verifier or pool tracking proof"
+}

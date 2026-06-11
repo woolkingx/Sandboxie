@@ -620,8 +620,14 @@ _FX HANDLE Gui_CreateWindowStationW (void *lpwinsta, DWORD dwFlags, ACCESS_MASK 
         return myHandle;
 
     extern HANDLE Gui_Dummy_WinSta;
-    if(Gui_Dummy_WinSta && (Config_GetSettingsForImageName_bool(L"UseSbieWndStation", TRUE) || (Dll_ImageType == DLL_IMAGE_GOOGLE_CHROME) || (Dll_ImageType == DLL_IMAGE_MOZILLA_FIREFOX)))
-        return Gui_Dummy_WinSta;
+    if(Gui_Dummy_WinSta && (Config_GetSettingsForImageName_bool(L"UseSbieWndStation", TRUE) || (Dll_ImageType == DLL_IMAGE_GOOGLE_CHROME) || (Dll_ImageType == DLL_IMAGE_MOZILLA_FIREFOX))) {
+        HANDLE hDuplicate = NULL;
+        BOOL inherit = lpsa ? lpsa->bInheritHandle : FALSE;
+        if (DuplicateHandle(GetCurrentProcess(), Gui_Dummy_WinSta,
+                            GetCurrentProcess(), &hDuplicate,
+                            0, inherit, DUPLICATE_SAME_ACCESS))
+            return hDuplicate;
+    }
 
     SbieApi_Log(2205, L"CreateWindowStation");
     return 0;
@@ -642,8 +648,14 @@ _FX HANDLE Gui_CreateWindowStationA (void *lpwinsta, DWORD dwFlags, ACCESS_MASK 
         return myHandle;
     
     extern HANDLE Gui_Dummy_WinSta;
-    if(Gui_Dummy_WinSta && (Config_GetSettingsForImageName_bool(L"UseSbieWndStation", TRUE) || (Dll_ImageType == DLL_IMAGE_GOOGLE_CHROME) || (Dll_ImageType == DLL_IMAGE_MOZILLA_FIREFOX)))
-        return Gui_Dummy_WinSta;
+    if(Gui_Dummy_WinSta && (Config_GetSettingsForImageName_bool(L"UseSbieWndStation", TRUE) || (Dll_ImageType == DLL_IMAGE_GOOGLE_CHROME) || (Dll_ImageType == DLL_IMAGE_MOZILLA_FIREFOX))) {
+        HANDLE hDuplicate = NULL;
+        BOOL inherit = lpsa ? lpsa->bInheritHandle : FALSE;
+        if (DuplicateHandle(GetCurrentProcess(), Gui_Dummy_WinSta,
+                            GetCurrentProcess(), &hDuplicate,
+                            0, inherit, DUPLICATE_SAME_ACCESS))
+            return hDuplicate;
+    }
 
     SbieApi_Log(2205, L"CreateWindowStation");
     return 0;

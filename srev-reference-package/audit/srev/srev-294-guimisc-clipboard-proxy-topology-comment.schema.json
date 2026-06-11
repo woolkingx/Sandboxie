@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "GUIMISC_CLIPBOARD_PROXY_TOPOLOGY_COMMENT",
+  "title": "GuiMisc clipboard proxy topology comment",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/guimisc.c",
+  "stage": "schema -> boundary -> topology -> verify",
+  "source_scope": "Clipboard support functions comment and Gui_CloseClipboard proxy edge",
+  "contracts": [
+    "guimisc.c owns the user-mode CloseClipboard hook decision to call SbieSvc after a sequence change",
+    "SbieSvc GUI Proxy owns delayed-rendering force and API_GUI_CLIPBOARD calls",
+    "drv/gui.c owns private clipboard item layout discovery and integrity rewrite",
+    "private win32k clipboard layout is observation evidence not API contract",
+    "SREV-096 owns driver-side window-station reference and integrity rewrite gates",
+    "SREV-134 owns service-side clipboard probe data shape",
+    "clipboard viewer listener race remains a Windows runtime gate",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/clipboard-operations",
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/clipboard",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setclipboardviewer",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-addclipboardformatlistener",
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/wm-clipboardupdate",
+    "https://learn.microsoft.com/en-us/windows/win32/secauthz/mandatory-integrity-control"
+  ],
+  "local_edges": [
+    "Gui_OpenClipboard -> record sequence number",
+    "Gui_CloseClipboard -> real CloseClipboard",
+    "Gui_CloseClipboard -> changed sequence -> GUI_CLOSE_CLIPBOARD proxy call",
+    "GuiServer::CloseClipboardSlave -> delayed rendering and API_GUI_CLIPBOARD",
+    "drv/gui.c Gui_Api_Clipboard -> private clipboard item integrity rewrite",
+    "SREV-096 -> reference-scoped window-station access",
+    "SREV-134 -> service-side probe shape"
+  ],
+  "runtime_gate": "SREV-096 Windows Vista+ clipboard matrix plus SetClipboardViewer and AddClipboardFormatListener notification race observation",
+  "status": "patched-comment-topology-after-official-clipboard-mic-and-srev-096-review-no-behavior-change"
+}

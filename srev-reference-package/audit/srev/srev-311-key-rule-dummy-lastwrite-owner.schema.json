@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "KEY_RULE_DUMMY_LASTWRITE_OWNER",
+  "title": "Key rule dummy LastWrite owner",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/key_merge.c",
+  "stage": "data -> schema -> topology -> logic -> action -> verify",
+  "source_functions": [
+    "Key_MergeCacheDummys"
+  ],
+  "contracts": [
+    "Key_MergeCacheDummys owns metadata for rule-derived dummy subkeys",
+    "ZwQueryKey with KeyBasicInformation can return LastWriteTime for an open key handle",
+    "KEY_NODE_INFORMATION LastWriteTime is caller-visible registry subkey metadata",
+    "Query failure must preserve dummy subkey visibility with the existing zero fallback",
+    "SREV-311 changes only dummy subkey LastWriteTime metadata, not rule inclusion or merge ordering"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_key_node_information",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwquerykey",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ne-wdm-_key_information_class"
+  ],
+  "local_edges": [
+    "readable key path rule -> Key_MergeCacheDummys",
+    "FakePath -> SbieApi_OpenKey",
+    "open key handle -> __sys_NtQueryKey KeyBasicInformation",
+    "info LastWriteTime -> KEY_MERGE_SUBKEY LastWriteTime",
+    "query failure -> zero LastWriteTime fallback",
+    "KEY_MERGE_SUBKEY -> Key_NtEnumerateKeyFake"
+  ],
+  "runtime_gate": "Windows rule-specificity registry enumeration smoke plus query-failure fallback injection",
+  "status": "patched source-level after official ZwQueryKey and KEY_NODE_INFORMATION shape; needs Windows runtime proof"
+}

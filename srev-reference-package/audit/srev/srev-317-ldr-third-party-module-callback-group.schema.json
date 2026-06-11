@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "LDR_THIRD_PARTY_MODULE_CALLBACK_GROUP",
+  "owner": "Sandboxie/core/dll/ldr.c",
+  "stage": "data -> schema -> topology -> logic -> action -> verify",
+  "contracts": [
+    "Ldr_Dlls owns only loaded module base-name to init-callback registration",
+    "the non-Microsoft group label must not imply one shared vendor behavior owner",
+    "Acscmonitor_Init behavior remains owned by SREV-259",
+    "Custom_Avast_SnxHk behavior remains owned by SREV-257",
+    "Custom_SYSFER_DLL behavior remains owned by SREV-055 and SREV-258",
+    "DigitalGuardian_Init behavior remains owned by SREV-088 and SREV-249",
+    "SREV-317 changes the loader group comment only, not DLL names, callbacks, architecture guards, or return values"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-loadlibraryw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulehandlew"
+  ],
+  "runtime_gate": "No runtime gate for this comment-only group-label clarification; future behavior changes inherit the affected callback owner's Windows gate"
+}

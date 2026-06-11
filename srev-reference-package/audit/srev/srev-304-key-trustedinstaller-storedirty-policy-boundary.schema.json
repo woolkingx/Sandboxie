@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "KEY_TRUSTEDINSTALLER_STOREDIRTY_POLICY_BOUNDARY",
+  "title": "Key TrustedInstaller StoreDirty policy boundary",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/key.c",
+  "stage": "data -> schema -> topology -> logic -> verify",
+  "source_functions": [
+    "Key_NtSetValueKey"
+  ],
+  "contracts": [
+    "Key_NtSetValueKey owns only the TrustedInstaller StoreDirty compatibility suppression branch",
+    "ZwSetValueKey owns registry value create-or-replace behavior",
+    "ValueName is a counted UNICODE_STRING value-name input",
+    "SREV-213 owns adjacent counted registry value-name handling",
+    "SREV-304 changes comments and proof only; no StoreDirty behavior changes"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwsetvaluekey",
+    "https://learn.microsoft.com/en-us/windows/win32/sysinfo/registry-value-types"
+  ],
+  "local_edges": [
+    "NtSetValueKey caller -> Key_NtSetValueKey",
+    "counted ValueName -> StoreDirty predicate",
+    "TrustedInstaller image -> STATUS_SUCCESS suppression",
+    "non-matching write -> __sys_NtSetValueKey"
+  ],
+  "runtime_gate": "Windows TrustedInstaller WinSxS assembly install smoke plus negative StoreDirty controls before any predicate change",
+  "status": "source-level classified after official ZwSetValueKey shape; comment-only source clarification, no behavior change"
+}

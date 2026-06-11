@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "IS_HOST_PATH_FINAL_LENGTH_GATE",
+  "owners": [
+    "Sandboxie/core/svc/misc.h",
+    "Sandboxie/core/svc/main.cpp"
+  ],
+  "status": "patched-source-level-after-official-getfinalpathnamebyhandlew-length-review-needs-windows-breakout-runtime-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfinalpathnamebyhandlew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew"
+  ],
+  "contracts": [
+    "misc.h declares service-wide helpers while main.cpp owns their implementations",
+    "IsHostPath compares a requested host path against the caller sandbox root before allowing a BreakoutProcess request",
+    "GetFinalPathNameByHandleW returns the final path length on success and a required buffer size when the supplied buffer is too small",
+    "A successful final path read requires a nonzero return smaller than the buffer capacity passed in characters",
+    "Prefix tests and later length comparisons must use the returned final path length, not the fixed scratch buffer capacity",
+    "A VOLUME_NAME_NT path beginning with Device Mup is a network share path and remains not a host path for this breakout gate",
+    "The fix does not change breakout allowlist semantics, sandbox root query semantics, CreateFileW access or share flags, or the prefix based sandbox root comparison policy"
+  ],
+  "runtime_gate": "Windows service build plus BreakoutProcess host-local, sandbox-root, network-share, and too-small-buffer final-path smokes."
+}

@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-110-thread-impersonation-offset-boundary.schema.json",
+  "title": "SREV-110 thread impersonation offset boundary",
+  "id": "THREAD_IMPERSONATION_OFFSET_BOUNDARY",
+  "owner": "Sandboxie/core/drv/thread.c",
+  "type": "object",
+  "properties": {
+    "official_impersonation_shape": {
+      "type": "string",
+      "description": "Official PsImpersonateClient and SECURITY_IMPERSONATION_LEVEL shape"
+    },
+    "token_capture_shape": {
+      "type": "string",
+      "description": "Local PsReferenceImpersonationToken storage and dereference shape"
+    },
+    "offset_shape": {
+      "type": "string",
+      "description": "Private dynamic-data ETHREAD client-security offset verification"
+    },
+    "source_change": {
+      "type": "string",
+      "description": "Comment-only source clarification preserving behavior"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows build and dynamic-data runtime proof"
+    }
+  },
+  "required": [
+    "official_impersonation_shape",
+    "token_capture_shape",
+    "offset_shape",
+    "source_change",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Thread_StoreThreadToken references the active impersonation token before storage",
+    "stored thread tokens keep CopyOnOpen EffectiveOnly and local SecurityImpersonation replay level",
+    "Thread_SetThreadToken replays a stored thread token or the process primary token for syscall dispatch",
+    "Thread_MyImpersonateClient calls PsImpersonateClient at SecurityIdentification first",
+    "the ETHREAD client-security field update is private dynamic-data owned state",
+    "Vista and later validate the masked client-security pointer against TokenObject before writing level bits",
+    "XP validates the PS_IMPERSONATION_INFORMATION TokenObject before writing ImpersonationLevel",
+    "offset mismatch returns STATUS_ACCESS_DENIED and logs MSG_1222 0x62",
+    "this SREV must not replace the shim with direct SecurityImpersonation or worker-thread dispatch",
+    "runtime proof is required for each supported Windows build dynamic-data offset",
+    "PsImpersonateClient and PsReferenceImpersonationToken are documented PASSIVE_LEVEL DDIs",
+    "SecurityIdentification cannot impersonate the client while SecurityImpersonation can impersonate locally"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-psimpersonateclient",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-psreferenceimpersonationtoken",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-psreverttoself",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ne-wdm-_security_impersonation_level",
+    "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/security-policy-settings/impersonate-a-client-after-authentication"
+  ]
+}

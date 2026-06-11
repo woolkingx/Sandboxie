@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "GUI_DRIVER_HEADER_TOPOLOGY_CONTRACT",
+  "owner": "Sandboxie/core/drv/gui.h",
+  "related_owners": [
+    "Sandboxie/core/drv/gui.c",
+    "Sandboxie/core/drv/gui_xp.c",
+    "Sandboxie/core/drv/driver.c",
+    "Sandboxie/core/drv/process.c",
+    "docs/plan/ledger/srev-096.md",
+    "docs/plan/ledger/srev-134.md"
+  ],
+  "status": "docs-only-source-topology-reviewed-needs-windows-driver-build-proof",
+  "official_references": [
+    "docs/plan/srev-096-clipboard-window-station-reference-owner.md",
+    "docs/plan/srev-134-driverassist-clipboard-probe-hglobal-ownership.md"
+  ],
+  "contracts": [
+    "gui.h is the driver GUI module declaration header",
+    "The header may include driver.h and declare module lifecycle process entry points that take or return local driver types",
+    "The header does not own API handler registration XP win32k hook behavior OpenWinClass path policy process lifecycle sequencing clipboard private layout discovery window-station object references or service-side clipboard probe ownership",
+    "Runtime behavior changes belong to gui.c gui_xp.c driver.c process.c or SbieSvc GUI DriverAssist owners depending on the transition",
+    "Future header changes must prove driver initialization process lifecycle and GUI API topology before behavior claims"
+  ],
+  "runtime_gate": "Windows driver build continues to compile gui.h and wire GUI module lifecycle through driver.c / process.c; runtime behavior remains covered by existing and future concrete-owner SREV Windows gates."
+}

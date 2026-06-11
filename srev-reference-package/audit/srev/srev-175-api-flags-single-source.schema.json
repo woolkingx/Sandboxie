@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "DRIVER_API_FLAG_SINGLE_SOURCE",
+  "type": "object",
+  "required": [
+    "owner",
+    "data",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/drv/api_flags.h"
+    },
+    "data": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "CONF_GET_NO_GLOBAL"
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "api_flags.h owns Sandboxie driver API flag constants"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 2
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-duplicatehandle",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-zwduplicateobject"
+  ],
+  "contracts": [
+    "api_flags.h owns Sandboxie driver API flag constants",
+    "configuration query flags are cross-boundary wire flags not private conf.h implementation constants",
+    "conf.h consumes CONF_GET flags by including api_flags.h and must not duplicate their numeric definitions",
+    "Microsoft-owned duplicate options remain named in api_flags.h with documented DuplicateHandle and ZwDuplicateObject values",
+    "Sandboxie-only duplicate routing bits remain above the documented low option bits and are stripped before native ZwDuplicateObject calls",
+    "resource monitor process reload and feature flags are unchanged",
+    "SREV-175 does not change any numeric flag value caller behavior config query expansion semantics handle duplication routing monitor logging process info reporting reload behavior or driver feature reporting",
+    "Linux source gate is not Windows build runtime proof"
+  ],
+  "owner": "Sandboxie/core/drv/api_flags.h",
+  "data": [
+    "Sandboxie/core/drv/api_flags.h",
+    "Sandboxie/core/drv/conf.h",
+    "Sandboxie/core/drv/conf.c",
+    "Sandboxie/core/drv/ipc.c",
+    "Sandboxie/core/dll/secure.c",
+    "CONF_GET_NO_GLOBAL",
+    "CONF_GET_NO_EXPAND",
+    "CONF_GET_NO_TEMPLS",
+    "DUPLICATE_CLOSE_SOURCE",
+    "DUPLICATE_SAME_ACCESS",
+    "DUPLICATE_SAME_ATTRIBUTES",
+    "DUPLICATE_INHERIT",
+    "DUPLICATE_INTO_OTHER",
+    "MONITOR_TYPE_MASK",
+    "SBIE_FLAG_VALID_PROCESS",
+    "SBIE_CONF_FLAG_RECONFIGURE",
+    "SBIE_FEATURE_FLAG_WFP"
+  ],
+  "runtime_gate": "Windows driver DLL service and app build plus configuration query and duplicate handle routing smoke"
+}

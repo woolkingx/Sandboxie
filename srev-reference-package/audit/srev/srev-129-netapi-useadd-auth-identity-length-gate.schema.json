@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "NETAPI_USEADD_AUTH_IDENTITY_LENGTH_GATE",
+  "title": "NetApi NetUseAdd auth identity length gate",
+  "type": "object",
+  "required": [
+    "owner",
+    "severity",
+    "contracts",
+    "official_references",
+    "runtime_gates"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/svc/netapiserver.cpp"
+    },
+    "severity": {
+      "const": "major"
+    },
+    "contracts": {
+      "type": "array",
+      "minItems": 8,
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "UseAdd validates every NETAPI_USE_ADD_REQ wire field before PipeServer::ImpersonateCaller or NetUseAdd can run"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "string",
+        "format": "uri"
+      }
+    },
+    "runtime_gates": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "contracts": [
+    "UseAdd validates every NETAPI_USE_ADD_REQ wire field before PipeServer::ImpersonateCaller or NetUseAdd can run",
+    "ui4_auth_identity_length uses the NETAPI_USE_ADD_REQ fixed 2048 byte wire buffer limit",
+    "ui4_auth_identity_length equal to ULONG -1 remains the null auth identity sentinel",
+    "ui4_auth_identity_length greater than 2048 sets ERROR_INVALID_PARAMETER and exits before impersonation",
+    "valid ui4_auth_identity bytes are locally terminated before USE_INFO_4 points at the wire buffer",
+    "parm_index based string length failures still return ERROR_INVALID_PARAMETER before impersonation",
+    "NetUseAdd receives only a USE_INFO shaped buffer assembled from validated local wire fields",
+    "LaunchSlave still runs only after NetUseAdd succeeds",
+    "NetUseAdd level policy local string limits password handling and drive notification topology are unchanged"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/lmuse/nf-lmuse-netuseadd",
+    "https://learn.microsoft.com/en-us/windows/win32/api/lmuse/ns-lmuse-use_info_2",
+    "https://learn.microsoft.com/en-us/windows/win32/api/lmuse/ns-lmuse-use_info_3"
+  ],
+  "runtime_gates": [
+    "Windows service build for netapiserver.cpp",
+    "NetUseAdd positive smoke for a valid local drive mapping request",
+    "malformed MSGID_NETAPI_USE_ADD request with level 4 and ui4_auth_identity_length 2049 proving ERROR_INVALID_PARAMETER without NetUseAdd call",
+    "sentinel request with ui4_auth_identity_length ULONG -1 proving null auth identity behavior remains unchanged",
+    "valid 2048 byte auth identity request proving termination and NetUseAdd forwarding behavior remain unchanged"
+  ]
+}

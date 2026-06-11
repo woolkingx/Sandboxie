@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "TASKBAR_PROPERTY_STORE_QUERY_INTERFACE_CONTRACT",
+  "owners": [
+    "Sandboxie/core/dll/propsys.h",
+    "Sandboxie/core/dll/taskbar.c"
+  ],
+  "status": "patched-source-level-after-official-ipropertystore-queryinterface-review-needs-windows-taskbar-runtime-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/propsys/nn-propsys-ipropertystore",
+    "https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shgetpropertystoreforwindow",
+    "https://learn.microsoft.com/en-us/windows/win32/api/unknwn/nf-unknwn-iunknown-queryinterface%28refiid_void%29",
+    "https://learn.microsoft.com/en-us/windows/win32/com/rules-for-implementing-queryinterface"
+  ],
+  "contracts": [
+    "propsys.h is the local Vista 7 SDK shim for the IPropertyStore ABI",
+    "taskbar.c owns the Sandboxie wrapper returned from SHGetPropertyStoreForWindow",
+    "IPropertyStore inherits from IUnknown so the wrapper must support IID_IUnknown and IID_IPropertyStore",
+    "QueryInterface must reject a null output pointer with E_POINTER before writing through it",
+    "Unsupported IIDs must set ppv output to NULL and return E_NOINTERFACE",
+    "Successful queries must publish the supported interface pointer and then AddRef it",
+    "The fix does not change AppUserModelID rewriting, relaunch property rewriting, property forwarding, real property store lifetime forwarding, hook install conditions, or SHGetPropertyStoreForWindow pass through behavior for unsupported requested interfaces"
+  ],
+  "runtime_gate": "Windows DLL build plus taskbar property store wrapper and QueryInterface ABI smokes."
+}

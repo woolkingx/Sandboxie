@@ -1,0 +1,62 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "SANDBOXIE_TEST_PARAMETER_VERIFICATION_GATE",
+  "title": "LTEST-001 Sandboxie Test Parameter Verification Gate",
+  "type": "object",
+  "owner": "Sandboxie/core/drv/util.c",
+  "required": [
+    "setting",
+    "helper",
+    "consumers",
+    "contracts",
+    "runtime_gate"
+  ],
+  "properties": {
+    "setting": {
+      "const": "Test"
+    },
+    "helper": {
+      "const": "MyIsTestMode"
+    },
+    "consumers": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "MyIsCallerSigned",
+          "Process_Create",
+          "Api_QueryDriverInfo"
+        ]
+      },
+      "minItems": 3
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 7
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "setting": "Test",
+  "helper": "MyIsTestMode",
+  "consumers": [
+    "MyIsCallerSigned",
+    "Process_Create",
+    "Api_QueryDriverInfo"
+  ],
+  "contracts": [
+    "Test=true is a local Sandboxie runtime setting, not a Windows loader signing control",
+    "MyIsTestMode is the single kernel helper that parses the global Test setting",
+    "accepted true spellings are true yes y 1 and on",
+    "MyIsCallerSigned treats Test=true as a local development caller-signature bypass",
+    "Process_Create treats Test=true as a local pass for supporter-certificate security and encryption gates",
+    "Api_QueryDriverInfo projects Test=true into driver feature flags for local test tooling",
+    "the test gate must not mutate Verify_CertInfo or certificate parsing state",
+    "the test gate must not change DynData parsing or Windows driver load policy",
+    "this local test entry is not an SREV and must not be included in the upstream-facing SREV/KPATH ledger"
+  ],
+  "runtime_gate": "Windows driver build plus Sandboxie.ini Test=true smoke proving unsigned local development caller APIs, process feature gates, and feature flags are locally bypassed while driver loading still uses the OS signing environment"
+}

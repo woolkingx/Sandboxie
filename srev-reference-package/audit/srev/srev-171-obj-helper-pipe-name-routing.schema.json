@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "OBJ_HELPER_PIPE_NAME_ROUTING",
+  "type": "object",
+  "required": [
+    "owner",
+    "data",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/obj.c"
+    },
+    "data": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "Obj_GetObjectName"
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "obj.c owns both Obj_NtQueryObject and Obj_GetObjectName object name routes"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 5
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntqueryobject",
+    "https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getfiletype",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntqueryvolumeinformationfile",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_file_fs_device_information",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/specifying-device-types"
+  ],
+  "contracts": [
+    "obj.c owns both Obj_NtQueryObject and Obj_GetObjectName object name routes",
+    "native NtQueryObject ObjectTypeInformation may classify the Object Manager object type",
+    "native NtQueryObject ObjectNameInformation is not the owner of pipe or file identity",
+    "File handles that may be named pipes are classified through NtQueryVolumeInformationFile FileFsDeviceInformation",
+    "FILE_FS_DEVICE_INFORMATION DeviceType equal to FILE_DEVICE_NAMED_PIPE routes name lookup through Obj_GetObjectNameFromDriver",
+    "UseDriverObjLookup remains the broader setting that routes all helper lookups through the driver",
+    "driver-routed named pipe object name lookup must not fall back to native NtQueryObject ObjectNameInformation",
+    "Linux source gate is not Windows named pipe hang reproduction or compatibility proof"
+  ],
+  "owner": "Sandboxie/core/dll/obj.c",
+  "data": [
+    "Sandboxie/core/dll/obj.c",
+    "Sandboxie/core/dll/obj.h",
+    "Sandboxie/core/dll/file_dir.c",
+    "Obj_GetObjectName",
+    "Obj_NtQueryObject",
+    "Obj_GetObjectType",
+    "Obj_IsNamedPipeFileHandle",
+    "Obj_GetObjectNameFromDriver",
+    "NtQueryObject",
+    "ObjectNameInformation",
+    "ObjectTypeInformation",
+    "NtQueryVolumeInformationFile",
+    "FileFsDeviceInformation",
+    "FILE_FS_DEVICE_INFORMATION",
+    "FILE_DEVICE_NAMED_PIPE",
+    "UseDriverObjLookup",
+    "SbieApi_GetFileName"
+  ],
+  "runtime_gate": "Windows build plus named pipe pending read repro through Obj_NtQueryObject and Obj_GetObjectName helper paths, normal file key ipc name rewriting smoke, and no native fallback for driver routed named pipe failures"
+}

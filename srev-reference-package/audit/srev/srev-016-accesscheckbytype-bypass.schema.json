@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-016-accesscheckbytype-bypass.schema.json",
+  "title": "SREV-016 AccessCheckByType bypass shape",
+  "id": "ACCESSCHECKBYTYPE_BYPASS_SHAPE",
+  "owner": "Sandboxie/core/dll/advapi.c",
+  "type": "object",
+  "properties": {
+    "accesscheckbytype_shape": {
+      "type": "string",
+      "description": "AccessCheckByType compares a security descriptor against a client token; DesiredAccess should have generic rights mapped; MAXIMUM_ALLOWED makes GrantedAccess report the maximum access rights from the security descriptor; GenericMapping->GenericAll covers all rights grantable by the resource manager; failure leaves output unset"
+    },
+    "compat_scope": {
+      "type": "string",
+      "description": "Sandboxie keeps the BITS/WUAU compatibility bypass scope; only the reported access shape is constrained"
+    },
+    "win32_bypass_shape": {
+      "type": "string",
+      "description": "Win32 AccessCheckByType bypass returns TRUE with AccessStatus = TRUE and GrantedAccess shaped by DesiredAccess (or GenericMapping->GenericAll for MAXIMUM_ALLOWED)"
+    },
+    "nt_bypass_shape": {
+      "type": "string",
+      "description": "NT NtAccessCheckByType hook returns STATUS_SUCCESS with AccessStatus = STATUS_SUCCESS"
+    },
+    "no_0xFFFFFFFF_invariant": {
+      "type": "string",
+      "description": "No AccessCheckByType bypass reports GrantedAccess = 0xFFFFFFFF"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate remains open for BITS/WUAU behavior"
+    }
+  },
+  "required": [
+    "accesscheckbytype_shape",
+    "compat_scope",
+    "win32_bypass_shape",
+    "nt_bypass_shape",
+    "no_0xFFFFFFFF_invariant",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "GrantedAccess for the bypass is shaped from DesiredAccess and GenericMapping; never 0xFFFFFFFF",
+    "If DesiredAccess is MAXIMUM_ALLOWED the bypass reports GenericMapping->GenericAll plus non-maximum bits",
+    "Win32 bypass returns TRUE and AccessStatus = TRUE",
+    "NT bypass returns STATUS_SUCCESS rather than the literal TRUE",
+    "Compat scope (BITS/WUAU image set) is unchanged"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-accesscheckbytype",
+    "https://learn.microsoft.com/en-us/windows/win32/api/securitybaseapi/nf-securitybaseapi-accesscheck"
+  ]
+}

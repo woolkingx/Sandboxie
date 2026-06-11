@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-097-zw-redirector-hal7600-skip-contract.schema.json",
+  "title": "SREV-097 Zw redirector HAL7600 skip contract",
+  "id": "ZW_REDIRECTOR_HAL7600_SKIP_CONTRACT",
+  "owner": "Sandboxie/core/drv/hook_32.c; Sandboxie/core/drv/hook_64.c",
+  "type": "object",
+  "properties": {
+    "service_lookup": {
+      "type": "string",
+      "description": "Hook_GetService to Hook_GetZwServiceInternal scan path"
+    },
+    "hal7600_x86_pattern": {
+      "type": "string",
+      "description": "32-bit HAL7600 replacement stub byte pattern"
+    },
+    "hal7600_x64_pattern": {
+      "type": "string",
+      "description": "64-bit HAL7600 replacement stub byte pattern"
+    },
+    "ordinary_redirector": {
+      "type": "string",
+      "description": "Legal local Zw redirector parser shape"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows x86/x64 scanner runtime proof"
+    }
+  },
+  "required": [
+    "service_lookup",
+    "hal7600_x86_pattern",
+    "hal7600_x64_pattern",
+    "ordinary_redirector",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Hook_GetZwServiceInternal scans kernel Zw redirector bytes only to locate an existing stub",
+    "the HAL7600 branch is a scanner skip over a known replacement stub",
+    "the 32-bit HAL7600 pattern is 33 C0 C2 08 00 followed by the original ret 8",
+    "the 64-bit HAL7600 pattern is 33 C0 C3 followed by the original 66 90 padding",
+    "Sandboxie must not treat the HAL7600 replacement stub as a legal Zw redirector",
+    "Sandboxie must not patch kernel code from this scanner branch",
+    "ordinary 32-bit Zw redirector parsing and fallback search remain unchanged",
+    "ordinary 64-bit Zw redirector parsing remains unchanged"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-nt-and-zw-versions-of-the-native-system-services-routines",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/ntxxx-routines",
+    "https://www.intel.com/content/www/us/en/content-details/835757/intel-64-and-ia-32-architectures-software-developer-s-manual-combined-volumes-2a-2b-2c-and-2d-instruction-set-reference-a-z.html",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/accessing-read-only-system-memory",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-flushinstructioncache"
+  ]
+}

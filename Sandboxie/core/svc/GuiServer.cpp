@@ -48,6 +48,7 @@ extern "C" {
 
 
 #define MAX_RPL_BUF_SIZE    32768
+#define DDE_REQUEST_PROXY_WND_MAX 64
 
 
 //---------------------------------------------------------------------------
@@ -87,15 +88,28 @@ typedef DPI_AWARENESS_CONTEXT (WINAPI *P_SetThreadDpiAwarenessContext)(DPI_AWARE
 
 typedef BOOL (WINAPI *P_SetProcessDpiAwarenessContext)(DPI_AWARENESS_CONTEXT value);
 
+typedef struct _DDE_REQUEST_PROXY_WND {
+
+    HWND client_hwnd;
+    ULONG_PTR item_atom;
+    HWND proxy_hwnd;
+    ULONG tick_count;
+
+} DDE_REQUEST_PROXY_WND;
+
 //---------------------------------------------------------------------------
 // Variables
 //---------------------------------------------------------------------------
 
 
-static HWND DDE_Request_ProxyWnd = NULL;
+static CRITICAL_SECTION DDE_Request_ProxyWndLock;
+static DDE_REQUEST_PROXY_WND DDE_Request_ProxyWnds[DDE_REQUEST_PROXY_WND_MAX];
 
 static P_SetThreadDpiAwarenessContext __sys_SetThreadDpiAwarenessContext = NULL;
 static P_SetProcessDpiAwarenessContext __sys_SetProcessDpiAwarenessContext = NULL;
+
+static void Dde_SetRequestProxyWnd(HWND client_hwnd, ULONG_PTR item_atom, HWND proxy_hwnd);
+static HWND Dde_TakeRequestProxyWnd(HWND client_hwnd, ULONG_PTR item_atom);
 
 //---------------------------------------------------------------------------
 // Constructor
@@ -105,6 +119,7 @@ static P_SetProcessDpiAwarenessContext __sys_SetProcessDpiAwarenessContext = NUL
 GuiServer::GuiServer()
 {
     InitializeCriticalSection(&m_SlavesLock);
+    InitializeCriticalSection(&DDE_Request_ProxyWndLock);
     List_Init(&m_SlavesList);
     m_QueueEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 
@@ -136,6 +151,81 @@ GuiServer::~GuiServer()
 {
 	// cleanup CS
 	DeleteCriticalSection(&m_SlavesLock);
+    DeleteCriticalSection(&DDE_Request_ProxyWndLock);
+}
+
+
+//---------------------------------------------------------------------------
+// Dde_SetRequestProxyWnd
+//---------------------------------------------------------------------------
+
+
+static void Dde_SetRequestProxyWnd(HWND client_hwnd, ULONG_PTR item_atom, HWND proxy_hwnd)
+{
+    if (! client_hwnd || ! item_atom || ! proxy_hwnd)
+        return;
+
+    EnterCriticalSection(&DDE_Request_ProxyWndLock);
+
+    DDE_REQUEST_PROXY_WND *slot = NULL;
+    DDE_REQUEST_PROXY_WND *oldest = &DDE_Request_ProxyWnds[0];
+
+    for (ULONG i = 0; i < DDE_REQUEST_PROXY_WND_MAX; ++i) {
+
+        DDE_REQUEST_PROXY_WND *entry = &DDE_Request_ProxyWnds[i];
+
+        if (entry->client_hwnd == client_hwnd && entry->item_atom == item_atom) {
+            slot = entry;
+            break;
+        }
+
+        if (! entry->client_hwnd && ! slot)
+            slot = entry;
+
+        if (entry->tick_count < oldest->tick_count)
+            oldest = entry;
+    }
+
+    if (! slot)
+        slot = oldest;
+
+    slot->client_hwnd = client_hwnd;
+    slot->item_atom = item_atom;
+    slot->proxy_hwnd = proxy_hwnd;
+    slot->tick_count = GetTickCount();
+
+    LeaveCriticalSection(&DDE_Request_ProxyWndLock);
+}
+
+
+//---------------------------------------------------------------------------
+// Dde_TakeRequestProxyWnd
+//---------------------------------------------------------------------------
+
+
+static HWND Dde_TakeRequestProxyWnd(HWND client_hwnd, ULONG_PTR item_atom)
+{
+    HWND proxy_hwnd = NULL;
+
+    if (! client_hwnd || ! item_atom)
+        return NULL;
+
+    EnterCriticalSection(&DDE_Request_ProxyWndLock);
+
+    for (ULONG i = 0; i < DDE_REQUEST_PROXY_WND_MAX; ++i) {
+
+        DDE_REQUEST_PROXY_WND *entry = &DDE_Request_ProxyWnds[i];
+
+        if (entry->client_hwnd == client_hwnd && entry->item_atom == item_atom) {
+            proxy_hwnd = entry->proxy_hwnd;
+            memzero(entry, sizeof(DDE_REQUEST_PROXY_WND));
+            break;
+        }
+    }
+
+    LeaveCriticalSection(&DDE_Request_ProxyWndLock);
+
+    return proxy_hwnd;
 }
 
 
@@ -350,7 +440,7 @@ ULONG GuiServer::SendMessageToSlave(ULONG session_id, void* data, ULONG data_len
             status = STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, req1);
+    HeapFree(GetProcessHeap(), 0, req1);
 
     return status;
 }
@@ -386,7 +476,7 @@ ULONG GuiServer::StartSlave(ULONG session_id)
             CloseHandle(slave->hProcess);
 
             List_Remove(&m_SlavesList, slave);
-            HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, slave);
+            HeapFree(GetProcessHeap(), 0, slave);
         }
 
         slave = slave_next;
@@ -527,7 +617,7 @@ ULONG GuiServer::StartSlave(ULONG session_id)
         CloseHandle(hNewToken);
     if (hOldToken)
         CloseHandle(hOldToken);
-    HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, cmdline);
+    HeapFree(GetProcessHeap(), 0, cmdline);
 
     return status;
 }
@@ -1792,7 +1882,7 @@ ULONG GuiServer::CreateConsoleSlave(SlaveArgs *args)
 finish:
 
     if (cmdline)
-        HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, cmdline);
+        HeapFree(GetProcessHeap(), 0, cmdline);
     if (hEvent)
         CloseHandle(hEvent);
     if (hToken2)
@@ -2769,8 +2859,6 @@ ULONG GuiServer::GetClipboardMetaFileSlave(SlaveArgs *args)
     GUI_GET_CLIPBOARD_DATA_RPL *rpl =
                                 (GUI_GET_CLIPBOARD_DATA_RPL *)args->rpl_buf;
 
-    //todo:  fail if the calling process should not have clipboard access
-
     if (args->req_len != sizeof(GUI_GET_CLIPBOARD_DATA_REQ))
         return STATUS_INFO_LENGTH_MISMATCH;
 
@@ -2779,6 +2867,16 @@ ULONG GuiServer::GetClipboardMetaFileSlave(SlaveArgs *args)
 
     rpl->result = 0;
     rpl->error = 0;
+
+    // SREV-346: the metafile helper is a secondary clipboard-read path and
+    // must inherit the same OpenClipboard policy gate as GetClipboardDataSlave.
+    WCHAR boxname[BOXNAME_COUNT] = { 0 };
+    WCHAR exename[99] = { 0 };
+    SbieApi_QueryProcess((HANDLE)args->pid, boxname, exename, NULL, NULL);
+    if (!SbieApi_QueryConfBool(boxname, L"OpenClipboard", TRUE)) {
+        rpl->error = ERROR_ACCESS_DENIED;
+        goto finish;
+    }
 
     EnterCriticalSection(&m_SlavesLock);
 
@@ -2825,6 +2923,7 @@ ULONG GuiServer::GetClipboardMetaFileSlave(SlaveArgs *args)
 
     LeaveCriticalSection(&m_SlavesLock);
 
+finish:
     args->rpl_len = sizeof(GUI_GET_CLIPBOARD_DATA_RPL);
     return STATUS_SUCCESS;
 }
@@ -2858,17 +2957,16 @@ ULONG GuiServer::SendPostMessageSlave(SlaveArgs *args)
     //
 
     if (msg == WM_DDE_ACK &&
-            (   req->which == 'sm w' || req->which == 'sm a'
-             || req->which == 'smtw' || req->which == 'smta')) {
+            (req->which == 'sm w' || req->which == 'sm a')) {
 
         //
-        // when a sandboxed process sends an WM_DDE_ACK, it is the start of
-        // a DDE conversation.  to work around the IL bug in DDE (see
-        // core/dll/guidde.c), we use a proxy middleman window.
+        // SREV-347: when a sandboxed process sends WM_DDE_ACK through
+        // SendMessageA/W, it starts the DDE proxy conversation described
+        // in core/dll/guidde.c. Validate the client HWND before creating
+        // the proxy thread.
         //
 
-        if ((req->which == 'sm w') || (req->which == 'sm a')
-                                                    && IsWindow(hwnd)) {
+        if (IsWindow(hwnd)) {
 
             rpl->lresult1 = 0;
             rpl->lresult2 = 0;
@@ -2992,15 +3090,15 @@ ULONG GuiServer::SendCopyDataSlave(SlaveArgs *args)
     GUI_SEND_COPYDATA_REQ *req = (GUI_SEND_COPYDATA_REQ *)args->req_buf;
     GUI_SEND_COPYDATA_RPL *rpl = (GUI_SEND_COPYDATA_RPL *)args->rpl_buf;
 
-    if (args->req_len < sizeof(GUI_SEND_COPYDATA))
+    const ULONG fixed_len = FIELD_OFFSET(GUI_SEND_COPYDATA_REQ, cds_buf);
+    if (args->req_len < fixed_len)
         return STATUS_INFO_LENGTH_MISMATCH;
 
     if (req->cds_len > 1024*1024)
         return STATUS_INFO_LENGTH_MISMATCH;
 
-    ULONG max_offset = FIELD_OFFSET(GUI_SEND_COPYDATA_REQ, cds_buf)
-                     + req->cds_len;
-    if (max_offset > args->req_len)
+    ULONG max_offset = fixed_len + req->cds_len;
+    if (max_offset < fixed_len || max_offset > args->req_len)
         return STATUS_INFO_LENGTH_MISMATCH;
 
     if (req->hwnd == 0xFFFF || req->hwnd == 0xFFFFFFFF)
@@ -3084,36 +3182,49 @@ ULONG GuiServer::SendCopyDataSlave(SlaveArgs *args)
         //
         // note that in the case of cross-sandbox DDE REQUEST/DATA exchange,
         // we need the WM_DDE_DATA reply to specify the window from
-        // DdeProxyThreadSlave, and we use a global variable hack to do that
+        // DdeProxyThreadSlave. SREV-348 routes this through the pending
+        // DDE request map keyed by real client HWND and DDE item atom.
         //
 
         rpl->lresult1 = 0;
         rpl->error = ERROR_INVALID_WINDOW_HANDLE;
 
-        HGLOBAL hGlobal =
-                    GlobalAlloc(GMEM_DDESHARE | GMEM_MOVEABLE, req->cds_len);
-        if (hGlobal) {
-            void *pGlobal = GlobalLock(hGlobal);
-            if (pGlobal) {
-                memcpy(pGlobal, req->cds_buf, req->cds_len);
-                GlobalUnlock(pGlobal);
+        HWND hProxyWnd =
+            Dde_TakeRequestProxyWnd(hwnd, (ULONG_PTR)req->cds_key);
+        if (hProxyWnd) {
 
-                wparam = (WPARAM)DDE_Request_ProxyWnd;
+            HGLOBAL hGlobal =
+                        GlobalAlloc(GMEM_DDESHARE | GMEM_MOVEABLE, req->cds_len);
+            if (hGlobal) {
+                void *pGlobal = GlobalLock(hGlobal);
+                if (pGlobal) {
+                    memcpy(pGlobal, req->cds_buf, req->cds_len);
+                    GlobalUnlock(pGlobal);
 
-                lparam = PackDDElParam(WM_DDE_DATA,
-                                (UINT_PTR)hGlobal, (UINT_PTR)req->cds_key);
+                    lparam = PackDDElParam(WM_DDE_DATA,
+                                    (UINT_PTR)hGlobal, (UINT_PTR)req->cds_key);
 
-                // we can't post WM_DDE_DATA from this thread because the
-                // DdeProxyThreadSlave proxy window is in another thread
-                rpl->lresult1 = PostMessage(DDE_Request_ProxyWnd,
-                                            (WM_USER + 0x123), tzuk, lparam);
+                    if (lparam) {
 
-                rpl->error = 0;
+                        // we can't post WM_DDE_DATA from this thread because the
+                        // DdeProxyThreadSlave proxy window is in another thread
+                        rpl->lresult1 = PostMessage(
+                            hProxyWnd, (WM_USER + 0x123), tzuk, lparam);
 
-                //FreeDDElParam(WM_DDE_DATA, lparam);
+                        if (rpl->lresult1)
+                            rpl->error = 0;
+                        else
+                            rpl->error = GetLastError();
+
+                        //FreeDDElParam(WM_DDE_DATA, lparam);
+                    }
+                }
+                //GlobalFree(hGlobal);
             }
-            //GlobalFree(hGlobal);
         }
+
+        args->rpl_len = sizeof(GUI_SEND_COPYDATA_RPL);
+        return STATUS_SUCCESS;
 
     } else
         return STATUS_INVALID_PARAMETER;
@@ -3215,6 +3326,7 @@ ULONG GuiServer::ClipCursorSlave(SlaveArgs *args)
         return STATUS_INFO_LENGTH_MISMATCH;
 
     GUI_CLIP_CURSOR_REQ *req = (GUI_CLIP_CURSOR_REQ *)args->req_buf;
+    GUI_CLIP_CURSOR_RPL *rpl = (GUI_CLIP_CURSOR_RPL *)args->rpl_buf;
 
     RECT *rect = NULL;
     if (req->have_rect)
@@ -3224,8 +3336,12 @@ ULONG GuiServer::ClipCursorSlave(SlaveArgs *args)
         ? __sys_SetThreadDpiAwarenessContext((DPI_AWARENESS_CONTEXT)(LONG_PTR)req->dpi_awareness_ctx)
         : NULL;
 
-    ClipCursor(rect); //if (! ) // as this seems to randomly fail, don't issue errors
-    //    return STATUS_ACCESS_DENIED; // todo: add reply and return ret value
+    BOOL retval = ClipCursor(rect);
+
+    rpl->status = 0;
+    rpl->error = retval ? 0 : GetLastError();
+    rpl->retval = retval ? 1 : 0;
+    args->rpl_len = sizeof(*rpl);
 
     if (__sys_SetThreadDpiAwarenessContext) {
         __sys_SetThreadDpiAwarenessContext(old_trd_dpi_ctx);
@@ -3650,15 +3766,17 @@ ULONG GuiServer::GetRawInputDeviceInfoSlave(SlaveArgs *args)
 
     LPVOID reqData = req->hasData ? (BYTE*)req + sizeof(GUI_GET_RAW_INPUT_DEVICE_INFO_REQ) : NULL;
 
+    ULONG max_data = MAX_RPL_BUF_SIZE - sizeof(GUI_GET_RAW_INPUT_DEVICE_INFO_RPL);
     ULONG lenData = 0;
     if (reqData && req->cbSize > 0) {
         lenData = req->cbSize;
         if (req->uiCommand == RIDI_DEVICENAME && req->unicode) {
+            if (lenData > max_data / sizeof(WCHAR))
+                return STATUS_INVALID_PARAMETER;
             lenData *= sizeof(WCHAR);
         }
     }
 
-    ULONG max_data = MAX_RPL_BUF_SIZE - sizeof(GUI_GET_RAW_INPUT_DEVICE_INFO_RPL);
     if (lenData > max_data)
         return STATUS_INVALID_PARAMETER;
 
@@ -3764,7 +3882,7 @@ ULONG GuiServer::WndHookNotifySlave(SlaveArgs *args)
 
             // remove invalid entries
             List_Remove(&m_WndHooks, old_whk);
-            HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, old_whk);
+            HeapFree(GetProcessHeap(), 0, old_whk);
         }
     } 
 
@@ -3786,6 +3904,7 @@ ULONG GuiServer::WndHookRegisterSlave(SlaveArgs* args)
 
     GUI_WND_HOOK_REGISTER_REQ* req = (GUI_WND_HOOK_REGISTER_REQ*)args->req_buf;
     GUI_WND_HOOK_REGISTER_RPL* rpl = (GUI_WND_HOOK_REGISTER_RPL*)args->rpl_buf;
+    ULONG status = STATUS_SUCCESS;
 
     if (args->req_len != sizeof(GUI_WND_HOOK_REGISTER_REQ))
         return STATUS_INFO_LENGTH_MISMATCH;
@@ -3805,16 +3924,24 @@ ULONG GuiServer::WndHookRegisterSlave(SlaveArgs* args)
     {
         // Validate thread ownership - reject if hthread is not in the caller's process
         HANDLE hThread = OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, req->hthread);
-        if (!hThread) 
-            return STATUS_UNSUCCESSFUL;
+        if (!hThread) {
+            status = STATUS_UNSUCCESSFUL;
+            goto finish;
+        }
         DWORD ownerPid = pGetProcessIdOfThread ? pGetProcessIdOfThread(hThread) : -1;
         CloseHandle(hThread);
-        if (ownerPid != args->pid)
-            return STATUS_ACCESS_DENIED;
+        if (ownerPid != args->pid) {
+            status = STATUS_ACCESS_DENIED;
+            goto finish;
+        }
 
         if (!whk) // add if not already added
         {
             whk = (WND_HOOK *)HeapAlloc(GetProcessHeap(), 0, sizeof(WND_HOOK));
+            if (! whk) {
+                status = STATUS_INSUFFICIENT_RESOURCES;
+                goto finish;
+            }
             whk->pid = args->pid;
             whk->hthread = req->hthread;
             whk->hproc = req->hproc;
@@ -3832,11 +3959,16 @@ ULONG GuiServer::WndHookRegisterSlave(SlaveArgs* args)
         whk->HookCount--;
         if (whk->HookCount <= 0) { // remobe if this was the last hook
             List_Remove(&m_WndHooks, whk);
-            HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, whk);
+            HeapFree(GetProcessHeap(), 0, whk);
         }
     }
 
+finish:
+
     LeaveCriticalSection(&m_SlavesLock);
+
+    if (status != STATUS_SUCCESS)
+        return status;
 
     rpl->status = STATUS_SUCCESS;
 
@@ -4228,11 +4360,11 @@ bool GuiServer::AllowSendPostMessage(
         //return true;
 
     //
-    // discard some messages that might hide, close or crash windows
-    // outside the sandbox.  note that these messages are aimed
-    // primarily at protecting Windows Explorer outside the sandbox:
-    // for example, WM_QUERYENDSESSION seems like a harmless message,
-    // but Shell_TrayWnd reacts to it badly
+    // SREV-350: deny cross-sandbox lifecycle, shutdown, notification, and
+    // shell-control system messages before they reach windows outside the
+    // sandbox. This protects host Explorer windows because messages such as
+    // WM_QUERYENDSESSION carry process/session semantics beyond ordinary UI
+    // input.
     //
 
     if (msg < WM_USER) {
@@ -4532,7 +4664,7 @@ void GuiServer::ConsoleCallbackSlave(void *arg, BOOLEAN timeout)
     TerminateProcess(WaitHandles[2], 0);
     CloseHandle(WaitHandles[2]);
 
-    HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, WaitHandles);
+    HeapFree(GetProcessHeap(), 0, WaitHandles);
 }
 
 
@@ -4605,17 +4737,15 @@ void GuiServer::AdjustConsoleTaskbarButton()
 ULONG GuiServer::DdeProxyThreadSlave(void *xDdeArgs)
 {
     //
-    // this function, which runs in its own thread, creates a proxy window
-    // for a DDE conversation.  to the client window/process, this window
-    // is the server.  to the real server window/process, this window looks
-    // is the client.
+    // SREV-351: this service-side proxy is the out-of-sandbox transport
+    // endpoint for the restricted-token posted-DDE topology described in
+    // core/dll/guidde.c. To the real client it is the server; to the
+    // sandboxed server it is the client.
     //
-    // this is needed because the IL bug in core/dll/guidde.c prevents
-    // PostMessage from working correctly between DDE client/server.
-    // however the proxy window is not in the sandbox and not subject to
-    // that IL bug, so it can receive WM_DDE_EXECUTE and WM_DDE_REQUEST
-    // messages posted by the client.  to the server it sends WM_COPYDATA
-    // messages instead of posting DDE messages.
+    // The sandboxed side posts DDE EXECUTE/REQUEST messages to this proxy
+    // window. The proxy copies those payloads to the sandbox server through
+    // WM_COPYDATA because WM_COPYDATA data is valid only during SendMessage
+    // and must be copied before later use.
     //
 
     static ATOM _atom = 0;
@@ -4625,7 +4755,7 @@ ULONG GuiServer::DdeProxyThreadSlave(void *xDdeArgs)
     HWND hClientWnd = (HWND)DdeArgs[0];
     HWND hServerWnd = (HWND)DdeArgs[1];
     LPARAM lParam = (LPARAM)DdeArgs[2];
-    HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, DdeArgs);
+    HeapFree(GetProcessHeap(), 0, DdeArgs);
 
     //
     // create the proxy window class and window instance
@@ -4746,8 +4876,9 @@ ULONG GuiServer::DdeProxyThreadSlave(void *xDdeArgs)
                 SendMessage(hServerWnd, WM_COPYDATA,
                             (WPARAM)hProxyWnd, (LPARAM)&cds);
 
-                // see SendCopyDataSlave
-                DDE_Request_ProxyWnd = hProxyWnd;
+                UINT_PTR lo, hi;
+                if (UnpackDDElParam(WM_DDE_REQUEST, lParam, &lo, &hi))
+                    Dde_SetRequestProxyWnd(hClientWnd, hi, hProxyWnd);
             }
         }
 
@@ -4757,7 +4888,6 @@ ULONG GuiServer::DdeProxyThreadSlave(void *xDdeArgs)
 
         if (msg.message == (WM_USER + 0x123) && msg.wParam == tzuk) {
 
-            DDE_Request_ProxyWnd = 0;
             PostMessage(
                 hClientWnd, WM_DDE_DATA, (WPARAM)hProxyWnd, msg.lParam);
         }
@@ -4768,7 +4898,7 @@ ULONG GuiServer::DdeProxyThreadSlave(void *xDdeArgs)
 
         if (msg.message == WM_DDE_ACK && (HWND)msg.wParam == hServerWnd) {
 
-            PostMessage(hClientWnd, WM_DDE_ACK, (WPARAM)hProxyWnd, lParam);
+            PostMessage(hClientWnd, WM_DDE_ACK, (WPARAM)hProxyWnd, msg.lParam);
         }
 
         //
@@ -4846,7 +4976,7 @@ ULONG GuiServer__StartupWorker(void* _Param)
 
     SetEvent(pParam->hEvent);
 
-    HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, pParam);
+    HeapFree(GetProcessHeap(), 0, pParam);
     return 0;
 }
 
@@ -4858,10 +4988,9 @@ ULONG GuiServer::StartAsync(ULONG session_id, HANDLE hEvent)
 
     HANDLE hThread = CreateThread(NULL, 0, GuiServer__StartupWorker, (void *)pParam, 0, NULL);
     if (!hThread) {
-        HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, pParam);
+        HeapFree(GetProcessHeap(), 0, pParam);
         return STATUS_UNSUCCESSFUL;
     }
     CloseHandle(hThread);
     return STATUS_SUCCESS;
 }
-

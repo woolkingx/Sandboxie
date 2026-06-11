@@ -106,6 +106,10 @@ NTSTATUS Ipc_Api_OpenDynamicPort(PROCESS* proc, ULONG64* parms);
 
 NTSTATUS Ipc_Api_GetDynamicPortFromPid(PROCESS *proc, ULONG64 *parms);
 
+BOOLEAN Ipc_GetRpcMsgId(
+    PROCESS *proc, const WCHAR *endpoint_name,
+    UCHAR *data, ULONG data_len, UCHAR *msg_id);
+
 //---------------------------------------------------------------------------
 // Variables
 //---------------------------------------------------------------------------

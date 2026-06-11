@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-124-sbieapi-ioctl-close-request-boundary.schema.json",
+  "title": "SREV-124 SbieApi ioctl close request boundary",
+  "id": "SBIEAPI_IOCTL_CLOSE_REQUEST_BOUNDARY",
+  "owner": "Sandboxie/core/dll/sbieapi.c",
+  "type": "object",
+  "properties": {
+    "close_request": {
+      "type": "string",
+      "description": "SbieApi_Ioctl(NULL) is a terminal close request"
+    },
+    "handle_lifetime": {
+      "type": "string",
+      "description": "Cached driver handle is closed when present and invalidated after close"
+    },
+    "normal_ioctl": {
+      "type": "string",
+      "description": "Non-null ioctl path preserves existing trace open remap and ioctl topology"
+    }
+  },
+  "required": [
+    "close_request",
+    "handle_lifetime",
+    "normal_ioctl"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "SbieApi_Ioctl NULL parms is a close request used by kmdutil",
+    "null close request closes cached SbieApi_DeviceHandle when it exists",
+    "null close request invalidates SbieApi_DeviceHandle",
+    "null close request returns before trace open or device ioctl logic can read parms zero or reopen the driver device",
+    "null close request reports NtClose status when a handle existed otherwise STATUS_SUCCESS",
+    "non-null request preserves trace driver-open STATUS_SERVER_DISABLED remap hook-bypass and ioctl topology"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwclose",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntopenfile",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntdeviceiocontrolfile",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-nt-and-zw-versions-of-the-native-system-services-routines"
+  ]
+}

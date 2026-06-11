@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-032-process-suspend-one.schema.json",
+  "title": "SREV-032 process suspend one",
+  "id": "PROCESS_SUSPEND_RESUME_ONE",
+  "owner": "Sandboxie/core/svc/ProcessServer.cpp",
+  "type": "object",
+  "properties": {
+    "audit_contract": {
+      "type": "string",
+      "description": "API: ProcessServer::SuspendOneHandler | wire: {\"request\": \"PROCESS_SUSPEND_RESUME_ONE_REQ\", \"header\": \"MSG_HEADER\", \"fields\": [{\"name\": \"pid\", \"type\": \"ULONG\", \"meaning\": \"target process id\"}, {\"name\": \"suspend\", \"type\": \"BOOLEAN\", \"meaning\": \"true selects NtSuspendProcess, false selects NtResumeProcess\"}]}"
+    },
+    "validation_invariants": {
+      "type": "string",
+      "description": "All contracts listed in the contracts metadata must hold before any data is trusted past the validation boundary"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate proves contracts hold under normal and malformed inputs"
+    }
+  },
+  "required": [
+    "audit_contract",
+    "validation_invariants",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "request length must cover PROCESS_SUSPEND_RESUME_ONE_REQ",
+    "target process identity and caller authorization must be checked before opening the process",
+    "OpenProcess(PROCESS_SUSPEND_RESUME) must return a non-NULL handle before native suspend/resume",
+    "NtSuspendProcess and NtResumeProcess receive only a valid opened process handle",
+    "CloseHandle is called exactly once for the successfully opened process handle",
+    "OpenProcess failure returns STATUS_INVALID_CID before using or closing the handle"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openprocess",
+    "https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-closehandle",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/using-ntstatus-values"
+  ]
+}

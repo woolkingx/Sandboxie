@@ -76,11 +76,11 @@ _001:	pop     rcx
         ; 64 bit version takes 4 arguments
 		; _EntrypointC(SbieLowData,_DetourCode,_SystemService)
 		
-		mov rbx,rcx
+		mov r10,rcx
 		add	rcx, offset SbieLowData - _001
-		mov rdx,rbx  
+		mov rdx,r10
 		add rdx, offset _DetourCode - _001
-		mov r8,rbx
+		mov r8,r10
 		add r8, offset _SystemService - _001
         		
 		call	EntrypointC

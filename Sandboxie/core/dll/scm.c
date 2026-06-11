@@ -103,6 +103,8 @@ static WCHAR *Scm_GetBoxedServices(void);
 
 static WCHAR *Scm_GetAllServices(void);
 
+static WCHAR *Scm_AllocServiceKeyPath(const WCHAR *ServiceName);
+
 static void Scm_DiscardKeyCache(const WCHAR *ServiceName);
 
 static BOOLEAN Scm_DllHack(HMODULE module, const WCHAR *svcname);
@@ -857,6 +859,11 @@ _FX SC_HANDLE Scm_OpenServiceWImpl(
         return (SC_HANDLE)0;
     }
 
+    if (wcslen(lpServiceName) > SCM_SERVICE_NAME_MAX_CHARS) {
+        SetLastError(ERROR_INVALID_NAME);
+        return (SC_HANDLE)0;
+    }
+
     //
     // open the service if we know its name, first check in the sandbox,
     // and if not found, outside the sandbox
@@ -894,9 +901,13 @@ _FX SC_HANDLE Scm_OpenServiceWImpl(
 
     name = Dll_Alloc(
         sizeof(ULONG) + (wcslen(lpServiceName) + 1) * sizeof(WCHAR));
+    if (! name) {
+        SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+        return (SC_HANDLE)0;
+    }
     *(ULONG *)name = tzuk;
     wcscpy((WCHAR *)(((ULONG *)name) + 1), lpServiceName);
-    _wcslwr(name);
+    _wcslwr((WCHAR *)(((ULONG *)name) + 1));
 
     SetLastError(0);
     return (SC_HANDLE)name;
@@ -1300,6 +1311,43 @@ _FX WCHAR *Scm_GetAllServices(void)
 
 
 //---------------------------------------------------------------------------
+// Scm_AllocServiceKeyPath
+//---------------------------------------------------------------------------
+
+
+_FX WCHAR *Scm_AllocServiceKeyPath(const WCHAR *ServiceName)
+{
+    size_t service_len;
+    size_t key_len;
+    WCHAR *keyname;
+
+    if ((! ServiceName) || (! *ServiceName)) {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return NULL;
+    }
+
+    service_len = wcslen(ServiceName);
+    if (service_len > SCM_SERVICE_NAME_MAX_CHARS) {
+        SetLastError(ERROR_INVALID_NAME);
+        return NULL;
+    }
+
+    key_len = wcslen(Scm_ServicesKeyPath) + 1 + service_len + 1;
+    keyname = Dll_AllocTemp((ULONG)(key_len * sizeof(WCHAR)));
+    if (! keyname) {
+        SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+        return NULL;
+    }
+
+    wcscpy(keyname, Scm_ServicesKeyPath);
+    wcscat(keyname, L"\\");
+    wcscat(keyname, ServiceName);
+
+    return keyname;
+}
+
+
+//---------------------------------------------------------------------------
 // Scm_OpenKeyForService
 //---------------------------------------------------------------------------
 
@@ -1307,15 +1355,16 @@ _FX WCHAR *Scm_GetAllServices(void)
 _FX HANDLE Scm_OpenKeyForService(const WCHAR *ServiceName, BOOLEAN ForWrite)
 {
     NTSTATUS status;
-    WCHAR keyname[128];
+    WCHAR *keyname;
     OBJECT_ATTRIBUTES objattrs;
     UNICODE_STRING objname;
     HANDLE handle;
     ULONG error;
 
-    wcscpy(keyname, Scm_ServicesKeyPath);
-    wcscat(keyname, L"\\");
-    wcscat(keyname, ServiceName);
+    keyname = Scm_AllocServiceKeyPath(ServiceName);
+    if (! keyname)
+        return NULL;
+
     RtlInitUnicodeString(&objname, keyname);
 
     InitializeObjectAttributes(
@@ -1346,6 +1395,7 @@ _FX HANDLE Scm_OpenKeyForService(const WCHAR *ServiceName, BOOLEAN ForWrite)
     }
     SetLastError(error);
 
+    Dll_Free(keyname);
     return handle;
 }
 
@@ -1371,13 +1421,26 @@ _FX BOOLEAN SbieDll_IsBoxedService(HANDLE hService)
 
 _FX void Scm_DiscardKeyCache(const WCHAR *ServiceName)
 {
-    WCHAR *keyname = Dll_AllocTemp(sizeof(WCHAR) * 256);
+    ULONG error = GetLastError();
+    WCHAR *keyname;
+
+    keyname = Dll_AllocTemp(
+        (ULONG)((wcslen(Scm_ServicesKeyPath) + 1) * sizeof(WCHAR)));
+    if (! keyname) {
+        SetLastError(error);
+        return;
+    }
     wcscpy(keyname, Scm_ServicesKeyPath);
     Key_UpdateMergeByPath(keyname, FALSE, FALSE);
-    wcscat(keyname, L"\\");
-    wcscat(keyname, ServiceName);
-    Key_UpdateMergeByPath(keyname, FALSE, FALSE);
     Dll_Free(keyname);
+
+    keyname = Scm_AllocServiceKeyPath(ServiceName);
+    if (keyname) {
+        Key_UpdateMergeByPath(keyname, FALSE, FALSE);
+        Dll_Free(keyname);
+    }
+
+    SetLastError(error);
 }
 
 

@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "NTMARTA_WINDOW_SECURITY_HOOK_SELECTION",
+  "owner": "Sandboxie/core/dll/advapi.c",
+  "stage": "data -> schema -> topology -> logic -> action -> verify",
+  "contracts": [
+    "GetSecurityInfo and SetSecurityInfo are handle plus SE_OBJECT_TYPE security APIs",
+    "SE_WINDOW_OBJECT means a local window station or desktop object",
+    "CreateDesktopW with NULL security attributes inherits from the parent window station",
+    "Ntmarta_Init owns only ntmarta hook selection and function-pointer publication",
+    "Ntmarta_GetSecurityInfo fallback remains owned by SREV-116 and SREV-126",
+    "Ntmarta_SetSecurityInfo Chrome null window-object bypass remains owned by SREV-252",
+    "SREV-316 changes comments and proof only, not hook predicates or behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-getsecurityinfo",
+    "https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-setsecurityinfo",
+    "https://learn.microsoft.com/en-us/windows/win32/api/accctrl/ne-accctrl-se_object_type",
+    "https://learn.microsoft.com/en-us/windows/win32/winstation/about-window-stations-and-desktops",
+    "https://learn.microsoft.com/en-us/windows/win32/winstation/window-station-security-and-access-rights",
+    "https://learn.microsoft.com/en-us/windows/win32/winstation/desktop-security-and-access-rights",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-createdesktopw"
+  ],
+  "runtime_gate": "Windows Chrome/Acrobat desktop creation and window-station security smoke with Advapi32/ntmarta call capture"
+}

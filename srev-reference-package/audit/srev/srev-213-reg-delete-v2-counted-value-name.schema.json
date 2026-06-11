@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "REG_DELETE_V2_COUNTED_VALUE_NAME",
+  "owner": "Sandboxie/core/dll/key_del.c",
+  "implementation": "Sandboxie/core/dll/key.c",
+  "status": "patched-source-level-after-official-registry-counted-value-name-shape-review-needs-windows-runtime-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwdeletevaluekey",
+    "https://learn.microsoft.com/en-us/windows/win32/api/subauth/ns-subauth-unicode_string",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_key_value_basic_information",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_key_value_full_information"
+  ],
+  "contracts": [
+    "key_del.c owns delete-v2 marker path construction",
+    "Value names crossing from NtDeleteValueKey are counted UNICODE_STRING buffers",
+    "Value names crossing from registry enumeration and query information structures are counted by NameLength",
+    "Delete-v2 marker helpers copy exactly the counted value-name characters and synthesize a local terminator",
+    "Null-terminated generated merge names may still use the compatibility wrapper that measures with wcslen",
+    "Allocation failure while marking a deletion returns STATUS_INSUFFICIENT_RESOURCES and checking deletion status returns not deleted"
+  ],
+  "runtime_gate": "Windows DLL build plus registry delete-v2 smoke with value names from NtDeleteValueKey, NtQueryValueKey, and NtEnumerateValueKey, including a non-null-terminated counted test name, proving deleted values are hidden without over-reading and generated merge names still match."
+}

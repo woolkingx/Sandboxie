@@ -168,8 +168,11 @@ _FX BOOLEAN Gui_InitProp(HMODULE module)
     }
 
     //
-    // without UnrestrictedToken=y fulscreen does not work when NonRudeHWND is set
-    // so unless we are running in appcompartment mode by default we drop that SetProp
+    // SREV-296: NonRudeHWND SetProp suppression is a narrow fullscreen
+    // compatibility policy. UseNonRudeHwndHack controls whether SetPropA/W
+    // reports success without storing the NonRudeHWND property; UnrestrictedToken
+    // is a broader token/UI-restriction owner in token.c and GuiServer.cpp.
+    // The default keeps this suppression enabled outside app-compartment mode.
     //
 
     Gui_NonRudeHWND_Hack = SbieApi_QueryConfBool(NULL, L"UseNonRudeHwndHack", !Dll_CompartmentMode);
@@ -1141,17 +1144,20 @@ _FX BOOLEAN Gui_Hook_SetWindowLong8(HMODULE module)
     // the hook trampoline may override past the end of the short function,
     // and corrupt surrounding code.  to work around this, we analyze the
     // short functions in order to hook user32!SetWindowLong instead
+    // SREV-297: opcode comments use parser terms from SREV-063.
     //
     // SetWindowLongA       mov r9d,1           41 B9 01 00 00 00
-    //      (11 bytes)      jmp xxx             E9 xx xx xx xx
+    //      (11 bytes)      jmp rel32           E9 xx xx xx xx
     // SetWindowLongW       xor r9d,r9d         45 33 C9
-    //      (8 bytes)       jmp xxx             E9 xx xx xx xx
+    //      (8 bytes)       jmp rel32           E9 xx xx xx xx
     //
 
     UCHAR *a = (UCHAR *)__sys_SetWindowLongA;
     UCHAR *w = (UCHAR *)__sys_SetWindowLongW;
 
-    if (*(ULONG *)a == 0x0001B941 && *(ULONG *)w == 0xE9C93345) {
+    if (*(ULONG *)a == 0x0001B941 &&
+            *(USHORT *)(a + 4) == 0x0000 && a[6] == 0xE9 &&
+            *(ULONG *)w == 0xE9C93345) {
 
         LONG a_offset = *(LONG *)(a + 7);
         LONG w_offset = *(LONG *)(w + 4);
@@ -1169,7 +1175,8 @@ _FX BOOLEAN Gui_Hook_SetWindowLong8(HMODULE module)
     //windows 10 build 10147 no longer has the wrapper for SetWindowLongW.
     //SetWindowLongA remains the same as the previous version but points to a
     //separate function 
-    else if (*(ULONG *)a == 0x0001B941) {
+    else if (*(ULONG *)a == 0x0001B941 &&
+            *(USHORT *)(a + 4) == 0x0000 && a[6] == 0xE9) {
         LONG a_offset = *(LONG *)(a + 7);
         __sys_SetWindowLong8 = (P_SetWindowLong8)w;
         if ((a + 11 + a_offset) !=  w) {
@@ -1231,17 +1238,20 @@ _FX BOOLEAN Gui_Hook_SetWindowLongPtr8(HMODULE module)
     // the hook trampoline may override past the end of the short function,
     // and corrupt surrounding code.  to work around this, we analyze the
     // short functions in order to hook user32!SetWindowLongPtr instead
+    // SREV-297: opcode comments use parser terms from SREV-063.
     //
     // SetWindowLongPtrA    mov r9d,1           41 B9 01 00 00 00
-    //      (11 bytes)      jmp xxx             E9 xx xx xx xx
+    //      (11 bytes)      jmp rel32           E9 xx xx xx xx
     // SetWindowLongPtrW    xor r9d,r9d         45 33 C9
-    //      (8 bytes)       jmp xxx             E9 xx xx xx xx
+    //      (8 bytes)       jmp rel32           E9 xx xx xx xx
     //
 
     UCHAR *a = (UCHAR *)__sys_SetWindowLongPtrA;
     UCHAR *w = (UCHAR *)__sys_SetWindowLongPtrW;
 
-    if (*(ULONG *)a == 0x0001B941 && *(ULONG *)w == 0xE9C93345) {
+    if (*(ULONG *)a == 0x0001B941 &&
+            *(USHORT *)(a + 4) == 0x0000 && a[6] == 0xE9 &&
+            *(ULONG *)w == 0xE9C93345) {
 
         LONG a_offset = *(LONG *)(a + 7);
         LONG w_offset = *(LONG *)(w + 4);

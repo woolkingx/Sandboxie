@@ -26,6 +26,11 @@ extern "C" {
 #include "core/svc/PStoreWire.h"
 
 
+EXTERN_C const IID IID_IEnumPStoreItems =
+    { 0x4C83B307, 0x0B70, 0x4726, { 0x8F, 0x75, 0x39, 0x6E, 0xBB, 0xDA, 0xA4, 0x01 } };
+EXTERN_C const IID IID_IEnumPStoreTypes =
+    { 0x4C83B307, 0x0B70, 0x4726, { 0x8F, 0x75, 0x39, 0x6E, 0xBB, 0xDA, 0xA4, 0x02 } };
+
 typedef LPVOID (*P_CoTaskMemAlloc)(ULONG cb);
 
 
@@ -345,8 +350,15 @@ void IEnumPStoreTypesImpl::InsertSorted(GUID *guid)
 
 HRESULT IEnumPStoreTypesImpl::QueryInterface(REFIID iid, void **ppvObject)
 {
+    if (! ppvObject)
+        return E_POINTER;
+    if (IsEqualIID(iid, IID_IUnknown) || IsEqualIID(iid, IID_IEnumPStoreTypes))
+        *ppvObject = (IEnumPStoreTypes *)this;
+    else {
+        *ppvObject = NULL;
+        return E_NOINTERFACE;
+    }
     this->AddRef();
-    *ppvObject = this;
     return S_OK;
 }
 
@@ -577,8 +589,15 @@ void IEnumPStoreItemsImpl::InsertSorted(const WCHAR *name)
 
 HRESULT IEnumPStoreItemsImpl::QueryInterface(REFIID iid, void **ppvObject)
 {
+    if (! ppvObject)
+        return E_POINTER;
+    if (IsEqualIID(iid, IID_IUnknown) || IsEqualIID(iid, IID_IEnumPStoreItems))
+        *ppvObject = (IEnumPStoreItems *)this;
+    else {
+        *ppvObject = NULL;
+        return E_NOINTERFACE;
+    }
     this->AddRef();
-    *ppvObject = this;
     return S_OK;
 }
 

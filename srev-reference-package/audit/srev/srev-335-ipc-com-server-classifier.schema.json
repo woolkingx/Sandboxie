@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "IPC_COM_SERVER_CLASSIFIER",
+  "title": "IPC COM server classifier",
+  "type": "object",
+  "owner": "Sandboxie/core/drv/ipc.c",
+  "stage": "schema -> topology -> verify",
+  "source_functions": [
+    "Ipc_InitPaths",
+    "Ipc_IsComServer",
+    "Custom_ComServer",
+    "ProcessServer::RunSandboxedComServer"
+  ],
+  "contracts": [
+    "Ipc_IsComServer owns only driver-side forced COM server classification",
+    "The classifier applies only to forced processes whose image did not come from inside the box",
+    "The image allowlist remains iexplore exe wmplayer exe winamp exe and kmplayer exe",
+    "The parent process must exist must be outside the sandbox and must run as system account",
+    "Ipc_InitPaths marks a classified forced COM server process as untouchable",
+    "Custom_ComServer and SREV-256 own the brokered COM handoff topology",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-cocreateinstance",
+    "https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-coregisterclassobject",
+    "https://learn.microsoft.com/en-us/windows/win32/com/localserver32",
+    "https://learn.microsoft.com/en-us/windows/win32/com/out-of-process-server-implementation-helpers"
+  ],
+  "local_edges": [
+    "Ipc_InitPaths -> Ipc_IsComServer -> proc->untouchable",
+    "Ipc_IsComServer -> forced_process -> outside-box image -> allowlisted image",
+    "Ipc_IsComServer -> parent exists -> parent not sandboxed -> parent system account",
+    "Custom_ComServer -> SbieDll_RunSandboxed -> SbieSvc comserver9.c",
+    "ProcessServer::RunSandboxedComServer -> forced and protected process flags"
+  ],
+  "runtime_gate": "Windows COM activation matrix for iexplore wmplayer winamp kmplayer parent SYSTEM context out-of-box parent sandboxed parent negative case and non-allowlisted forced-process negative case",
+  "status": "patched-comment-topology-after-official-com-broker-boundary-review-no-behavior-change"
+}

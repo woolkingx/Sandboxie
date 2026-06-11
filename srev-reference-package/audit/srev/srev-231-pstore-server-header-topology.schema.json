@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "PSTORE_SERVER_HEADER_TOPOLOGY_CONTRACT",
+  "owner": "Sandboxie/core/svc/pstoreserver.h",
+  "related_owners": [
+    "Sandboxie/core/svc/pstoreserver.cpp",
+    "Sandboxie/core/svc/pstorewire.h",
+    "Sandboxie/core/dll/ipstore_impl.cpp",
+    "Sandboxie/core/dll/ipstore_enum.cpp",
+    "Sandboxie/core/dll/pstore.h"
+  ],
+  "status": "docs-only-source-topology-reviewed-needs-windows-service-build-proof",
+  "official_references": [],
+  "contracts": [
+    "pstoreserver.h is the service-side PStore broker declaration header",
+    "The header may declare handler entry points and the provider pointer slot",
+    "The header does not own PStore COM ABI shape, service wire layouts, enumeration loop semantics, Protected Storage hook policy, or host pstorec.dll lifetime behavior",
+    "Runtime behavior changes belong to pstoreserver.cpp, pstorewire.h, ipstore_impl.cpp, ipstore_enum.cpp, or pstore.h depending on the transition",
+    "Future header changes must prove PipeServer route topology and provider-state ownership before behavior claims"
+  ],
+  "runtime_gate": "Windows SboxSvc build continues to compile the header and register MSGID_PSTORE; PStore runtime behavior remains covered by the open PStore SREV Windows gates."
+}

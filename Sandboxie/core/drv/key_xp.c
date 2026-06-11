@@ -98,7 +98,8 @@ _FX void Key_Check_KB979683(const WCHAR *KbName)
         RtlInitUnicodeString(&objname, path);
 
         InitializeObjectAttributes(
-            &objattrs, &objname, OBJ_CASE_INSENSITIVE, NULL, NULL);
+            &objattrs, &objname,
+            OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
 
         status = ZwOpenKey(&handle, KEY_READ, &objattrs);
         if (! NT_SUCCESS(status)) {

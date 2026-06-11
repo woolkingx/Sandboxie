@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "AULLDVRM_LEGACY_X86_HELPER_CONTRACT",
+  "owner": "Sandboxie/core/drv/aulldvrm.asm",
+  "related_owners": [
+    "Sandboxie/core/drv/SboxDrv.vcxproj",
+    "Sandboxie/core/drv/SboxDrv.vcxproj.filters",
+    "docs/plan/ledger/srev-170.md",
+    "docs/plan/ledger/srev-102.md",
+    "docs/plan/ledger/srev-132.md"
+  ],
+  "status": "docs-only-source-topology-reviewed-dormant-build-surface-needs-windows-x86-build-proof-if-reenabled",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/cpp/assembler/masm/dot-386?view=msvc-170",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/x86-architecture",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/x86-instructions",
+    "https://learn.microsoft.com/en-us/cpp/cpp/stdcall?view=msvc-170"
+  ],
+  "contracts": [
+    "aulldvrm.asm is a legacy x86 MASM helper for __aulldvrm",
+    "The source body is meaningful only for the non-_WIN64 MASM path",
+    "SboxDrv.vcxproj owns whether this helper is built",
+    "The current project excludes this helper from all listed driver configurations",
+    "No current source call site proves runtime dependence on __aulldvrm",
+    "Re-enabling the helper requires a Windows x86 WDK build proof and CRT helper ABI proof before behavior claims"
+  ],
+  "runtime_gate": "If aulldvrm.asm is re-enabled, a Windows x86 WDK driver build must prove the helper object links only where intended and preserves the expected x86 stack/register ABI. Current Linux source checks do not prove that future runtime path."
+}

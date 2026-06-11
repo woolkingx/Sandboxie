@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-052-dns-filter-ip-entry-ownership.schema.json",
+  "title": "SREV-052 DNS filter IP entry ownership contract",
+  "id": "DNS_FILTER_IP_ENTRY_OWNERSHIP",
+  "api": "WSA_InitNetDnsFilter",
+  "owner": "Sandboxie/core/dll/dns_filter.c",
+  "type": "object",
+  "properties": {
+    "network_dns_filter": {
+      "type": "string",
+      "description": "NetworkDnsFilter configuration value containing a pattern and optional semicolon-separated IP list"
+    },
+    "ip_entry": {
+      "type": "string",
+      "description": "Allocated IP_ENTRY candidate"
+    },
+    "parse_result": {
+      "type": "integer",
+      "description": "_inet_xton return value; 1 means a valid parsed address"
+    }
+  },
+  "required": [
+    "network_dns_filter",
+    "ip_entry",
+    "parse_result"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "WSA_InitNetDnsFilter owns IP_ENTRY allocation while parsing NetworkDnsFilter configuration",
+    "_inet_xton returns 1 only for a valid parsed IPv4 or IPv6 address",
+    "A valid IP_ENTRY transfers ownership to the entries list",
+    "An invalid IP_ENTRY remains owned by the parser and must be freed",
+    "An IPv4-mapped IPv6 synthetic entry transfers ownership only after successful allocation"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/ws2tcpip/nf-ws2tcpip-inetptonw"
+  ]
+}

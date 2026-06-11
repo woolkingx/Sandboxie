@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-005-portrequest-message-header-spec.schema.json",
+  "title": "SREV-005 PortRequest message header shape",
+  "id": "PORTREQUEST_MESSAGE_HEADER_SHAPE",
+  "owner": "Sandboxie/core/svc/PipeServer.cpp",
+  "type": "object",
+  "properties": {
+    "carrier_shape": {
+      "type": "string",
+      "description": "LPC/ALPC port-message carrier exposes DataLength on each chunk; LPC is emulated in ALPC on modern Windows"
+    },
+    "header_layout": {
+      "type": "string",
+      "description": "MSG_HEADER carries ULONG length followed by a union of ULONG msgid or ULONG status; first chunk also carries a sequence byte at offset 3 of MSG_HEADER.length"
+    },
+    "minimum_length_gate": {
+      "type": "string",
+      "description": "PipeServer::PortRequest must reject first chunks with msg->u1.s1.DataLength < sizeof(MSG_HEADER) before any msg_Data byte access"
+    },
+    "trust_order": {
+      "type": "string",
+      "description": "Sequence-byte capture at offset 3, msgid read from msg_Data[1], length read from msg_Data[0], and buf_len/msgid/MAX_REQUEST_LENGTH validation all run only after the minimum-header gate succeeds"
+    },
+    "continuation_invariant": {
+      "type": "string",
+      "description": "Existing chunk assembly protocol, sequence byte, request length checks, and service dispatch are unchanged"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate: malformed first chunks of length 0-7 never reach CallTarget; normal multi-chunk broker calls still work"
+    }
+  },
+  "required": [
+    "carrier_shape",
+    "header_layout",
+    "minimum_length_gate",
+    "trust_order",
+    "continuation_invariant",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "PORT_MESSAGE carries u1.s1.DataLength giving received chunk byte count",
+    "MSG_HEADER is two ULONGs: length and union { msgid; status }",
+    "First chunk overlays a sequence byte at byte offset 3 of MSG_HEADER.length",
+    "PortRequest must compare DataLength against sizeof(MSG_HEADER) before touching msg_Data[0], msg_Data[1], or byte offset 3",
+    "First chunk acceptance requires nonzero msgid, nonzero buf_len, buf_len < MAX_REQUEST_LENGTH, buf_len >= sizeof(MSG_HEADER), buf_len >= DataLength",
+    "Continuation chunks reject when buf_len + DataLength exceeds the captured client->buf_hdr->length"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/-lpc",
+    "https://learn.microsoft.com/en-us/windows/win32/etw/alpc"
+  ]
+}

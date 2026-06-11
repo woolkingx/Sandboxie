@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-049-com-closedrt-list.schema.json",
+  "title": "SREV-049 COM ClosedRT multi-string contract",
+  "id": "COM_CLOSED_RT_MULTI_STRING",
+  "api": "Com_LoadRTList",
+  "owner": "Sandboxie/core/dll/com.c",
+  "type": "object",
+  "properties": {
+    "setting": {
+      "type": "string",
+      "description": "Configuration setting name, for example ClosedRT"
+    },
+    "entry": {
+      "type": "string",
+      "description": "One optional image-filtered runtime class identifier"
+    },
+    "multi_string": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "NUL-separated list terminated by an empty final string"
+    }
+  },
+  "required": [
+    "setting",
+    "multi_string"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Com_LoadRTList owns the cached ClosedRT runtime-class list",
+    "The cached list is a WCHAR multi-string with an empty final string",
+    "The first WCHAR is initialized to NUL before the second configuration pass",
+    "The second pass must not copy an entry unless it leaves room for the final empty string",
+    "A configuration drift between the count pass and copy pass produces a shorter valid list, not uninitialized data or overflow",
+    "RoGetActivationFactory receives an HSTRING activatableClassId and WindowsGetStringRawBuffer is the local string-inspection boundary"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/roapi/nf-roapi-rogetactivationfactory",
+    "https://learn.microsoft.com/en-us/windows/win32/winrt/hstring"
+  ]
+}

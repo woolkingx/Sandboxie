@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "KEY_SAVE_MERGE_MATERIALIZATION_BOUNDARY",
+  "title": "Key save merge materialization boundary",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/key.c",
+  "stage": "data -> schema -> topology -> logic -> verify",
+  "source_functions": [
+    "Key_NtSaveKey",
+    "Key_NtSaveKeyEx"
+  ],
+  "contracts": [
+    "Key_NtSaveKey and Key_NtSaveKeyEx currently delegate to native save of the physical key tree behind KeyHandle",
+    "RegSaveKey and RegSaveKeyEx save a specified key plus subkeys and values to a registry file",
+    "Sandboxie Key_Merge owns virtual host+box registry enumeration and query semantics",
+    "Pre-save materialization is a separate registry-copy topology and requires Windows hive-save runtime proof before source behavior changes",
+    "SREV-309 changes comments and proof only; no NtSaveKey or NtSaveKeyEx behavior changes"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regsavekeyw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regsavekeyexa",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwenumeratekey",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwenumeratevaluekey",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwqueryvaluekey"
+  ],
+  "local_edges": [
+    "Key_NtSaveKey -> SbieApi_Log -> __sys_NtSaveKey",
+    "Key_NtSaveKeyEx -> SbieApi_Log -> __sys_NtSaveKeyEx",
+    "Key_GetName -> TruePath plus CopyPath",
+    "Key_Merge -> merged subkey and value view",
+    "future materialization -> copy missing host-only merged nodes into box tree before native save"
+  ],
+  "runtime_gate": "Windows hive-save smoke covering host-only, box-only, deleted, relocated, typed value, and NtSaveKeyEx flag cases before any materialization change",
+  "status": "source-level classified after official registry save and enumeration shape; comment-only source clarification, no behavior change"
+}

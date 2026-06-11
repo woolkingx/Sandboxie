@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "FILE_FLT_PARENT_TARGET_CONTEXT",
+  "title": "File filter ParentOfTarget context",
+  "type": "object",
+  "owner": "Sandboxie/core/drv/file_flt.c",
+  "stage": "schema -> topology -> verify",
+  "source_functions": [
+    "File_PreOperation",
+    "File_RenameOperation"
+  ],
+  "contracts": [
+    "ParentOfTarget is a file object pointer carrier for rename/link target parent context",
+    "ParentOfTarget->FileName is not the full target path owner by itself",
+    "File_RenameOperation combines ParentOfTarget context with the counted target FileName before policy parsing",
+    "RelatedFileObject full-path fallback remains the local topology for relative parent file-object names",
+    "SREV-019 length gates remain the counted target-name proof before UNICODE_STRING construction",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ifs/flt-parameters-for-irp-mj-set-information",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_rename_information",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_link_information",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/fltkernel/nf-fltkernel-fltsetinformationfile"
+  ],
+  "local_edges": [
+    "File_PreOperation -> FileLinkInformation/FileLinkInformationEx -> File_RenameOperation(..., TRUE)",
+    "File_PreOperation -> FileRenameInformation/FileRenameInformationEx -> File_RenameOperation(..., FALSE)",
+    "File_RenameOperation -> ParentOfTarget file object -> FILE_*_INFORMATION.FileName counted target name",
+    "relative ParentOfTarget->FileName -> RelatedFileObject full-path fallback",
+    "File_RenameOperation -> File_Generic_MyParseProc(..., IO_OPEN_TARGET_DIRECTORY)"
+  ],
+  "runtime_gate": "Windows rename/link matrix for rooted target parent, relative target parent, network-drive RelatedFileObject fallback, inside/outside box target policy, and SREV-019 malformed target-name regression",
+  "status": "patched-comment-topology-after-official-parent-target-context-review-no-behavior-change"
+}

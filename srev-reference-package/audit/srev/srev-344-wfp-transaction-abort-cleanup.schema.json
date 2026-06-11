@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "WFP_TRANSACTION_ABORT_CLEANUP",
+  "title": "WFP transaction abort cleanup",
+  "type": "object",
+  "owner": "Sandboxie/core/drv/wfp.c",
+  "stage": "schema -> topology -> action -> verify",
+  "source_functions": [
+    "WFP_Install_Callbacks",
+    "WFP_RegisterSubLayer",
+    "WFP_RegisterCallout"
+  ],
+  "contracts": [
+    "WFP_Install_Callbacks owns failed-install cleanup for the dynamic WFP engine session",
+    "FwpmTransactionAbort is the explicit rollback edge when in_transaction is true",
+    "FwpmEngineClose is the final dynamic-session cleanup edge even if abort reports an error",
+    "Abort status must be captured and logged before continuing cleanup",
+    "_Analysis_assume_lock_not_held_ stays paired with the abort edge for static analysis",
+    "Callout unregister cleanup remains separate from filter-engine session cleanup",
+    "Windows runtime proof is still required for BFE/RPC abort-failure behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/fwpmk/nf-fwpmk-fwpmtransactionbegin0",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/fwpmk/nf-fwpmk-fwpmtransactioncommit0",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/fwpmk/nf-fwpmk-fwpmtransactionabort0",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/fwpmk/nf-fwpmk-fwpmengineopen0",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/fwpmk/nf-fwpmk-fwpmengineclose0",
+    "https://learn.microsoft.com/en-us/windows/desktop/api/fwpmtypes/ns-fwpmtypes-fwpm_session0",
+    "https://learn.microsoft.com/vi-vn/windows/win32/fwp/object-management"
+  ],
+  "local_edges": [
+    "FWPM_SESSION_FLAG_DYNAMIC -> FwpmEngineOpen -> WFP_engine_handle",
+    "FwpmTransactionBegin -> in_transaction true",
+    "registration failure while in_transaction -> FwpmTransactionAbort -> abort_status",
+    "abort_status failure -> DbgPrint diagnostic",
+    "callout_registered -> FwpsCalloutUnregisterById",
+    "WFP_engine_handle -> FwpmEngineClose -> WFP_engine_handle NULL"
+  ],
+  "runtime_gate": "Windows WFP failure-injection matrix for transaction abort success failure BFE RPC shutdown dynamic session cleanup Driver Verifier and repeated enable disable cycles",
+  "status": "patched-source-level-after-official-wfp-transaction-session-cleanup-review-needs-windows-runtime-proof"
+}

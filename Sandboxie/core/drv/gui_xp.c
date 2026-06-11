@@ -558,10 +558,12 @@ _FX BOOLEAN Gui_HookService(
     KIRQL irql;
     PMDL mdl;
     UCHAR *WriteAddr;
+    void *OriginalSourceFunc;
     ULONG push_jmp_target = 0;
     ULONG SaveBytesLen;
 
     Trampoline = NULL;
+    OriginalSourceFunc = *pSourceFunc;
 
     context = ExAllocatePoolWithTag(
         NonPagedPool, sizeof(GUI_HOOKSERVICE_CONTEXT), tzuk);
@@ -572,7 +574,7 @@ _FX BOOLEAN Gui_HookService(
 
     memzero(context, sizeof(GUI_HOOKSERVICE_CONTEXT));
 
-    context->SaveBytesAddr = *pSourceFunc;
+    context->SaveBytesAddr = OriginalSourceFunc;
     if (! context->SaveBytesAddr) {
         status = STATUS_INVALID_PARAMETER;
         goto finish;
@@ -723,6 +725,11 @@ retry:
     Trampoline = Hook_BuildTramp(
                         context->SourceAddr, Trampoline, FALSE, FALSE);
 
+    if (! Trampoline) {
+        status = STATUS_UNSUCCESSFUL;
+        goto finish;
+    }
+
     //
     // if we detected SpySweeper hooks, we need a special trampoline
     // which does push target, jmp target
@@ -734,11 +741,6 @@ retry:
         *(UCHAR *)(tr + 0) = 0x68;              // push target
         *(ULONG *)(tr + 1) = push_jmp_target;
         Hook_BuildJump(tr + 5, tr + 5, (void *)push_jmp_target);
-    }
-
-    if (! Trampoline) {
-        status = STATUS_UNSUCCESSFUL;
-        goto finish;
     }
 
     //
@@ -891,7 +893,7 @@ finish:
 
         Log_Status(MSG_GUI_HOOK_ERROR, 0, status);
         *pJumpStub = 0;
-        *pSourceFunc = context->SaveBytesAddr;
+        *pSourceFunc = OriginalSourceFunc;
 
         return FALSE;
     }

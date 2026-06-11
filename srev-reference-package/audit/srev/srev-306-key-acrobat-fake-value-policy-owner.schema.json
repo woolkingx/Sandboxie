@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "KEY_ACROBAT_FAKE_VALUE_POLICY_OWNER",
+  "title": "Key Acrobat fake value policy owner",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/key.c",
+  "stage": "data -> schema -> topology -> logic -> verify",
+  "source_functions": [
+    "Key_NtQueryValueKey",
+    "Key_NtQueryValueKeyFakeForAcrobatReader"
+  ],
+  "contracts": [
+    "Key_NtQueryValueKeyFakeForAcrobatReader owns only Adobe preference REG_DWORD fake values for KeyValuePartialInformation",
+    "ZwQueryValueKey owns the caller buffer, Length, ResultLength, and KeyValueInformationClass contract",
+    "KEY_VALUE_PARTIAL_INFORMATION requires Type, DataLength, and counted Data bytes",
+    "Non-matching Adobe fake-value queries must return STATUS_BAD_INITIAL_PC and fall through to normal registry handling",
+    "SREV-306 changes comments and proof only; no Acrobat fake-value behavior changes"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwqueryvaluekey",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_key_value_partial_information",
+    "https://www.adobe.com/devnet-docs/acrobatetk/tools/PrefRef/Windows/Privileged.html",
+    "https://www.adobe.com/devnet-docs/acrobatetk/tools/QuickKeys/WIN_UpdaterQuickKeyAll.pdf"
+  ],
+  "local_edges": [
+    "NtQueryValueKey caller -> Key_NtQueryValueKey",
+    "KeyValuePartialInformation gate -> image-specific fake owner",
+    "Acrobat/AcroPDF-compatible image set -> Key_NtQueryValueKeyFakeForAcrobatReader",
+    "bProtectedMode or iCheckReader -> synthetic REG_DWORD partial information",
+    "non-match -> STATUS_BAD_INITIAL_PC -> normal merge/query path"
+  ],
+  "runtime_gate": "Windows Acrobat/Reader and AcroPDF/browser-plugin smoke plus negative value-name controls before any predicate change",
+  "status": "source-level classified after official ZwQueryValueKey, KEY_VALUE_PARTIAL_INFORMATION, and Adobe preference shape; comment-only source clarification, no behavior change"
+}

@@ -417,7 +417,7 @@ InstrumentationCallbackAsm PROC
 
 
 ;----------------------------------------------------------------------------
-; InstrumentationCallbackAsm
+; ApiInstrumentationProxy
 ;----------------------------------------------------------------------------
 
 
@@ -432,8 +432,9 @@ ApiInstrumentationAsm PROC
     stp     x0, x1, [sp, #-0x10]!
     stp     fp, lr, [sp, #-0x10]!  
 
-    ; invoke api entry instrumentation
-    ; todo
+    ; prepare ApiInstrumentation(pName, pArgs). x17 points at the trace
+    ; entry header emitted by dllhook.c; the saved x0-x7 frame begins at
+    ; [sp+16], and pArgs[-1] is the saved LR consumed as ReturnAddress.
 
     mov     x0, x17
     add     x0, x0, #8  ; pName

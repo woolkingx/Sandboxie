@@ -34,12 +34,12 @@ static BOOL Scm_DeregisterEventSource(HANDLE hEventLog);
 static BOOL Scm_ReportEventW(
     HANDLE hEventLog, WORD wType, WORD wCategory, DWORD dwEventID,
     PSID lpUserSid, WORD wNumStrings, DWORD dwDataSize,
-    WCHAR *Strings, void *RawData);
+    const WCHAR **Strings, void *RawData);
 
 static BOOL Scm_ReportEventA(
     HANDLE hEventLog, WORD wType, WORD wCategory, DWORD dwEventID,
     PSID lpUserSid, WORD wNumStrings, DWORD dwDataSize,
-    UCHAR *Strings, void *RawData);
+    const UCHAR **Strings, void *RawData);
 
 static BOOL Scm_CloseEventLog(
     HANDLE hEventLog);
@@ -128,15 +128,24 @@ _FX HANDLE Scm_RegisterEventSourceA(UCHAR *ServerName, UCHAR *SourceName)
     ANSI_STRING ansi;
     UNICODE_STRING uni;
     HANDLE handle;
+    NTSTATUS status;
     ULONG error;
 
-    RtlInitString(&ansi, SourceName);
-    RtlAnsiStringToUnicodeString(&uni, &ansi, TRUE);
+    uni.Buffer = NULL;
+    if (SourceName) {
+        RtlInitString(&ansi, SourceName);
+        status = RtlAnsiStringToUnicodeString(&uni, &ansi, TRUE);
+        if (! NT_SUCCESS(status)) {
+            SetLastError(RtlNtStatusToDosError(status));
+            return NULL;
+        }
+    }
 
     handle = Scm_RegisterEventSourceW(NULL, uni.Buffer);
     error = GetLastError();
 
-    RtlFreeUnicodeString(&uni);
+    if (uni.Buffer)
+        RtlFreeUnicodeString(&uni);
 
     SetLastError(error);
     return handle;
@@ -150,8 +159,13 @@ _FX HANDLE Scm_RegisterEventSourceA(UCHAR *ServerName, UCHAR *SourceName)
 
 _FX BOOL Scm_DeregisterEventSource(HANDLE hEventLog)
 {
-    SetLastError(0);
-    return TRUE;
+    if (hEventLog == (HANDLE)HANDLE_EVENT_LOG) {
+        SetLastError(0);
+        return TRUE;
+    }
+
+    SetLastError(ERROR_INVALID_HANDLE);
+    return FALSE;
 }
 
 
@@ -163,10 +177,15 @@ _FX BOOL Scm_DeregisterEventSource(HANDLE hEventLog)
 _FX BOOL Scm_ReportEventW(
     HANDLE hEventLog, WORD wType, WORD wCategory, DWORD dwEventID,
     PSID lpUserSid, WORD wNumStrings, DWORD dwDataSize,
-    WCHAR *Strings, void *RawData)
+    const WCHAR **Strings, void *RawData)
 {
-    SetLastError(0);
-    return TRUE;
+    if (hEventLog == (HANDLE)HANDLE_EVENT_LOG) {
+        SetLastError(0);
+        return TRUE;
+    }
+
+    SetLastError(ERROR_INVALID_HANDLE);
+    return FALSE;
 }
 
 
@@ -178,10 +197,15 @@ _FX BOOL Scm_ReportEventW(
 _FX BOOL Scm_ReportEventA(
     HANDLE hEventLog, WORD wType, WORD wCategory, DWORD dwEventID,
     PSID lpUserSid, WORD wNumStrings, DWORD dwDataSize,
-    UCHAR *Strings, void *RawData)
+    const UCHAR **Strings, void *RawData)
 {
-    SetLastError(0);
-    return TRUE;
+    if (hEventLog == (HANDLE)HANDLE_EVENT_LOG) {
+        SetLastError(0);
+        return TRUE;
+    }
+
+    SetLastError(ERROR_INVALID_HANDLE);
+    return FALSE;
 }
 
 

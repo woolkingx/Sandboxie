@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-181-box-name-fixed-buffer-boundary.schema.json",
+  "title": "SREV-181 Box name fixed buffer boundary",
+  "id": "BOX_NAME_FIXED_BUFFER_BOUNDARY",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/drv/box.c"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 8
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 2
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/drv/box.c",
+  "contracts": [
+    "box.c owns writes into BOX.name",
+    "BOX.name has exactly BOXNAME_COUNT WCHAR slots",
+    "Box_IsValidName is the local semantic schema for box identity names",
+    "Box_Alloc rejects NULL or invalid box names before allocating owner state or writing BOX.name",
+    "Box_Alloc copies into BOX.name with a bounded API that receives BOXNAME_COUNT",
+    "Box_Alloc fails closed and frees any allocated BOX if the bounded copy fails",
+    "Caller-side validation such as Api_CopyBoxNameFromUser is useful but is not the owner boundary",
+    "This SREV does not change valid box-name characters enabled-box policy SID session ownership path expansion or process forcing"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntstrsafe/nf-ntstrsafe-rtlstringcchcopyw",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntstrsafe/nf-ntstrsafe-rtlstringcchlengtha"
+  ],
+  "runtime_gate": "Windows driver build plus box creation smoke for valid names, invalid and oversized user-mode box-name rejection, invalid configuration section rejection for force-process discovery, and normal SID/session/file/key/ipc root creation for existing valid boxes"
+}

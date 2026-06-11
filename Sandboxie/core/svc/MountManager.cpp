@@ -111,6 +111,55 @@ P_SHCreateDirectoryExW __sys_SHCreateDirectoryExW = NULL;
 MountManager* MountManager::m_instance = NULL;
 
 
+static bool MountManager_HasTerminator(const WCHAR* value, ULONG chars)
+{
+    for (ULONG i = 0; i < chars; ++i) {
+        if (value[i] == L'\0')
+            return true;
+    }
+
+    return false;
+}
+
+
+static bool MountManager_HasMessageTerminator(MSG_HEADER* msg, const WCHAR* value)
+{
+    const UCHAR* msg_begin = (const UCHAR*)msg;
+    const UCHAR* value_begin = (const UCHAR*)value;
+
+    if (value_begin < msg_begin)
+        return false;
+
+    ULONG offset = (ULONG)(value_begin - msg_begin);
+    if (offset >= msg->length)
+        return false;
+
+    ULONG available = msg->length - offset;
+    if (available < sizeof(WCHAR))
+        return false;
+
+    return MountManager_HasTerminator(value, available / sizeof(WCHAR));
+}
+
+
+static bool MountManager_IsValidRegRoot(const WCHAR* reg_root)
+{
+    return MountManager_HasTerminator(reg_root, MAX_REG_ROOT_LEN);
+}
+
+
+static bool MountManager_IsValidPassword(const WCHAR* password)
+{
+    return MountManager_HasTerminator(password, 128 + 1);
+}
+
+
+static bool MountManager_IsValidFileRoot(MSG_HEADER* msg, const WCHAR* file_root)
+{
+    return MountManager_HasMessageTerminator(msg, file_root);
+}
+
+
 //---------------------------------------------------------------------------
 // Constructor
 //---------------------------------------------------------------------------
@@ -127,7 +176,9 @@ MountManager::MountManager(PipeServer *pipeServer)
 
     pipeServer->Register(MSGID_IMBOX, this, Handler);
 
-    // todo: find mounted disks
+    // Existing ImBox devices are rediscovered lazily by FindImDisk using the
+    // proxy name. Box root and protection state require request-owned reg/file
+    // roots, so the constructor does not rebuild m_RootMap from devices alone.
 
     m_instance = this;
 }
@@ -220,12 +271,19 @@ MSG_HEADER *MountManager::CreateHandler(MSG_HEADER *msg)
     IMBOX_CREATE_REQ *req = (IMBOX_CREATE_REQ *)msg;
     if (req->h.length < sizeof(IMBOX_CREATE_REQ))
         return SHORT_REPLY(ERROR_INVALID_PARAMETER);
+    if (!MountManager_IsValidPassword(req->password) ||
+        !MountManager_IsValidFileRoot(&req->h, req->file_root))
+        return SHORT_REPLY(ERROR_INVALID_PARAMETER);
 
     ULONG session_id = PipeServer::GetCallerSessionId();
 
     std::wstring ImageFile = GetImageFileName(req->file_root);
 
-    std::wstring RootPath(req->file_root, wcsrchr(req->file_root, L'\\'));
+    const WCHAR* RootEnd = wcsrchr(req->file_root, L'\\');
+    if (!RootEnd)
+        return SHORT_REPLY(ERROR_INVALID_PARAMETER);
+
+    std::wstring RootPath(req->file_root, RootEnd - req->file_root);
     HANDLE handle = OpenOrCreateNtFolder(RootPath.c_str());
     if (!handle)
         return SHORT_REPLY(ERROR_PATH_NOT_FOUND);
@@ -253,6 +311,10 @@ MSG_HEADER *MountManager::MountHandler(MSG_HEADER *msg)
 
     IMBOX_MOUNT_REQ *req = (IMBOX_MOUNT_REQ *)msg;
     if (req->h.length < sizeof(IMBOX_MOUNT_REQ))
+        return SHORT_REPLY(ERROR_INVALID_PARAMETER);
+    if (!MountManager_IsValidPassword(req->password) ||
+        !MountManager_IsValidRegRoot(req->reg_root) ||
+        !MountManager_IsValidFileRoot(&req->h, req->file_root))
         return SHORT_REPLY(ERROR_INVALID_PARAMETER);
 
     ULONG session_id = PipeServer::GetCallerSessionId();
@@ -325,6 +387,8 @@ MSG_HEADER *MountManager::UnmountHandler(MSG_HEADER *msg)
 
     IMBOX_UNMOUNT_REQ *req = (IMBOX_UNMOUNT_REQ *)msg;
     if (req->h.length < sizeof(IMBOX_UNMOUNT_REQ))
+        return SHORT_REPLY(ERROR_INVALID_PARAMETER);
+    if (!MountManager_IsValidRegRoot(req->reg_root))
         return SHORT_REPLY(ERROR_INVALID_PARAMETER);
 
     ULONG session_id = PipeServer::GetCallerSessionId();
@@ -413,6 +477,8 @@ MSG_HEADER *MountManager::QueryHandler(MSG_HEADER *msg)
     IMBOX_QUERY_REQ *req = (IMBOX_QUERY_REQ *)msg;
     if (req->h.length < sizeof(IMBOX_QUERY_REQ))
         return SHORT_REPLY(ERROR_INVALID_PARAMETER);
+    if (!MountManager_IsValidRegRoot(req->reg_root))
+        return SHORT_REPLY(ERROR_INVALID_PARAMETER);
 
     if(!IsImDiskDriverReady())
         return SHORT_REPLY(ERROR_DEVICE_NOT_AVAILABLE);
@@ -482,7 +548,9 @@ MSG_HEADER *MountManager::UpdateHandler(MSG_HEADER *msg)
 
     // imdisk -e -s 1g -u 1
 
-    return SHORT_REPLY(ERROR_CALL_NOT_IMPLEMENTED); // todo
+    // Image resize and password rotation need an ImBox update transaction and
+    // protection-state refresh contract; the wire message remains unsupported.
+    return SHORT_REPLY(ERROR_CALL_NOT_IMPLEMENTED);
 }
 
 
@@ -727,7 +795,8 @@ retry:
         pMount = std::make_shared<BOX_MOUNT>();
         pMount->NtPath = TargetNtPath;
         pMount->ImageFile = ImageFile;
-        //pMount->Protected = todo: query driver
+        // Recovered devices do not carry the request reg_root/admin_only owner.
+        // Protection is restored only by an explicit API_PROTECT_ROOT mount path.
     }
     return pMount;
 }
@@ -827,7 +896,8 @@ std::shared_ptr<BOX_MOUNT> MountManager::MountImDisk(const std::wstring& ImageFi
     // we need to use a temporary drive letter in order to format the volume using the fmifs.dll API
     //
 
-    // todo allow mounting without mount
+    // ImBox formats through the temporary drive-letter path. If the caller did
+    // not request a drive letter, remove the DOS-device mapping after discovery.
 
     WCHAR Drive[4] = L"\0:";
     if (drvLetter) {
@@ -1154,8 +1224,8 @@ bool MountManager::AcquireBoxRoot(const WCHAR* boxname, const WCHAR* reg_root, c
 
             std::wstring ImageFile = GetImageFileName(file_root);
 
-            //WCHAR Password[128 + 1];
-            //SbieApi_QueryConfAsIs(boxname, L"BoxPassword", 0, Password, sizeof(Password)); // todo
+            // Do not read a durable BoxPassword here. Encrypted image mounts use
+            // caller-supplied passwords until a secure credential handoff exists.
             pRoot->Mount = FindImDisk(ImageFile, session_id);
             if (!pRoot->Mount) {
                 //ULONG sizeKb = SbieApi_QueryConfNumber(NULL, L"BoxImageSizeKb", 4194304);
@@ -1457,4 +1527,3 @@ void MountManager::UnmountAll()
 
     LeaveCriticalSection(&m_CritSec);
 }
-

@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "KEY_CLASSES_ENUMERATION_NAME_OWNER",
+  "title": "Key classes enumeration name owner",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/key.c",
+  "stage": "data -> schema -> topology -> logic -> verify",
+  "source_functions": [
+    "Key_NtEnumerateKey"
+  ],
+  "contracts": [
+    "Key_NtEnumerateKey owns caller-visible child-name presentation for merged registry enumeration",
+    "HKU SID Software Classes enumeration must not expose current_classes for KeyBasicInformation or KeyNodeInformation",
+    "KEY_BASIC_INFORMATION Name is a counted non-null-terminated child-name payload",
+    "SREV-176 owns Key_GetName normalized registry path building",
+    "SREV-305 changes comments and proof only; no enumeration behavior changes"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/sysinfo/merged-view-of-hkey-classes-root",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winreg/nf-winreg-regopenuserclassesroot",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_key_basic_information",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwquerykey"
+  ],
+  "local_edges": [
+    "merged registry subkey -> KeyBasicInformation or KeyNodeInformation",
+    "HKU SID Software Classes -> STATUS_ACCESS_DENIED fake-route signal",
+    "STATUS_ACCESS_DENIED -> Key_NtEnumerateKeyFake",
+    "ordinary subkey -> Key_NtOpenKeyImpl -> Key_NtQueryKeyImpl"
+  ],
+  "runtime_gate": "Windows HKU SID Software Classes enumeration smoke for KeyBasicInformation and KeyNodeInformation",
+  "status": "source-level classified after official HKCR merged-view and key-name shape; comment-only source clarification, no behavior change"
+}

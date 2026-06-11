@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "NSI_NETWORK_CHANGE_NOTIFICATION_SHIM",
+  "owner": "Sandboxie/core/dll/custom.c",
+  "stage": "data -> schema -> topology -> logic -> action -> verify",
+  "contracts": [
+    "NsiRpc_NsiRpcRegisterChangeNotification owns only a private winnsi compatibility result mapping",
+    "public network-change notification ownership belongs to documented NetIO/IP Helper APIs and the NSI service",
+    "the shim calls the native NsiRpcRegisterChangeNotification export before mapping results",
+    "only EPT_S_NOT_REGISTERED may be translated to NO_ERROR",
+    "every other native RPC_STATUS must pass through unchanged",
+    "SREV-314 changes comments and proof only, not NSI RPC access policy"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/netioapi/nf-netioapi-notifyipinterfacechange",
+    "https://learn.microsoft.com/en-us/windows/win32/api/netioapi/nf-netioapi-cancelmibchangenotify2",
+    "https://learn.microsoft.com/en-us/windows-server/security/windows-services/security-guidelines-for-disabling-system-services-in-windows-server",
+    "https://learn.microsoft.com/en-us/windows/win32/rpc/rpc-return-values"
+  ],
+  "runtime_gate": "Windows WinINet/NSI smoke proving compatibility without broader NSI RPC access"
+}

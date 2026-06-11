@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-323-rpcrt-binding-string-sentinel-gate.schema.json",
+  "title": "SREV-323 RPCRT binding string sentinel gate",
+  "id": "RPCRT_BINDING_STRING_SENTINEL_GATE",
+  "owner": "Sandboxie/core/dll/rpcrt.c",
+  "stage": "data -> schema -> topology -> logic -> action -> verify",
+  "contracts": [
+    "official RpcBindingFromStringBinding owns valid string-binding parsing and official error codes",
+    "Sandboxie's wrapper owns only pre-forward local pointer and sentinel rejection plus selected binding-string rewrite policy",
+    "null StringBinding, null OutBinding, and observed 0x4 sentinel return RPC_S_INVALID_ARG before forwarding to rpcrt4",
+    "the observed 0x4 value is a local sentinel, not an official string-binding shape to interpret",
+    "SREV-323 changes comments and proof only, not binding behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/rpcdce/nf-rpcdce-rpcbindingfromstringbinding",
+    "https://learn.microsoft.com/en-us/windows/win32/rpc/creating-a-binding-handle"
+  ],
+  "runtime_gate": "Windows RPC binding smoke for null StringBinding, null OutBinding, observed 0x4 sentinel, valid spooler binding rewrite, valid ordinary binding, and invalid string-binding provider-owned error propagation"
+}

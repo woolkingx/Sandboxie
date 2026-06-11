@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-254-com-built-in-winrt-denylist-boundary.schema.json",
+  "id": "COM_BUILT_IN_WINRT_DENYLIST_BOUNDARY",
+  "title": "COM built-in WinRT denylist boundary",
+  "type": "object",
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/com.c"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 6
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 4
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/dll/com.c",
+  "contracts": [
+    "Com_RoGetActivationFactory owns the local activation-factory hook and WindowsGetStringRawBuffer is the HSTRING inspection boundary",
+    "Com_IsClosedRT owns the built-in runtime-class deny-list before native activation",
+    "The built-in deny-list applies only when boxed COM owns activation and DisableRTBlacklist is not enabled",
+    "Open COM plus compartment mode routes activation to the original COM WinRT owner instead of this built-in deny-list",
+    "Source comments describe owner and topology rather than only historical application symptoms",
+    "This SREV does not change denied runtime classes monitor logging ClosedRT configuration HSTRING handling or native activation forwarding"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/roapi/nf-roapi-rogetactivationfactory",
+    "https://learn.microsoft.com/en-us/windows/win32/winrt/hstring",
+    "https://learn.microsoft.com/en-us/uwp/api/windows.system.launcher",
+    "https://learn.microsoft.com/en-us/uwp/api/windows.ui.notifications.toastnotificationmanager"
+  ],
+  "runtime_gate": "Inherited from SREV-049: boxed COM open COM DisableRTBlacklist ClosedRT Chrome Launcher ToastNotificationManager and allowed WinRT activation need Windows runtime proof"
+}

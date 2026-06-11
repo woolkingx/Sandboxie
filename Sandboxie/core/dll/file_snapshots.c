@@ -200,6 +200,8 @@ _FX WCHAR* File_MakeSnapshotPath(FILE_SNAPSHOT* Cur_Snapshot, const WCHAR* CopyP
 	THREAD_DATA *TlsData = Dll_GetTlsData(NULL);
 
 	WCHAR* TmplName = Dll_GetTlsNameBuffer(TlsData, TMPL_NAME_BUFFER, (wcslen(CopyPath) + File_Snapshot_PrefixLen + FILE_MAX_SNAPSHOT_ID + 1) * sizeof(WCHAR));
+	if (!TmplName)
+		return NULL;
 
 	wcsncpy(TmplName, CopyPath, prefixLen + 1);
 	wcscpy(TmplName + prefixLen + 1, File_Snapshot_Prefix);
@@ -331,16 +333,20 @@ _FX ULONG File_GetPathFlagsEx(const WCHAR *TruePath, const WCHAR *CopyPath, WCHA
 
 				Dll_PushTlsNameBuffer(TlsData);
 
-				WCHAR* TruePath2, * CopyPath2;
+				WCHAR* TruePath2 = NULL, *CopyPath2 = NULL;
 				RtlInitUnicodeString(&objname, TmplRelocation);
-				File_GetName(NULL, &objname, &TruePath2, &CopyPath2, NULL);
+				status = File_GetName(NULL, &objname, &TruePath2, &CopyPath2, NULL);
 
 				Dll_PopTlsNameBuffer(TlsData);
 
 				// note: pop leaves TruePath2 valid we can still use it
 
-				CopyPath = Dll_GetTlsNameBuffer(TlsData, COPY_NAME_BUFFER, (wcslen(CopyPath2) + 1) * sizeof(WCHAR));
-				wcscpy((WCHAR*)CopyPath, CopyPath2);
+				if (NT_SUCCESS(status) && CopyPath2) {
+					CopyPath = Dll_GetTlsNameBuffer(TlsData, COPY_NAME_BUFFER, (wcslen(CopyPath2) + 1) * sizeof(WCHAR));
+					wcscpy((WCHAR*)CopyPath, CopyPath2);
+				}
+				else
+					CopyPath = NULL;
 			}
 		}
 
@@ -352,7 +358,7 @@ _FX ULONG File_GetPathFlagsEx(const WCHAR *TruePath, const WCHAR *CopyPath, WCHA
 
 			WCHAR* TmplName = File_MakeSnapshotPath(Cur_Snapshot, CopyPath);
 			if (!TmplName)
-				break; // something went wrong
+				break; // SREV-286: snapshot path publication unavailable
 
 			RtlInitUnicodeString(&objname, TmplName);
 			status = File_GetFileType(&objattrs, FALSE, &FileType, NULL);

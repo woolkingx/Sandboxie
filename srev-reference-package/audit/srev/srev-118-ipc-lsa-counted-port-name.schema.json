@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-118-ipc-lsa-counted-port-name.schema.json",
+  "title": "SREV-118 IPC LSA counted port name",
+  "id": "IPC_LSA_COUNTED_PORT_NAME",
+  "owner": "Sandboxie/core/drv/ipc_lsa.c",
+  "type": "object",
+  "properties": {
+    "object_name_shape": {
+      "type": "string",
+      "description": "OBJECT_NAME_INFORMATION.Name is a counted UNICODE_STRING"
+    },
+    "source_change": {
+      "type": "string",
+      "description": "LSA endpoint names compare through counted UNICODE_STRING equality"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows build and object-name endpoint matching proof"
+    }
+  },
+  "required": [
+    "object_name_shape",
+    "source_change",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "OBJECT_NAME_INFORMATION.Name is a counted UNICODE_STRING",
+    "UNICODE_STRING.Length is a byte count and does not prove Buffer is NUL-terminated",
+    "LSA endpoint matching must compare counted strings not C-string scans over Name->Name.Buffer",
+    "Ipc_CheckPortRequest_Lsa continues to accept only LsaAuthenticationPort and RPC Control lsasspirpc when ipc_block_password is enabled",
+    "Ipc_CheckPortRequest_LsaEP continues to accept only RPC Control LSARPC_ENDPOINT unless OpenLsaEndpoint is enabled",
+    "this SREV does not change MS-LSAD opnum policy password-change detection KPATH-004 secret private-data denial KPATH-006 RPC payload capture or OpenLsaEndpoint behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-obquerynamestring",
+    "https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-wkst/edf6cfc6-80b6-4998-a1cf-43bc5dabc042",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtlequalunicodestring",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtlinitunicodestring"
+  ]
+}

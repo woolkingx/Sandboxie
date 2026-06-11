@@ -432,6 +432,21 @@ release_and_return:
 //---------------------------------------------------------------------------
 
 
+static BOOLEAN Conf_Api_SetUserNameContainsWChar(
+    const WCHAR *text, ULONG byte_len, WCHAR ch)
+{
+    ULONG i;
+    ULONG count = byte_len / sizeof(WCHAR);
+
+    for (i = 0; i < count; ++i) {
+        if (text[i] == ch)
+            return TRUE;
+    }
+
+    return FALSE;
+}
+
+
 NTSTATUS Conf_Api_SetUserName(PROCESS *proc, ULONG64 *parms)
 {
     API_SET_USER_NAME_ARGS *args = (API_SET_USER_NAME_ARGS *)parms;
@@ -462,8 +477,10 @@ NTSTATUS Conf_Api_SetUserName(PROCESS *proc, ULONG64 *parms)
     ProbeForRead(user_uni, sizeof(UNICODE_STRING64), sizeof(ULONG64));
 
     user_sid = (WCHAR *)user_uni->Buffer;
-    user_sid_len = user_uni->Length & ~1;
-    if ((! user_sid) || (! user_sid_len) || (user_sid_len > 1024))
+    user_sid_len = user_uni->Length;
+    if ((! user_sid) || (! user_sid_len) || (user_sid_len > 1024) ||
+        (user_sid_len & (sizeof(WCHAR) - 1)) ||
+        (user_uni->MaximumLength < user_sid_len))
         return STATUS_INVALID_PARAMETER;
     ProbeForRead(user_sid, user_sid_len, sizeof(WCHAR));
 
@@ -473,8 +490,10 @@ NTSTATUS Conf_Api_SetUserName(PROCESS *proc, ULONG64 *parms)
     ProbeForRead(user_uni, sizeof(UNICODE_STRING64), sizeof(ULONG64));
 
     user_name = (WCHAR *)user_uni->Buffer;
-    user_name_len = user_uni->Length & ~1;
-    if ((! user_name) || (! user_name_len) || (user_name_len > 1024))
+    user_name_len = user_uni->Length;
+    if ((! user_name) || (! user_name_len) || (user_name_len > 1024) ||
+        (user_name_len & (sizeof(WCHAR) - 1)) ||
+        (user_uni->MaximumLength < user_name_len))
         return STATUS_INVALID_PARAMETER;
     ProbeForRead(user_name, user_name_len, sizeof(WCHAR));
 
@@ -493,13 +512,21 @@ NTSTATUS Conf_Api_SetUserName(PROCESS *proc, ULONG64 *parms)
 
         user->sid = &user->space[0];
         memcpy(user->sid, user_sid, user_sid_len);
+        if (Conf_Api_SetUserNameContainsWChar(user->sid, user_sid_len, L'\0')) {
+            status = STATUS_INVALID_PARAMETER;
+            __leave;
+        }
         user->sid[user_sid_len / sizeof(WCHAR)] = L'\0';
-        user->sid_len = wcslen(user->sid);
+        user->sid_len = user_sid_len / sizeof(WCHAR);
 
         user->name = user->sid + user->sid_len + 1;
         memcpy(user->name, user_name, user_name_len);
+        if (Conf_Api_SetUserNameContainsWChar(user->name, user_name_len, L'\0')) {
+            status = STATUS_INVALID_PARAMETER;
+            __leave;
+        }
         user->name[user_name_len / sizeof(WCHAR)] = L'\0';
-        user->name_len = wcslen(user->name);
+        user->name_len = user_name_len / sizeof(WCHAR);
 
         while (1) {
             WCHAR *ptr = wcschr(user->name, L'\\');
@@ -567,12 +594,15 @@ _FX NTSTATUS Conf_Api_IsBoxEnabled(PROCESS *proc, ULONG64 *parms)
     UNICODE_STRING SidString;
     const WCHAR* sid;
     WCHAR boxname[BOXNAME_COUNT];
+    WCHAR sidstring[96];
 
     if (! Api_CopyBoxNameFromUser(boxname, (WCHAR *)args->box_name.val))
         return STATUS_INVALID_PARAMETER;
 
     if (args->sid_string.val != NULL) {
-        sid = args->sid_string.val;
+        if (! Api_CopySidStringFromUser(sidstring, args->sid_string.val))
+            return STATUS_INVALID_PARAMETER;
+        sid = sidstring;
         SessionId = args->session_id.val;
         SidString.Buffer = NULL;
         status = STATUS_SUCCESS;

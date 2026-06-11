@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "TERMINAL_GET_NAME_REPLY_TERMINATOR",
+  "owners": [
+    "Sandboxie/core/svc/terminalserver.h",
+    "Sandboxie/core/svc/terminalserver.cpp",
+    "Sandboxie/core/svc/terminalwire.h",
+    "Sandboxie/core/dll/terminal.c"
+  ],
+  "status": "patched-source-level-after-local-terminal-wire-reply-contract-review-needs-windows-terminal-runtime-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/nf-wtsapi32-wtsquerysessioninformationw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/wtsapi32/ne-wtsapi32-wts_info_class"
+  ],
+  "contracts": [
+    "terminalserver.h declares the TerminalServer broker entry points while terminalserver.cpp owns service side request handling",
+    "terminalwire.h owns TERMINAL_GET_NAME_RPL name as a fixed 128 WCHAR reply string",
+    "The service reply must be NUL terminated inside rpl name before it crosses the broker boundary back to core dll terminal.c",
+    "Terminal_WinStationNameFromLogonIdW consumes rpl name with wcscpy, so the reply buffer owns the termination gate",
+    "The service does not copy uninitialized stack tail bytes into the reply",
+    "The fix does not change request ids, session selection, private WinStationNameFromLogonIdW dispatch, error propagation, or DLL side caller buffer policy"
+  ],
+  "runtime_gate": "Windows service/DLL build plus normal, long-name or fault-injected, and short-name Terminal GetName smokes."
+}

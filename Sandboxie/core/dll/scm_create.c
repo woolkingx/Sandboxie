@@ -257,6 +257,10 @@ _FX NTSTATUS Scm_AddBoxedService(const WCHAR *ServiceName)
     }
 
     names2 = Dll_AllocTemp((len + wcslen(ServiceName) + 8) * sizeof(WCHAR));
+    if (! names2) {
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        goto finish;
+    }
     wmemcpy(names2, names1, len);
     wcscpy(&names2[len], ServiceName);
     len += wcslen(ServiceName) + 1;
@@ -304,6 +308,7 @@ _FX SC_HANDLE Scm_CreateServiceW(
     HANDLE hkey;
     UNICODE_STRING uni;
     WCHAR *name;
+    ULONG error = ERROR_INVALID_PARAMETER;
 
     //
     // verify the service does not exist (also verifies hSCManager,
@@ -381,25 +386,32 @@ _FX SC_HANDLE Scm_CreateServiceW(
     }
 
     //
-    // add the service to SbieSvc list of sandboxed services
-    //
-
-    status = Scm_AddBoxedService(lpServiceName);
-
-    if (! NT_SUCCESS(status))
-        goto abort;
-
-    NtClose(hkey);
-
-    //
     // allocate a 'handle' that points to the service name
     //
 
     name = Dll_Alloc(
         sizeof(ULONG) + (wcslen(lpServiceName) + 1) * sizeof(WCHAR));
+    if (! name) {
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        error = ERROR_NOT_ENOUGH_MEMORY;
+        goto abort;
+    }
     *(ULONG *)name = tzuk;
     wcscpy((WCHAR *)(((ULONG *)name) + 1), lpServiceName);
     _wcslwr(name);
+
+    //
+    // add the service to SbieSvc list of sandboxed services
+    //
+
+    status = Scm_AddBoxedService(lpServiceName);
+
+    if (! NT_SUCCESS(status)) {
+        Dll_Free(name);
+        goto abort;
+    }
+
+    NtClose(hkey);
 
     SetLastError(0);
     return (SC_HANDLE)name;
@@ -413,7 +425,7 @@ abort:
     NtDeleteKey(hkey);
     NtClose(hkey);
 
-    SetLastError(ERROR_INVALID_PARAMETER);
+    SetLastError(error);
     return NULL;
 }
 
@@ -1045,6 +1057,11 @@ _FX ULONG Scm_StartBoxedService2(const WCHAR *name, SERVICE_QUERY_RPL *qrpl)
     req_len = sizeof(SERVICE_RUN_REQ) + path_len;
 
     req = Dll_Alloc(req_len);
+    if (! req) {
+        if (free_path)
+            HeapFree(GetProcessHeap(), 0, path);
+        return ERROR_NOT_ENOUGH_MEMORY;
+    }
     req->h.length = req_len;
     req->h.msgid = MSGID_SERVICE_RUN;
 
@@ -1071,6 +1088,7 @@ _FX ULONG Scm_StartBoxedService2(const WCHAR *name, SERVICE_QUERY_RPL *qrpl)
     memcpy(req->path, path, path_len);
 
     rpl = (MSG_HEADER *)SbieDll_CallServer(&req->h);
+    Dll_Free(req);
     if (! rpl)
         error = ERROR_NOT_ENOUGH_MEMORY;
     else {
@@ -1083,7 +1101,7 @@ _FX ULONG Scm_StartBoxedService2(const WCHAR *name, SERVICE_QUERY_RPL *qrpl)
     //
 
     if (free_path)
-        HeapFree(GetProcessHeap(), HEAP_GENERATE_EXCEPTIONS, path);
+        HeapFree(GetProcessHeap(), 0, path);
 
     return error;
 }

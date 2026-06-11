@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-074-api-current-process-sentinel.schema.json",
+  "title": "SREV-074 driver API current-process sentinel width contract",
+  "id": "API_CURRENT_PROCESS_SENTINEL_WIDTH",
+  "api": "IS_ARG_CURRENT_PROCESS",
+  "owner": "Sandboxie/core/drv/api.h",
+  "type": "object",
+  "properties": {
+    "wire_slot": {
+      "type": "string",
+      "description": "Driver API ULONG64 argument slot"
+    },
+    "native_sentinel": {
+      "type": "string",
+      "description": "Native pointer-width current-process sentinel"
+    },
+    "wow64_sentinel": {
+      "type": "string",
+      "description": "Zero-extended 32-bit WOW64 current-process sentinel"
+    },
+    "rejected_shape": {
+      "type": "string",
+      "description": "Arbitrary 64-bit values that only match after ULONG truncation"
+    }
+  },
+  "required": [
+    "wire_slot",
+    "native_sentinel",
+    "wow64_sentinel",
+    "rejected_shape"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "API arguments are captured into ULONG64 slots before driver handlers read them",
+    "ZwCurrentProcess and NtCurrentProcess are special HANDLE sentinel values for the current process",
+    "HANDLE and pointer-like values must be compared with pointer-precision types rather than ULONG truncation",
+    "IS_ARG_CURRENT_PROCESS accepts the native pointer-width -1 sentinel",
+    "IS_ARG_CURRENT_PROCESS accepts the zero-extended 32-bit 0xffffffff WOW64 sentinel",
+    "IS_ARG_CURRENT_PROCESS must reject arbitrary 64-bit values that only match after truncation to ULONG"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/winprog64/rules-for-using-pointers",
+    "https://learn.microsoft.com/en-us/windows/win32/winprog64/the-new-data-types",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/zwcurrentprocess"
+  ],
+  "local_references": [
+    "Sandboxie/core/drv/driver.h",
+    "Sandboxie/core/drv/api.h",
+    "Sandboxie/core/drv/ipc.c",
+    "Sandboxie/core/drv/process_api.c",
+    "Sandboxie/core/drv/file.c"
+  ]
+}

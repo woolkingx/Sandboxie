@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "FILEPATHS_UNKNOWN_DRIVE_SENTINEL",
+  "title": "FilePaths unknown-drive sentinel",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/file_del.c",
+  "stage": "data -> schema -> verify",
+  "source_function": "File_TranslateNtToDosPathForDatFile",
+  "contracts": [
+    "File_TranslateNtToDosPathForDatFile owns FilePaths.dat save-time path projection",
+    "File_TranslateDosToNtPathForDatFile owns FilePaths.dat load-time path projection",
+    "drive-letter mappings come from MS-DOS device namespace links",
+    "unavailable drive-letter paths must be preserved rather than silently dropped",
+    "the leading-backslash sentinel shape represents a preserved DOS drive-letter path with unknown NT target",
+    "save-time stripping is legal only when the colon immediately precedes the first path separator or terminator after the leading backslash",
+    "known NT paths still use MUP, drive, or UNC mapping",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-querydosdevicea",
+    "https://learn.microsoft.com/en-us/windows/win32/fileio/defining-an-ms-dos-device-name",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/local-and-global-ms-dos-device-names"
+  ],
+  "local_edges": [
+    "FilePaths.dat -> File_LoadPathTree_internal -> File_TranslateDosToNtPathForDatFile",
+    "File_GetDriveForLetter succeeds -> store true NT path",
+    "File_GetDriveForLetter fails -> preserve DOS drive-letter sentinel",
+    "PATH_NODE tree -> File_SavePathTree_internal -> File_TranslateNtToDosPathForDatFile",
+    "leading-backslash drive-letter sentinel -> strip one leading backslash before write"
+  ],
+  "runtime_gate": "Windows FilePaths.dat round trip with available drive, unavailable drive, UNC/MUP, volume serial suffix, and drive reappearance",
+  "status": "patched-comment-topology-after-filepaths-unknown-drive-sentinel-review-no-behavior-change"
+}

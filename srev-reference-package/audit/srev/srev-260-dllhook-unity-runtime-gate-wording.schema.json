@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-260-dllhook-unity-runtime-gate-wording.schema.json",
+  "id": "DLLHOOK_UNITY_RUNTIME_GATE_WORDING",
+  "title": "DLL hook Unity runtime gate wording",
+  "type": "object",
+  "required": [
+    "owner",
+    "contracts",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/dllhook.c"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 3
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/dll/dllhook.c",
+  "contracts": [
+    "SREV-246 owns the disabled NOP-padding boundary",
+    "The source comment names the Unity runtime gate rather than symptom-only breakage wording",
+    "This SREV does not change hook bytes NOP-padding state page protection instruction-cache flushing trampoline generation or runtime policy"
+  ],
+  "runtime_gate": "Inherited from SREV-246 for any future NOP-padding behavior patch"
+}

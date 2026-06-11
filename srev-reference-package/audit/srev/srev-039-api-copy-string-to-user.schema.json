@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-039-api-copy-string-to-user.schema.json",
+  "title": "SREV-039 api copy string to user",
+  "id": "API_COPY_STRING_TO_USER_COUNTED_STRING",
+  "owner": "Sandboxie/core/drv/api.c",
+  "type": "object",
+  "properties": {
+    "audit_contract": {
+      "type": "string",
+      "description": "API: Api_CopyStringToUser | data: {\"input\": \"driver-owned WCHAR string plus byte length including trailing NUL\", \"output\": \"user UNICODE_STRING64 buffer and updated Length\"} | callers: Api_GetHomePath, Process_Api_QueryProcessInfo, Process_Api_QueryInfo, Process_Api_QueryBoxPath, Conf_Api_Query"
+    },
+    "validation_invariants": {
+      "type": "string",
+      "description": "All contracts listed in the contracts metadata must hold before any data is trusted past the validation boundary"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate proves contracts hold under normal and malformed inputs"
+    }
+  },
+  "required": [
+    "audit_contract",
+    "validation_invariants",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "len is a byte count and must be aligned to sizeof(WCHAR)",
+    "nonzero len must be at least sizeof(WCHAR) and requires a non-NULL source string",
+    "UNICODE_STRING64.MaximumLength is a byte count and must be aligned to sizeof(WCHAR)",
+    "nonzero len requires a non-NULL user Buffer",
+    "len must be <= MaximumLength before writing to Buffer",
+    "UNICODE_STRING64.Length is set to len - sizeof(WCHAR) because the copied trailing NUL is not counted"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/ntdef/ns-ntdef-_unicode_string",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-probeforwrite"
+  ]
+}

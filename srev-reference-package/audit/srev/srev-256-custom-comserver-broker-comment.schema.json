@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-256-custom-comserver-broker-comment.schema.json",
+  "id": "CUSTOM_COMSERVER_BROKER_COMMENT",
+  "title": "Custom COM server broker comment",
+  "type": "object",
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/custom.c"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 4
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 3
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/dll/custom.c",
+  "contracts": [
+    "The current v4 forced-COM-server path is a brokered SbieSvc handoff not a sandboxed process with broad COM IPC access",
+    "The pre-v4 direct COM IPC access shape is historical context only",
+    "Custom_ComServer comments name the broker topology rather than a generic workaround",
+    "This SREV does not change process launch COM IPC policy SbieSvc request shape comserver9.c or IE navigation input handling"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-cocreateinstance",
+    "https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-coregisterclassobject",
+    "https://learn.microsoft.com/en-us/windows/win32/com/localserver32"
+  ],
+  "runtime_gate": "No new runtime gate; existing COM server gates remain owned by SREV-098 and SREV-193"
+}

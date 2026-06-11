@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "HANDLE_PROPAGATED_CLOSE_HANDLER_PARAM_GATE",
+  "title": "Handle propagated close handler parameter gate",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/handle.c",
+  "stage": "schema -> boundary -> topology -> logic -> verify",
+  "source_functions": [
+    "Handle_RegisterHandler",
+    "Handle_SetupDuplicate"
+  ],
+  "contracts": [
+    "Handle_RegisterHandler owns admission of Close, Param, and bPropagate metadata",
+    "propagated close handlers are legal only when Param is NULL until a duplicate-param owner exists",
+    "Handle_SetupDuplicate copies propagated close handlers with NULL Param only",
+    "SREV-070 owns HANDLE_HANDLER node lifetime",
+    "this SREV does not change current File_NotifyRecover propagation behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-duplicatehandle",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-zwduplicateobject"
+  ],
+  "local_edges": [
+    "Handle_RegisterHandler -> validates bPropagate and Param compatibility",
+    "secure.c duplicate success -> Handle_SetupDuplicate",
+    "Handle_SetupDuplicate -> Handle_RegisterHandler(NewFileHandle, handler->Close, NULL, TRUE)",
+    "File_NotifyRecover -> current propagated NULL Param caller",
+    "SREV-070 -> close-handler node lifetime owner",
+    "SREV-298 -> propagated parameter legality owner"
+  ],
+  "runtime_gate": "Windows duplicate-handle smoke proving File_NotifyRecover propagation and bPropagate with non-null Param rejection",
+  "status": "patched-source-level-local-propagation-contract-needs-windows-runtime-proof"
+}

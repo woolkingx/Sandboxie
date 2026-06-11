@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-090-guititle-realgetwindowclass-buffer-shape.schema.json",
+  "title": "SREV-090 GUI title RealGetWindowClass buffer shape",
+  "id": "GUITITLE_REALGETWINDOWCLASS_BUFFER_SHAPE",
+  "owner": "Sandboxie/core/dll/guititle.c",
+  "type": "object",
+  "properties": {
+    "window": {
+      "type": "string",
+      "description": "HWND inspected for title decoration eligibility"
+    },
+    "style_gate": {
+      "type": "string",
+      "description": "GWL_STYLE / WS_CAPTION titlebar classification"
+    },
+    "class_buffer": {
+      "type": "string",
+      "description": "RealGetWindowClassW WCHAR output buffer"
+    },
+    "compatibility_classes": {
+      "type": "string",
+      "description": "Office hidden splash/window class skip list and Edit exclusion"
+    },
+    "title_mutation": {
+      "type": "string",
+      "description": "GetWindowText / helper-consumer title suffix path"
+    }
+  },
+  "required": [
+    "window",
+    "style_gate",
+    "class_buffer",
+    "compatibility_classes",
+    "title_mutation"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "RealGetWindowClassW cchClassNameMax is a WCHAR character count, not a byte count",
+    "the class-name buffer capacity is passed as ARRAYSIZE(clsnm)",
+    "the class-name string is locally NUL-terminated before wcsstr / _wcsicmp consumers",
+    "hidden Office caption-class skip checks run only after legal class-buffer shape",
+    "Edit controls remain excluded from title suffix creation",
+    "title helper consumers keep gating title mutation through Gui_ShouldCreateTitle before GetWindowText / SendMessage / WM_SETTEXT paths"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-realgetwindowclassw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getwindowlongw",
+    "https://learn.microsoft.com/en-us/windows/win32/winmsg/window-styles",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getwindowrect",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-clienttoscreen",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getwindowtextw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowtextw",
+    "https://learn.microsoft.com/en-us/windows/win32/winmsg/wm-settext"
+  ]
+}

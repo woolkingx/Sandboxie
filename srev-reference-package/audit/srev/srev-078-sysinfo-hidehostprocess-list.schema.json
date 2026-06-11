@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-078-sysinfo-hidehostprocess-list.schema.json",
+  "title": "SREV-078 SysInfo HideHostProcess list capacity contract",
+  "id": "SYSINFO_HIDEHOSTPROCESS_LIST_CAPACITY",
+  "owner": "Sandboxie/core/dll/sysinfo.c",
+  "type": "object",
+  "properties": {
+    "config_entry": {
+      "type": "string",
+      "description": "Indexed HideHostProcess setting value"
+    },
+    "list": {
+      "type": "string",
+      "description": "Heap-owned WCHAR multi-string"
+    },
+    "capacity": {
+      "type": "string",
+      "description": "Allocated and used character counts"
+    },
+    "consumer": {
+      "type": "string",
+      "description": "Process filter iteration over initialized entries"
+    }
+  },
+  "required": [
+    "config_entry",
+    "list",
+    "capacity",
+    "consumer"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "hidden-process list is a double-NUL-terminated WCHAR multi-string",
+    "capacity grows to fit configured HideHostProcess entries",
+    "HeapReAlloc failure preserves the old list and stops importing new entries",
+    "used length plus new entry plus final terminator is checked before addition",
+    "consumer iteration walks initialized entries until the final terminator"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heapalloc",
+    "https://learn.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heaprealloc",
+    "https://learn.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heapfree"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "PROCESS_HOOK_ENTRY_DISABLE_GUARD",
+  "owner": "Sandboxie/core/drv/process_hook.c",
+  "declaration": "Sandboxie/core/drv/process.h",
+  "status": "patched-source-level-after-local-trampoline-schema-and-official-process-notify-shape-review-needs-windows-runtime-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddk/nf-ntddk-pssetcreateprocessnotifyroutine",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddk/nf-ntddk-pssetcreateprocessnotifyroutineex"
+  ],
+  "contracts": [
+    "process_hook.c owns the generated hook-entry machine-code layout",
+    "Process_BuildHookEntry is the only creator for hook entries that Process_DisableHookEntry may rewrite",
+    "A generated hook entry is identified by HOOK_TRAMP_CODE_TO_TRAMP_HEAD and tramp eyecatcher equals tzuk",
+    "Disable logic returns without patching if the hook-entry value is null or does not identify a Sandboxie trampoline",
+    "The disable patch keeps the original schema by changing test eax,eax to xor eax,eax and hotpatching the entry prefix to jump to that modified test"
+  ],
+  "runtime_gate": "Windows driver build plus XP-hook compatibility smoke on supported legacy targets or a controlled test harness that creates a hook entry, disables it, and verifies it routes to the original procedure. A negative test should call the disable path with zero and a non-Sandboxie trampoline-shaped address without mutating code."
+}

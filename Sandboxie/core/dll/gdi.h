@@ -32,10 +32,10 @@ typedef UINT (*P_GetEnhMetaFileBits)(
     LPBYTE lpbBuffer
     );
 
-typedef UINT (*P_GetBitmapBits)(
+typedef LONG (*P_GetBitmapBits)(
     HBITMAP hBitmap,
-    UINT cbBuffer,
-    LPBYTE lpbBuffer
+    LONG cbBuffer,
+    LPVOID lpvBits
     );
 
 

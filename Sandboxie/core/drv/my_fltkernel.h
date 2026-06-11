@@ -329,7 +329,7 @@ typedef union _FLT_PARAMETERS {
 
         //
         //  IRP_MN_KERNEL_CALL and IRP_MN_USER_FS_REQUEST
-        //  The parameters are broken out into 3 separate unions based on the
+        //  The parameters are split into 3 separate unions based on the
         //  method of the FSCTL Drivers should use the method-appropriate
         //  union for accessing parameters
         //
@@ -435,7 +435,7 @@ typedef union _FLT_PARAMETERS {
         } Common;
 
         //
-        //  The parameters are broken out into 3 separate unions based on the
+        //  The parameters are split into 3 separate unions based on the
         //  method of the IOCTL.  Drivers should use the method-appropriate
         //  union for accessing parameters.
         //
@@ -1314,7 +1314,7 @@ FltSetCallbackDataDirty(
 ///////////////////////////////////////////////////////////////////////////////
 
 //
-//  The FLT_FILE_NAME_OPTIONS is a ULONG that gets broken down into three
+//  The FLT_FILE_NAME_OPTIONS is a ULONG partitioned into three
 //  sections:
 //   bits 0-7:  enumeration representing the file name formats available
 //   bits 8-15: enumeration representing the querying methods available

@@ -228,22 +228,32 @@ _FX BOOLEAN Ipc_StartServer(const WCHAR *TruePath, BOOLEAN Async)
         HANDLE hThread;
 
         args = (ULONG_PTR *)Dll_AllocTemp(sizeof(ULONG_PTR) * 4);
-        args[0] = (ULONG_PTR)TruePath;
-        args[1] = (ULONG_PTR)service;
-        args[2] = (ULONG_PTR)hServerEvent;
-        args[3] = (ULONG_PTR)hServerProcess;
+        if (args) {
+            args[0] = (ULONG_PTR)TruePath;
+            args[1] = (ULONG_PTR)service;
+            args[2] = (ULONG_PTR)hServerEvent;
+            args[3] = (ULONG_PTR)hServerProcess;
 
-        hThread = CreateThread(
-                    NULL, 0, Ipc_StartServer_Thread,
-                    (void *)args, CREATE_SUSPENDED, &idThread);
-        if (hThread) {
+            hThread = CreateThread(
+                        NULL, 0, Ipc_StartServer_Thread,
+                        (void *)args, CREATE_SUSPENDED, &idThread);
+            if (hThread) {
 
-            SetThreadPriority(hThread, THREAD_PRIORITY_BELOW_NORMAL);
-            ResumeThread(hThread);
-            CloseHandle(hThread);
+                SetThreadPriority(hThread, THREAD_PRIORITY_BELOW_NORMAL);
+                ResumeThread(hThread);
+                CloseHandle(hThread);
+            } else {
+
+                Dll_Free(args);
+                Async = FALSE;
+            }
+        } else {
+
+            Async = FALSE;
         }
+    }
 
-    } else {
+    if (! Async) {
 
         //
         // continued processing in the main line or the separate thread
@@ -326,9 +336,12 @@ _FX BOOLEAN Ipc_StartServer(const WCHAR *TruePath, BOOLEAN Async)
 
                             ULONG rc = 0;
 
-                            // hServerProcess should stay running. If hServerProcess exits, probably a crash,
-                            // we have no chance to open the ServiceInitComplete event. Break to loop.
-                            if (GetExitCodeProcess(hServerProcess, &rc)
+                            // SREV-302: while waiting for DcomLaunch event
+                            // creation, hServerProcess is the RpcSs liveness
+                            // edge. If it exits, the event cannot be trusted
+                            // to appear later.
+                            if (hServerProcess
+                                && GetExitCodeProcess(hServerProcess, &rc)
                                 && rc != 0 && rc != STILL_ACTIVE) {
 
                                 SbieApi_Log(2204, _format, _dcomlaunch, -4);
@@ -341,8 +354,30 @@ _FX BOOLEAN Ipc_StartServer(const WCHAR *TruePath, BOOLEAN Async)
                         }
                     }
 
-                    if (WAIT_OBJECT_0 == WaitForSingleObject(
-                                                hEvent, 30 * 1000))
+                    ULONG rc;
+                    if (hServerProcess) {
+
+                        HANDLE DcomWaitHandles[2];
+                        DcomWaitHandles[0] = hEvent;
+                        DcomWaitHandles[1] = hServerProcess;
+
+                        rc = WaitForMultipleObjects(
+                            2, DcomWaitHandles, FALSE, 30 * 1000);
+
+                        if (rc == WAIT_OBJECT_0)
+                            break;
+
+                        if (rc == (WAIT_OBJECT_0 + 1)) {
+
+                            SbieApi_Log(2204, _format, _dcomlaunch, -4);
+                            bRet = FALSE;
+                            break;
+                        }
+
+                    } else
+                        rc = WaitForSingleObject(hEvent, 30 * 1000);
+
+                    if (rc == WAIT_OBJECT_0)
                         break;
 
                     SbieApi_Log(2204, _format, _dcomlaunch, -2);

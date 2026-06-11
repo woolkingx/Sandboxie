@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "FILE_SERVER_OPENBOXFILE_PATH_GATE",
+  "owner": "Sandboxie/core/svc/fileserver.h",
+  "implementation": "Sandboxie/core/svc/fileserver.cpp",
+  "entry_surface": "Sandboxie/core/svc/fileserver.h",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntcreatefile",
+    "https://learn.microsoft.com/en-us/windows/win32/api/ntdef/nf-ntdef-initializeobjectattributes",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtlinitunicodestring"
+  ],
+  "data_shapes": {
+    "wire_path": {
+      "input": "validated FILE_SET_ATTRIBUTES_REQ or FILE_SET_SHORT_NAME_REQ path",
+      "owner": "FileServer handler",
+      "invariant": "wire WCHAR path is bounded and NUL-terminated before OpenBoxFile"
+    },
+    "sandbox_path_gate": {
+      "input": "idProcess, request_path, extra_path",
+      "owner": "FileServer::CheckBoxFilePath",
+      "invariant": "failure is terminal before privileged NtCreateFile"
+    },
+    "privileged_open": {
+      "input": "RtlInitUnicodeString + OBJECT_ATTRIBUTES + NtCreateFile",
+      "owner": "FileServer::OpenBoxFile",
+      "invariant": "NtCreateFile runs only after CheckBoxFilePath succeeds"
+    }
+  },
+  "contracts": [
+    "OpenBoxFile returns NTSTATUS and must not call SHORT_REPLY",
+    "CheckBoxFilePath failure returns status before RtlInitUnicodeString",
+    "NtCreateFile is reachable only after sandbox path gate success",
+    "SetAttributes and SetShortName keep converting OpenBoxFile NTSTATUS to SHORT_REPLY at handler boundary",
+    "This SREV does not change desired access, share mode, create options, or wire string validation"
+  ],
+  "runtime_gate": "Windows service build plus outside-sandbox SetAttributes and SetShortName denial smoke",
+  "status": "patched-source-level-after-official-ntcreatefile-shape-review-needs-windows-runtime-proof"
+}

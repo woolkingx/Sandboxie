@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-139-deviceiocontrol-deny-iostatus.schema.json",
+  "title": "SREV-139 DeviceIoControl deny IoStatus completion",
+  "id": "DEVICEIOCONTROL_DENY_IOSTATUS_COMPLETION",
+  "owner": "Sandboxie/core/drv/file_ctrl.c",
+  "type": "object",
+  "properties": {
+    "syscall_filter": {
+      "type": "string",
+      "description": "Syscall-level NtDeviceIoControlFile filter before blocked mount manager or CMApi IOCTLs reach native NtDeviceIoControlFile"
+    },
+    "ioctl_shape": {
+      "type": "string",
+      "description": "IOCTL control code fields follow the CTL_CODE DeviceType Access Function Method layout"
+    },
+    "deny_completion": {
+      "type": "string",
+      "description": "Fabricated deny results write both NTSTATUS return value and IO_STATUS_BLOCK completion state"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows driver and native DeviceIoControl runtime proof"
+    }
+  },
+  "required": [
+    "syscall_filter",
+    "ioctl_shape",
+    "deny_completion",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "file_ctrl.c owns syscall-level filtering before native NtDeviceIoControlFile sees blocked mount manager or CMApi IOCTLs",
+    "IOCTL routing is based on the official CTL_CODE bit layout plus local function denylist policy",
+    "CMApi function numbers remain a local policy projection because Microsoft does not publish the DeviceApi CMApi wire protocol",
+    "When Sandboxie fabricates a final deny for NtDeviceIoControlFile it must also become the completion owner for the caller IO_STATUS_BLOCK",
+    "A fabricated deny writes Status = STATUS_ACCESS_DENIED and Information = 0 before returning STATUS_ACCESS_DENIED",
+    "The fabricated completion write is guarded by ProbeForWrite and remains inside the outer syscall exception boundary",
+    "Allowed IOCTLs still flow to native NtDeviceIoControlFile unchanged"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddk/nf-ntddk-zwdeviceiocontrolfile",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/defining-i-o-control-codes",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/i-o-status-blocks",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_io_status_block",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/mountmgr/",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/mountmgr/ni-mountmgr-ioctl_mountmgr_create_point",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/mountmgr/ni-mountmgr-ioctl_mountmgr_delete_points",
+    "https://learn.microsoft.com/en-us/windows/win32/api/cfgmgr32/nf-cfgmgr32-cm_disable_devnode",
+    "https://learn.microsoft.com/en-us/windows/win32/api/cfgmgr32/nf-cfgmgr32-cm_set_devnode_propertyw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/cfgmgr32/nf-cfgmgr32-cm_set_device_interface_propertyw"
+  ]
+}

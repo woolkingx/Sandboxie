@@ -71,8 +71,9 @@ static BOOLEAN Key_SavePathTree();
 static BOOLEAN Key_LoadPathTree();
 static VOID Key_RefreshPathTree();
 BOOLEAN Key_InitDelete_v2();
-static NTSTATUS Key_MarkDeletedEx_v2(const WCHAR* TruePath, const WCHAR* ValueName);
+static NTSTATUS Key_MarkDeletedEx_v2(const WCHAR* TruePath, const WCHAR* ValueName, ULONG ValueNameLen);
 static ULONG Key_IsDeleted_v2(const WCHAR* TruePath);
+static ULONG Key_IsDeletedExLen_v2(const WCHAR* TruePath, const WCHAR* ValueName, ULONG ValueNameLen, BOOLEAN IsValue);
 static ULONG Key_IsDeletedEx_v2(const WCHAR* TruePath, const WCHAR* ValueName, BOOLEAN IsValue);
 
 //
@@ -221,7 +222,7 @@ _FX BOOLEAN Key_InitDelete_v2()
 //---------------------------------------------------------------------------
 
 
-_FX NTSTATUS Key_MarkDeletedEx_v2(const WCHAR* TruePath, const WCHAR* ValueName)
+_FX NTSTATUS Key_MarkDeletedEx_v2(const WCHAR* TruePath, const WCHAR* ValueName, ULONG ValueNameLen)
 {
     //
     // add a key/value or directory to the deleted list
@@ -230,15 +231,27 @@ _FX NTSTATUS Key_MarkDeletedEx_v2(const WCHAR* TruePath, const WCHAR* ValueName)
     HANDLE hMutex = File_AcquireMutex(KEY_VCM_MUTEX);
 
     THREAD_DATA *TlsData = Dll_GetTlsData(NULL);
+    ULONG TruePathLen = wcslen(TruePath);
+    ULONG FullPathLen = TruePathLen + (ValueName ? ValueNameLen : 0) + 16;
+    WCHAR *ptr;
 
     WCHAR* FullPath = Dll_GetTlsNameBuffer(TlsData, TMPL_NAME_BUFFER, 
-        (wcslen(TruePath) + (ValueName ? wcslen(ValueName) : 0) + 16) * sizeof(WCHAR)); // template buffer is not used for reg repurpose it here
+        FullPathLen * sizeof(WCHAR)); // template buffer is not used for reg repurpose it here
 
-    wcscpy(FullPath, TruePath);
-    if (ValueName) {
-        wcscat(FullPath, L"\\$");
-        wcscat(FullPath, ValueName);
+    if (! FullPath) {
+        File_ReleaseMutex(hMutex);
+        return STATUS_INSUFFICIENT_RESOURCES;
     }
+
+    wmemcpy(FullPath, TruePath, TruePathLen);
+    ptr = FullPath + TruePathLen;
+    if (ValueName) {
+        *ptr++ = L'\\';
+        *ptr++ = L'$';
+        wmemcpy(ptr, ValueName, ValueNameLen);
+        ptr += ValueNameLen;
+    }
+    *ptr = L'\0';
 
     EnterCriticalSection(Key_PathRoot_CritSec);
 
@@ -303,24 +316,41 @@ _FX ULONG Key_IsDeleted_v2(const WCHAR* TruePath)
 //---------------------------------------------------------------------------
 
 
-_FX ULONG Key_IsDeletedEx_v2(const WCHAR* TruePath, const WCHAR* ValueName, BOOLEAN IsValue)
+_FX ULONG Key_IsDeletedExLen_v2(const WCHAR* TruePath, const WCHAR* ValueName, ULONG ValueNameLen, BOOLEAN IsValue)
 {
     //
     // check if the key/value or one of its parent directories is listed as deleted
     //
 
     THREAD_DATA *TlsData = Dll_GetTlsData(NULL);
+    ULONG TruePathLen = wcslen(TruePath);
+    ULONG FullPathLen = TruePathLen + (ValueName ? ValueNameLen : 0) + 16;
+    WCHAR *ptr;
 
     WCHAR* FullPath = Dll_GetTlsNameBuffer(TlsData, TMPL_NAME_BUFFER, 
-        (wcslen(TruePath) + (ValueName ? wcslen(ValueName) : 0) + 16) * sizeof(WCHAR)); // template buffer is not used for reg repurpose it here
+        FullPathLen * sizeof(WCHAR)); // template buffer is not used for reg repurpose it here
 
-    wcscpy(FullPath, TruePath);
+    if (! FullPath)
+        return 0;
+
+    wmemcpy(FullPath, TruePath, TruePathLen);
+    ptr = FullPath + TruePathLen;
     if (ValueName) {
-        wcscat(FullPath, IsValue ? L"\\$" : L"\\");
-        wcscat(FullPath, ValueName);
+        *ptr++ = L'\\';
+        if (IsValue)
+            *ptr++ = L'$';
+        wmemcpy(ptr, ValueName, ValueNameLen);
+        ptr += ValueNameLen;
     }
+    *ptr = L'\0';
 
     return Key_IsDeleted_v2(FullPath);
+}
+
+_FX ULONG Key_IsDeletedEx_v2(const WCHAR* TruePath, const WCHAR* ValueName, BOOLEAN IsValue)
+{
+    return Key_IsDeletedExLen_v2(
+        TruePath, ValueName, ValueName ? wcslen(ValueName) : 0, IsValue);
 }
 
 
@@ -405,4 +435,3 @@ _FX WCHAR* Key_ResolveTruePath(const WCHAR *TruePath, ULONG* PathFlags)
 
     return OldTruePath;
 }
-

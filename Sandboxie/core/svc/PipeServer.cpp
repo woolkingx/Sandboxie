@@ -29,6 +29,7 @@
 #include "common/defines.h"
 #include "common/my_version.h"
 #include <psapi.h> // For access to GetModuleFileNameEx
+#include <sddl.h>
 #include "sbieiniserver.h"
 
 //---------------------------------------------------------------------------
@@ -132,6 +133,7 @@ PipeServer::PipeServer()
 #endif
 
     m_hServerPort = NULL;
+    m_ThreadCount = 0;
 
     ULONG len_threads = (NUMBER_OF_THREADS) * sizeof(HANDLE);
     m_Threads = (HANDLE *)HeapAlloc(GetProcessHeap(), 0, len_threads);
@@ -169,40 +171,12 @@ bool PipeServer::Init()
 
 PipeServer::~PipeServer()
 {
-    ULONG i;
-
-    HANDLE PortHandle = InterlockedExchangePointer(&m_hServerPort, NULL);
-
-    if (PortHandle) {
-
-        //
-        // reset m_hServerPort, then send enough messages to cause
-        // the worker threads to wake up and shut down
-        //
-
-        UCHAR space[MAX_PORTMSG_LENGTH];
-
-        for (i = 0; i < NUMBER_OF_THREADS; ++i) {
-            PORT_MESSAGE *msg = (PORT_MESSAGE *)space;
-            memzero(msg, MAX_PORTMSG_LENGTH);
-            msg->u1.s1.TotalLength = (USHORT)sizeof(PORT_MESSAGE);
-            NtRequestPort(PortHandle, msg);
-        }
-    }
+    ShutdownPortAndThreads();
 
     if (m_Threads) {
-
-        if (WAIT_TIMEOUT == WaitForMultipleObjects(
-                                NUMBER_OF_THREADS, m_Threads, TRUE, 5000)) {
-
-            for (i = 0; i < NUMBER_OF_THREADS; ++i)
-                TerminateThread(m_Threads[i], 0);
-            WaitForMultipleObjects(NUMBER_OF_THREADS, m_Threads, TRUE, 5000);
-        }
+        HeapFree(GetProcessHeap(), 0, m_Threads);
+        m_Threads = NULL;
     }
-
-    if (PortHandle)
-        NtClose(PortHandle);
 
     if (m_pool)
         Pool_Delete(m_pool);
@@ -234,6 +208,57 @@ void PipeServer::Register(ULONG serverId, void *context, Handler handler)
 
 
 //---------------------------------------------------------------------------
+// ShutdownPortAndThreads
+//---------------------------------------------------------------------------
+
+
+void PipeServer::ShutdownPortAndThreads()
+{
+    ULONG i;
+
+    HANDLE PortHandle = InterlockedExchangePointer(&m_hServerPort, NULL);
+
+    if (PortHandle) {
+
+        //
+        // reset m_hServerPort, then send enough messages to cause
+        // any worker threads to wake up and shut down
+        //
+
+        UCHAR space[MAX_PORTMSG_LENGTH];
+
+        for (i = 0; i < NUMBER_OF_THREADS; ++i) {
+            PORT_MESSAGE *msg = (PORT_MESSAGE *)space;
+            memzero(msg, MAX_PORTMSG_LENGTH);
+            msg->u1.s1.TotalLength = (USHORT)sizeof(PORT_MESSAGE);
+            NtRequestPort(PortHandle, msg);
+        }
+    }
+
+    if (m_Threads && m_ThreadCount) {
+
+        if (WAIT_TIMEOUT == WaitForMultipleObjects(
+                                m_ThreadCount, m_Threads, TRUE, 5000)) {
+
+            for (i = 0; i < m_ThreadCount; ++i)
+                TerminateThread(m_Threads[i], 0);
+            WaitForMultipleObjects(m_ThreadCount, m_Threads, TRUE, 5000);
+        }
+
+        for (i = 0; i < m_ThreadCount; ++i) {
+            CloseHandle(m_Threads[i]);
+            m_Threads[i] = NULL;
+        }
+
+        m_ThreadCount = 0;
+    }
+
+    if (PortHandle)
+        NtClose(PortHandle);
+}
+
+
+//---------------------------------------------------------------------------
 // Start
 //---------------------------------------------------------------------------
 
@@ -246,15 +271,33 @@ bool PipeServer::Start()
     ULONG i;
     ULONG idThread;
 
+    if (! m_Threads) {
+        SetLastError(ERROR_NOT_ENOUGH_MEMORY);
+        return false;
+    }
+
     //
-    // the server port should have a NULL DACL so any process can connect
+    // The service port should be reachable by sandbox clients, including
+    // AppContainer clients whose access checks require an AppContainer SID.
     //
 
-    ULONG sd_space[16];
-    memzero(&sd_space, sizeof(sd_space));
-    PSECURITY_DESCRIPTOR sd = (PSECURITY_DESCRIPTOR)&sd_space;
-    InitializeSecurityDescriptor(sd, SECURITY_DESCRIPTOR_REVISION);
-    SetSecurityDescriptorDacl(sd, TRUE, NULL, FALSE);
+    PSECURITY_DESCRIPTOR sd = NULL;
+    if (!ConvertStringSecurityDescriptorToSecurityDescriptor(
+            L"O:SYG:SYD:(A;;GA;;;WD)(A;;GA;;;AC)",
+            SDDL_REVISION_1, &sd, NULL)) {
+
+        //
+        // Older systems do not know the AC SDDL alias.  Keep the old
+        // any-process topology there, but still avoid publishing a NULL DACL.
+        //
+
+        if (!ConvertStringSecurityDescriptorToSecurityDescriptor(
+                L"O:SYG:SYD:(A;;GA;;;WD)",
+                SDDL_REVISION_1, &sd, NULL)) {
+            LogEvent(MSG_9234, 0x9252, GetLastError());
+            return false;
+        }
+    }
 
     //
     // create server port
@@ -267,6 +310,8 @@ bool PipeServer::Start()
 
     status = NtCreatePort(
         (HANDLE *)&m_hServerPort, &objattrs, 0, MAX_PORTMSG_LENGTH, NULL);
+
+    LocalFree(sd);
 
     if (! NT_SUCCESS(status)) {
         LogEvent(MSG_9234, 0x9252, status);
@@ -288,9 +333,13 @@ bool PipeServer::Start()
         m_Threads[i] = CreateThread(
             NULL, 0, (LPTHREAD_START_ROUTINE)ThreadStub, this, 0, &idThread);
         if (! m_Threads[i]) {
-            LogEvent(MSG_9234, 0x9253, GetLastError());
+            ULONG error = GetLastError();
+            LogEvent(MSG_9234, 0x9253, error);
+            ShutdownPortAndThreads();
+            SetLastError(error);
             return false;
         }
+        ++m_ThreadCount;
     }
 
     return true;
@@ -682,7 +731,7 @@ void PipeServer::PortDisconnect(PORT_MESSAGE *msg)
 #ifndef USE_NEW_LPC_IMPL
 void PipeServer::PortDisconnectByCreateTime(LARGE_INTEGER *CreateTime)
 {
-    typedef HANDLE (*P_GetProcessIdOfThread)(HANDLE Thread);
+    typedef DWORD (*P_GetProcessIdOfThread)(HANDLE Thread);
     static P_GetProcessIdOfThread pGetProcessIdOfThread = NULL;
     static BOOLEAN init_done = FALSE;
 
@@ -736,19 +785,17 @@ void PipeServer::PortDisconnectByCreateTime(LARGE_INTEGER *CreateTime)
                 BOOLEAN DeleteThread = TRUE;
 
                 HANDLE hThread = OpenThread(
-                    THREAD_QUERY_INFORMATION, FALSE,
+                    THREAD_QUERY_INFORMATION | SYNCHRONIZE, FALSE,
                     (ULONG)(ULONG_PTR)clientThread->idThread);
                 if (hThread) {
-                    HANDLE ThreadProcessId = pGetProcessIdOfThread(hThread);
-                    if (ThreadProcessId == clientProcess->idProcess)
+                    DWORD ThreadProcessId = pGetProcessIdOfThread(hThread);
+                    DWORD WaitStatus = WaitForSingleObject(hThread, 0);
+                    if (ThreadProcessId &&
+                            (HANDLE)(ULONG_PTR)ThreadProcessId == clientProcess->idProcess &&
+                            WaitStatus == WAIT_TIMEOUT)
                         DeleteThread = FALSE;
                     CloseHandle(hThread);
                 }
-
-                //
-                // fix-me: when closing the port without waiting some ms after the 
-                //          thread terminated this fails and the client object is not cleared
-                //
 
                 if (DeleteThread) {
 
@@ -789,6 +836,9 @@ void PipeServer::PortRequest(HANDLE PortHandle, PORT_MESSAGE *msg, void *voidCli
     void *buf_ptr = NULL;
 
     if (! client->buf_hdr) {
+
+        if (msg->u1.s1.DataLength < sizeof(MSG_HEADER))
+            goto finish;
 
         ULONG *msg_Data = (ULONG *)msg->Data;
         ULONG msgid = msg_Data[1];
@@ -1210,7 +1260,7 @@ bool PipeServer::IsCallerAdmin()
     HANDLE processHandle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, processId);
     if (processHandle != NULL) {
         HANDLE hToken;
-        if (OpenProcessToken(processHandle, TOKEN_QUERY, &hToken)) {
+        if (OpenProcessToken(processHandle, TOKEN_QUERY | TOKEN_DUPLICATE, &hToken)) {
             IsAdmin = SbieIniServer::TokenIsAdmin(hToken, true);
 
             CloseHandle(hToken);

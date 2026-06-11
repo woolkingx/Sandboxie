@@ -1197,6 +1197,10 @@ _FX HANDLE Sxs_CreateActCtxW(ACTCTX *ActCtx)
 
         ULONG len = wcslen(args.SourcePath);
         args.Directory = Dll_AllocTemp((len + 4) * sizeof(WCHAR));
+        if (! args.Directory) {
+            LastError = STATUS_INSUFFICIENT_RESOURCES;
+            goto finish;
+        }
         wmemcpy(args.Directory, args.SourcePath, len + 1);
 
         ptr = wcsrchr(args.Directory, L'\\');
@@ -1317,7 +1321,9 @@ _FX HANDLE Sxs_CreateActCtxW_Alt(ACTCTX *ActCtx)
     // some other thread in the SandboxieRpcSs process may block the
     // request.  for example, by holding the loader lock.
     //
-    // workaround:  in the context of RpcSs, use the real SXS from CSRSS.
+    // SREV-328: in SandboxieRpcSs, avoid re-entering the in-sandbox SXS
+    // service.  The alternate path calls the native CreateActCtxW owner after
+    // optional boxed-path translation, preserving the recursion gate.
     //
 
     THREAD_DATA *TlsData = Dll_GetTlsData(NULL);
@@ -1341,6 +1347,10 @@ _FX HANDLE Sxs_CreateActCtxW_Alt(ACTCTX *ActCtx)
             BOOLEAN IsBoxedPath;
 
             MySource = Dll_AllocTemp(sizeof(WCHAR) * 8192);
+            if (! MySource) {
+                CloseHandle(hFile);
+                goto skip_path_translation;
+            }
 
             status = SbieDll_GetHandlePath(hFile, MySource, &IsBoxedPath);
 
@@ -1359,6 +1369,8 @@ _FX HANDLE Sxs_CreateActCtxW_Alt(ACTCTX *ActCtx)
             }
         }
     }
+
+skip_path_translation:
 
     //
     // invoke the system service and finish.  note that we use the
@@ -1437,12 +1449,14 @@ _FX void Sxs_QueryActCtxW_2(ULONG *p_len, WCHAR **p_path)
 
                     WCHAR *TruePath2 =
                         Dll_AllocTemp((TruePath_len + 2) * sizeof(WCHAR));
-                    wmemcpy(TruePath2, TruePath, TruePath_len);
-                    TruePath2[TruePath_len] = L'\\';
-                    TruePath2[TruePath_len + 1] = L'\0';
+                    if (TruePath2) {
+                        wmemcpy(TruePath2, TruePath, TruePath_len);
+                        TruePath2[TruePath_len] = L'\\';
+                        TruePath2[TruePath_len + 1] = L'\0';
 
-                    Dll_Free(TruePath);
-                    TruePath = TruePath2;
+                        Dll_Free(TruePath);
+                        TruePath = TruePath2;
+                    }
                 }
             }
         }
@@ -1684,11 +1698,10 @@ _FX BOOLEAN Sxs_InitKernel32(void)
     module = Dll_Ntdll;
 
     //
-    // Opera hooks NtSetInformationThread. SboxDll calls __sys_NtSetInformationThread to bypass Opera hook.
-    // See the comment about Thread_SetInformationThread_ChangeNotifyToken in Gui_ConnectToWindowStationAndDesktop
-    // 
-    // Tested with opera 117 and this workaround seems no longer required
-    // 
+    // SREV-329: keep this narrow NtSetInformationThread pass-through hook as a
+    // third-party NTAPI-stub guard for the change-notify-token path referenced
+    // in Gui_ConnectToWindowStationAndDesktop.  Removing it needs Windows
+    // browser matrix proof because the hook still changes call topology.
 
     NtSetInformationThread = GetProcAddress(Dll_Ntdll, "NtSetInformationThread");
     if (NtSetInformationThread) {

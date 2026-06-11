@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "XP_OBJECT_TYPE_HOOK_CONTRACT",
+  "owner": "Sandboxie/core/drv/obj_xp.c",
+  "status": "patched-source-level-after-official-object-manager-shape-review-needs-windows-runtime-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtlinitunicodestring",
+    "https://learn.microsoft.com/en-us/windows/win32/api/ntdef/nf-ntdef-initializeobjectattributes",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-obreferenceobjectbyhandle",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/object-based",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winnt/nf-winnt-interlockedexchangepointer"
+  ],
+  "contracts": [
+    "Obj_HookAnyProc validates TypeName, NewProc, OldProc, and pHookEntry before opening the object type",
+    "Obj_BuildObjectTypeName bounds the ObjectName buffer including prefix and null terminator",
+    "Obj_HookAnyProc rejects ProcOffset values that cannot address a ULONG_PTR inside object->TypeInfo",
+    "Process_BuildHookEntry success gates hook publication",
+    "The private XP object-type layout dependency is preserved as a local compatibility dependency, not treated as an official API"
+  ],
+  "runtime_gate": "Windows XP / Server 2003 compatible driver build or historical target build plus File, Device, and Key parse-procedure hook initialization smoke"
+}

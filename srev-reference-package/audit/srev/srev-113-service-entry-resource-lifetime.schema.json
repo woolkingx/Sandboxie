@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-113-service-entry-resource-lifetime.schema.json",
+  "title": "SREV-113 service entry resource lifetime",
+  "id": "SERVICE_ENTRY_RESOURCE_LIFETIME",
+  "owner": "Sandboxie/core/svc/main.cpp",
+  "type": "object",
+  "properties": {
+    "official_service_shape": {
+      "type": "string",
+      "description": "Official Win32 service entry, dispatcher, handler, and status shape"
+    },
+    "official_resource_shape": {
+      "type": "string",
+      "description": "Official critical section and event-log handle lifetime shape"
+    },
+    "source_change": {
+      "type": "string",
+      "description": "WinMain SID cache cleanup and service event-log handle cleanup"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows SCM, proxy, dispatcher failure, and event-log handle proof"
+    }
+  },
+  "required": [
+    "official_service_shape",
+    "official_resource_shape",
+    "source_change",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "WinMain owns process-wide initialization before the service dispatcher or proxy worker path",
+    "DriverAssist InitializeSidCache initializes a process-local critical section before service and proxy paths",
+    "every local return path from WinMain after SID cache initialization calls DriverAssist DestroySidCache",
+    "proxy command-line detection order and proxy worker dispatch targets are unchanged",
+    "StartServiceCtrlDispatcher remains the SCM boundary for the normal service path",
+    "failed StartServiceCtrlDispatcher preserves GetLastError after SID cache cleanup",
+    "InitializeEventLog owns the event-log handle opened by OpenEventLog",
+    "opened event-log handles are closed with CloseEventLog on service initialization failure and STOP SHUTDOWN cleanup",
+    "SCM status transitions accepted controls and proxy routing must not change"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/processenv/nf-processenv-getcommandlinew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-startservicectrldispatcherw",
+    "https://learn.microsoft.com/en-us/windows/win32/services/service-servicemain-function",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-registerservicectrlhandlerexw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-setservicestatus",
+    "https://learn.microsoft.com/en-us/windows/win32/sync/critical-section-objects",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-openeventlogw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-closeeventlog"
+  ]
+}

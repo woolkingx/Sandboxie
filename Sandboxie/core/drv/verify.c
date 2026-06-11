@@ -392,30 +392,37 @@ NTSTATUS KphVerifyCurrentProcess()
     NTSTATUS status;
     PUNICODE_STRING processFileName = NULL;
     PUNICODE_STRING signatureFileName = NULL;
+    USHORT signatureNameLength;
+    USHORT signatureNameMaximumLength;
     ULONG signatureSize = 0;
     PUCHAR signature = NULL;
     
     if (!NT_SUCCESS(status = SeLocateProcessImageName(PsGetCurrentProcess(), &processFileName)))
         goto CleanupExit;
 
+    if (!processFileName->Buffer ||
+            processFileName->Length > (0xFFFF - 5 * sizeof(WCHAR))) {
+        status = STATUS_NAME_TOO_LONG;
+        goto CleanupExit;
+    }
 
-    //RtlCreateUnicodeString
-    signatureFileName = ExAllocatePoolWithTag(PagedPool, sizeof(UNICODE_STRING) + processFileName->MaximumLength + 4 * sizeof(WCHAR), tzuk);
+    signatureNameLength = processFileName->Length + 4 * sizeof(WCHAR);
+    signatureNameMaximumLength = signatureNameLength + sizeof(WCHAR);
+
+    signatureFileName = ExAllocatePoolWithTag(
+        PagedPool, sizeof(UNICODE_STRING) + signatureNameMaximumLength, tzuk);
     if (!signatureFileName) 
     {
         status = STATUS_INSUFFICIENT_RESOURCES;
         goto CleanupExit;
     }
     signatureFileName->Buffer = (PWCH)(((PUCHAR)signatureFileName) + sizeof(UNICODE_STRING));
-    signatureFileName->MaximumLength = processFileName->MaximumLength + 5 * sizeof(WCHAR);
+    signatureFileName->Length = signatureNameLength;
+    signatureFileName->MaximumLength = signatureNameMaximumLength;
 
-    //RtlCopyUnicodeString
-    wcscpy(signatureFileName->Buffer, processFileName->Buffer);
-    signatureFileName->Length = processFileName->Length;
-
-    //RtlUnicodeStringCat
-    wcscat(signatureFileName->Buffer, L".sig");
-    signatureFileName->Length += 4 * sizeof(WCHAR);
+    memcpy(signatureFileName->Buffer, processFileName->Buffer, processFileName->Length);
+    memcpy((PUCHAR)signatureFileName->Buffer + processFileName->Length,
+        L".sig", 5 * sizeof(WCHAR));
 
 
     if (!NT_SUCCESS(status = KphReadSignature(signatureFileName, &signature, &signatureSize)))
@@ -955,7 +962,7 @@ _FX NTSTATUS KphValidateCertificate()
             Verify_CertInfo.level = eCertAdvanced1;
             expiration_date.QuadPart = -2;
         }
-        // todo: 01.09.2025: remove code for expired case LARGE
+        // Legacy LARGE level remains a signed certificate compatibility alias; expiration is enforced below.
         else if (_wcsicmp(level, L"LARGE") == 0) { // 2 years - personal
             if(CERT_IS_TYPE(Verify_CertInfo, eCertPatreon))
                 Verify_CertInfo.level = eCertStandard2;
@@ -963,11 +970,11 @@ _FX NTSTATUS KphValidateCertificate()
                 Verify_CertInfo.level = eCertAdvanced;
             expiration_date.QuadPart = cert_date.QuadPart + KphGetDateInterval(0, 0, 2); // 2 years
         }
-        // todo: 01.09.2024: remove code for expired case MEDIUM
+        // Legacy MEDIUM level remains a signed certificate compatibility alias; default expiration is enforced below.
         else if (_wcsicmp(level, L"MEDIUM") == 0) { // 1 year - personal
             Verify_CertInfo.level = eCertStandard2;
         }
-        // todo: 01.09.2024: remove code for expired case SMALL
+        // Legacy SMALL level remains a signed certificate compatibility alias; subscription expiration is enforced below.
         else if (_wcsicmp(level, L"SMALL") == 0) { // 1 year - subscription
             Verify_CertInfo.level = eCertStandard2;
             Verify_CertInfo.type = eCertHome;

@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-031-process-low-sid.schema.json",
+  "title": "SREV-031 process low sid",
+  "id": "API_INJECT_COMPLETE_SANDBOXIE_LOGON_SID",
+  "owner": "Sandboxie/core/drv/process_low.c",
+  "type": "object",
+  "properties": {
+    "audit_contract": {
+      "type": "string",
+      "description": "API: API_INJECT_COMPLETE | request: {\"caller\": \"SbieSvc only\", \"fields\": [{\"index\": 1, \"name\": \"process_id\", \"type\": \"HANDLE\"}, {\"index\": 2, \"name\": \"sandboxie_logon_sid\", \"type\": \"PSID\", \"nullable\": true, \"max_bytes\": \"SECURITY_MAX_SID_SIZE\"}, {\"index\": 3, \"name\": \"inject_error\", \"type\": \"ULONG\"}]}"
+    },
+    "validation_invariants": {
+      "type": "string",
+      "description": "All contracts listed in the contracts metadata must hold before any data is trusted past the validation boundary"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate proves contracts hold under normal and malformed inputs"
+    }
+  },
+  "required": [
+    "audit_contract",
+    "validation_invariants",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "optional SID pointer must be probed before use",
+    "RtlValidSid must succeed before RtlLengthSid",
+    "RtlLengthSid result must be <= SECURITY_MAX_SID_SIZE",
+    "destination SID storage is owned by PROCESS.pool",
+    "copy uses RtlCopySid with the validated byte length",
+    "PROCESS.SandboxieLogonSid is a PSID, not a PSID pointer"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_sid",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-rtlvalidsid",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-rtllengthsid",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-rtlcopysid"
+  ]
+}

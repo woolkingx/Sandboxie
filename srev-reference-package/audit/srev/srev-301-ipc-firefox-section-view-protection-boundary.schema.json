@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "IPC_FIREFOX_SECTION_VIEW_PROTECTION_BOUNDARY",
+  "title": "IPC Firefox section view protection boundary",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/ipc.c",
+  "stage": "data -> schema -> topology -> logic -> verify",
+  "source_functions": [
+    "Ipc_NtMapViewOfSection"
+  ],
+  "contracts": [
+    "Ipc_NtMapViewOfSection owns only the Firefox remote non-image section view protection policy",
+    "ZwMapViewOfSection owns the requested view protection compatibility with the section page protection",
+    "NtQuerySection(SectionBasicInformation) owns the local SEC_IMAGE exclusion evidence",
+    "SREV-283 owns the adjacent WriteProcessMemory suppression for NtMapViewOfSection export-address targets",
+    "SREV-301 changes comments and proof only; no NtMapViewOfSection behavior changes"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwmapviewofsection",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwquerysection",
+    "https://learn.microsoft.com/en-us/windows/win32/memory/memory-protection-constants"
+  ],
+  "local_edges": [
+    "Firefox image type -> remote ProcessHandle -> PAGE_EXECUTE_READ predicate",
+    "NtQuerySection SectionBasicInformation -> non-image section predicate",
+    "non-image execute view -> PAGE_EXECUTE_READWRITE request -> __sys_NtMapViewOfSection",
+    "SREV-283 -> adjacent WriteProcessMemory NtMapViewOfSection target suppression owner"
+  ],
+  "runtime_gate": "Windows Firefox 146+ section-protection matrix with image-section and non-Firefox negative controls",
+  "status": "source-level classified after official section-view protection shape; comment-only source clarification, no behavior change"
+}

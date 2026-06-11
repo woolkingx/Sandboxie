@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "MOUNTMANAGER_REPARSE_BUFFER_AND_QUERY_DEFAULTS",
+  "title": "MountManager helper reparse buffer and query defaults",
+  "type": "object",
+  "required": [
+    "owner",
+    "severity",
+    "contracts",
+    "official_references",
+    "runtime_gates"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/svc/MountManagerHelpers.cpp"
+    },
+    "severity": {
+      "const": "major"
+    },
+    "contracts": {
+      "type": "array",
+      "minItems": 8,
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "ImDiskOpenDeviceByMountPoint treats FSCTL_GET_REPARSE_POINT output as untrusted counted data"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "string",
+        "format": "uri"
+      }
+    },
+    "runtime_gates": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "contracts": [
+    "ImDiskOpenDeviceByMountPoint treats FSCTL_GET_REPARSE_POINT output as untrusted counted data",
+    "HeapAlloc failure returns INVALID_HANDLE_VALUE without raising HEAP_GENERATE_EXCEPTIONS through the service helper",
+    "ReparseDataLength is bounded by the bytes DeviceIoControl reports before MountPointReparseBuffer fields are trusted",
+    "MountPointReparseBuffer substitute-name offset and length are WCHAR-aligned",
+    "MountPointReparseBuffer substitute-name offset plus length stays inside returned PathBuffer bytes",
+    "Zero-length substitute names are rejected before trailing-slash trimming indexes the buffer",
+    "Non-mount-point reparse tags still fail before opening an ImDisk device name",
+    "Valid mount-point substitute names still flow to ImDiskOpenDeviceByName with existing trailing-slash trimming",
+    "ImDiskQueryDeviceSize returns zero when the device cannot be opened or queried as an ImDisk proxy device"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heapalloc",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ifs/fsctl-get-reparse-point",
+    "https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-deviceiocontrol",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_reparse_data_buffer"
+  ],
+  "runtime_gates": [
+    "Windows service build for MountManagerHelpers.cpp",
+    "junction or volume mount-point smoke proving a valid substitute name still opens the target ImDisk device",
+    "malformed reparse payload injection proving invalid offset, length, alignment, and zero-length shapes return INVALID_HANDLE_VALUE",
+    "low-memory allocation fault injection proving HeapAlloc failure returns ERROR_NOT_ENOUGH_MEMORY without an unhandled exception",
+    "ImDisk query failure smoke proving ImDiskQueryDeviceSize returns zero instead of an uninitialized value"
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-262-dllmain-pca-restart-comment-owner.schema.json",
+  "id": "DLLMAIN_PCA_RESTART_COMMENT_OWNER",
+  "title": "DLL main PCA restart comment owner",
+  "type": "object",
+  "required": [
+    "owner",
+    "contracts",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/dllmain.c"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 4
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/dll/dllmain.c",
+  "contracts": [
+    "SREV-085 owns the PCA job restart topology",
+    "dllmain.c decides whether restart is needed before Sandboxie job attach",
+    "AppContainer processes skip this PCA restart path",
+    "This SREV does not change flags policy reads monitor output service restart transport command-line payload shape or runtime behavior"
+  ],
+  "runtime_gate": "Inherited from SREV-085"
+}

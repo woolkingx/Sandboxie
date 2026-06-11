@@ -36,6 +36,21 @@ typedef HRESULT (*P_PStoreCreateInstance)(
     IPStore **ppProvider, PST_PROVIDERID *pProviderID,
     void *pReserved, DWORD dwFlags);
 
+static BOOLEAN PStore_IsEnumEnd(HRESULT hr, ULONG fetched);
+
+
+//---------------------------------------------------------------------------
+// PStore_IsEnumEnd
+//---------------------------------------------------------------------------
+
+
+static BOOLEAN PStore_IsEnumEnd(HRESULT hr, ULONG fetched)
+{
+    return hr == S_FALSE
+        || hr == HRESULT_FROM_WIN32(ERROR_NO_MORE_ITEMS)
+        || (SUCCEEDED(hr) && fetched == 0);
+}
+
 
 //---------------------------------------------------------------------------
 // Constructor
@@ -334,9 +349,23 @@ MSG_HEADER *PStoreServer::EnumTypes(MSG_HEADER *msg)
             hr = pStore->EnumSubtypes(
                                    req->pst_key, &req->type_id, 0, &pEnum);
 
+        if (SUCCEEDED(hr) && (! pEnum))
+            hr = E_POINTER;
+
         while (SUCCEEDED(hr)) {
+            n = 0;
             hr = pEnum->Next(1, &guid, &n);
-            count += n;
+            if (hr == S_OK && n == 1) {
+                ++count;
+                continue;
+            }
+            if (PStore_IsEnumEnd(hr, n)) {
+                hr = S_OK;
+                break;
+            }
+            if (SUCCEEDED(hr))
+                hr = E_UNEXPECTED;
+            break;
         }
     }
 
@@ -356,18 +385,22 @@ MSG_HEADER *PStoreServer::EnumTypes(MSG_HEADER *msg)
 
     if (rpl) {
 
-        pEnum->Reset();
+        rpl->count = 0;
+        if (count) {
+            pEnum->Reset();
 
-        hr = pEnum->Next(count, rpl->guids, &rpl->count);
-        if (FAILED(hr)) {
-            rpl->count = 0;
-            rpl->h.status = hr;
+            n = 0;
+            hr = pEnum->Next(count, rpl->guids, &n);
+            rpl->count = n;
+            if (FAILED(hr))
+                rpl->h.status = hr;
+            else
+                rpl->h.status = S_OK;
         }
     }
 
     pEnum->Release();
-
-    return S_OK;
+    return (MSG_HEADER *)rpl;
 }
 
 
@@ -398,13 +431,28 @@ MSG_HEADER *PStoreServer::EnumItems(MSG_HEADER *msg)
         hr = pStore->EnumItems(
                 req->pst_key, &req->type_id, &req->subtype_id, 0, &pEnum);
 
+        if (SUCCEEDED(hr) && (! pEnum))
+            hr = E_POINTER;
+
         while (SUCCEEDED(hr)) {
+            name = NULL;
+            n = 0;
             hr = pEnum->Next(1, &name, &n);
-            if (n) {
+            if (hr == S_OK && n == 1 && name) {
                 rpl_len += (wcslen(name) + 4) * sizeof(WCHAR);
                 CoTaskMemFree(name);
                 ++count;
+                continue;
             }
+            if (name)
+                CoTaskMemFree(name);
+            if (PStore_IsEnumEnd(hr, n)) {
+                hr = S_OK;
+                break;
+            }
+            if (SUCCEEDED(hr))
+                hr = E_UNEXPECTED;
+            break;
         }
     }
 
@@ -431,13 +479,22 @@ MSG_HEADER *PStoreServer::EnumItems(MSG_HEADER *msg)
         pEnum->Reset();
 
         while (1) {
+            name = NULL;
+            n = 0;
             hr = pEnum->Next(1, &name, &n);
-            if (SUCCEEDED(hr)) {
+            if (hr == S_OK && n == 1 && name) {
                 wcscpy(out_name, name);
                 out_name += wcslen(out_name) + 1;
                 CoTaskMemFree(name);
                 ++rpl->count;
+            } else if (PStore_IsEnumEnd(hr, n)) {
+                rpl->h.status = S_OK;
+                break;
             } else {
+                if (name)
+                    CoTaskMemFree(name);
+                if (SUCCEEDED(hr))
+                    hr = E_UNEXPECTED;
                 rpl->h.status = hr;
                 break;
             }

@@ -71,10 +71,14 @@ _FX NTSTATUS Ipc_CheckPortRequest_Sam(
 
             ProbeForRead(ptr, len, sizeof(WCHAR));
 
-            if (Ipc_Filter_Sam_Msg(proc, ptr[20]))
+            UCHAR uMsg;
+            if (!Ipc_GetRpcMsgId(proc, L"\\RPC Control\\samss lpc", ptr, len, &uMsg)) {
+                status = STATUS_INVALID_PARAMETER;
+            }
+            else if (Ipc_Filter_Sam_Msg(proc, uMsg))
                 status = STATUS_ACCESS_DENIED;
 
-            //DbgPrint("\\RPC Control\\samss lpc message ID: %d\n", (int)ptr[20]);
+            //DbgPrint("\\RPC Control\\samss lpc message ID: %d\n", (int)uMsg);
         }
 
     }
@@ -99,7 +103,10 @@ _FX BOOLEAN Ipc_Filter_Sam_Msg(PROCESS* proc, UCHAR uMsg)
     {
     //case 0x00: //SamConnect
     //case 0x01: //SamCloseHandle
-    case 0x02: //SamSetSecurityObject // fixme: SandboxieCrypto.exe needs this some times #740 //if(proc->image_sbie) break;
+    case 0x02: // SamrSetSecurityObject
+        if (proc->image_sbie)
+            break;
+
     //case 0x03: //SamQuerySecurityObject
     //case 0x05: //SamLookupDomainInSamServer
     //case 0x06: //SamEnumerateDomainsInSamServer

@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-067-secure-uac-packet-input-gate.schema.json",
+  "title": "SREV-067 Secure UAC packet input gate contract",
+  "id": "SECURE_UAC_PACKET_INPUT_GATE",
+  "api": "Secure_CheckElevation / Secure_HandleElevation",
+  "owner": "Sandboxie/core/dll/secure.c",
+  "type": "object",
+  "properties": {
+    "type1_strings": {
+      "type": "string",
+      "description": "Type 1 elevation ApplicationName, CommandLine, and CurrentDirectory pointers"
+    },
+    "result_handle": {
+      "type": "string",
+      "description": "Type 1 elevation output process-handle pointer"
+    },
+    "packet_allocation": {
+      "type": "string",
+      "description": "SECURE_UAC_PACKET allocation before serialization"
+    }
+  },
+  "required": [
+    "type1_strings",
+    "result_handle",
+    "packet_allocation"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "wcslen requires a null-terminated wide-character string input",
+    "wmemcpy requires valid source and destination buffers for the requested character count",
+    "Type 1 elevation may be classified only after ProcessHandle and all three packet string pointers are non-null",
+    "Secure_HandleElevation may serialize a packet only after Dll_Alloc returns a non-null packet buffer",
+    "Malformed type 1 elevation arguments must fail closed before global elevation state is set"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/previous-versions/windows/embedded/ms860442%28v%3Dmsdn.10%29",
+    "https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/memcpy-wmemcpy?view=msvc-170"
+  ]
+}

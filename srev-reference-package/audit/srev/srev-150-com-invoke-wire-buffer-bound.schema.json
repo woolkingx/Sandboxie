@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-150-com-invoke-wire-buffer-bound.schema.json",
+  "title": "SREV-150 COM invoke wire buffer bound",
+  "id": "COM_INVOKE_WIRE_BUFFER_BOUND",
+  "owner": "Sandboxie/core/svc/comwire.h",
+  "type": "object",
+  "properties": {
+    "rpc_message": {
+      "type": "string",
+      "description": "RPCOLEMESSAGE cbBuffer byte-count payload"
+    },
+    "wire_bound": {
+      "type": "string",
+      "description": "shared DLL/service maximum invoke payload length"
+    },
+    "request_shape": {
+      "type": "string",
+      "description": "COM_INVOKE_METHOD_REQ flexible-tail byte layout"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows COM proxy normal and oversized-buffer proof"
+    }
+  },
+  "required": [
+    "rpc_message",
+    "wire_bound",
+    "request_shape",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "RPCOLEMESSAGE.cbBuffer is a byte count for the marshaled method buffer",
+    "The local COM invoke wire payload must fit in the SbieSvc shared COM map before the DLL allocates and copies it",
+    "DLL sender and service receiver must use the same named maximum for invoke method payload bytes",
+    "Flexible-tail request length must be computed from FIELD_OFFSET(COM_INVOKE_METHOD_REQ, Buffer) + BufferLength",
+    "The service receiver remains the authority that copies a schema-valid invoke request into the slave map; this SREV does not change COM policy"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/objidlbase/ns-objidlbase-rpcolemessage",
+    "https://learn.microsoft.com/en-us/windows/win32/api/objidlbase/nf-objidlbase-irpcchannelbuffer-sendreceive",
+    "https://learn.microsoft.com/en-us/windows/win32/api/objidlbase/nf-objidlbase-irpcchannelbuffer-getbuffer"
+  ]
+}

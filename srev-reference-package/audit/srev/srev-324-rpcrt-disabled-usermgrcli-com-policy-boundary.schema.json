@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-324-rpcrt-disabled-usermgrcli-com-policy-boundary.schema.json",
+  "title": "SREV-324 RPCRT disabled UserMgrCli COM policy boundary",
+  "id": "RPCRT_DISABLED_USERMGRCLI_COM_POLICY_BOUNDARY",
+  "owner": "Sandboxie/core/dll/rpcrt.c",
+  "stage": "data -> schema -> topology -> logic -> action -> verify",
+  "contracts": [
+    "official RpcStringBindingComposeW owns RPC string-binding composition, not COM class policy",
+    "RpcRt_RpcStringBindingComposeW owns the local SPP endpoint rewrite before native forwarding",
+    "the UserMgrCli branch in rpcrt.c remains disabled historical source",
+    "Pin To Start Screen blocking is owned by COM ClosedClsid loaded from templates or settings and enforced through Com_IsClosedClsid before COM class activation",
+    "IContextMenuClsid is a separate post-creation Shell interface hook",
+    "SREV-324 changes comments and proof only, not RPC or COM behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/rpcdce/nf-rpcdce-rpcstringbindingcomposew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-cocreateinstance",
+    "https://learn.microsoft.com/en-us/windows/win32/shell/context-menu-handlers",
+    "https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nn-shobjidl_core-icontextmenu"
+  ],
+  "runtime_gate": "Explorer context menu smoke with the WindowsExplorer template on and off, proving Pin To Start Screen remains denied by ClosedClsid while the disabled UserMgrCli RPC block remains inactive"
+}

@@ -32,8 +32,9 @@
 //
 // SUPPORT FOR DDE CONVERSATIONS
 //
-// There seems to be a bug in kernel win32k related to processes with a
-// restricted token and DDE conversations.  GetMessage/PeekMessage by the
+// SREV-293: DDE proxy topology for restricted-token message delivery.
+// This block records observed private win32k behavior, not an API contract:
+// with restricted-token DDE conversations, GetMessage/PeekMessage by the
 // receiving process ends up in win32k!xxxDDETrackGetMessageHook which
 // calls win32k!HMValidateHandleNoRipNoIL to validate a dde object.
 // if the thread is restricted, win32k!HMValidateHandleNoRipNoIL calls
@@ -46,8 +47,8 @@
 // and only occurs on Windows with UIPI, i.e. Vista and later.  but for
 // sake of consistenty, this code is used on Windows XP as well.
 //
-// the workaround includes one dummy proxy window in the sandbox and
-// a second, smarter proxy window in the SbieSvc GUI Proxy process.
+// the compatibility topology uses one dummy proxy window in the sandbox and
+// a second proxy window in the SbieSvc GUI Proxy process.
 //
 // the sequence of events for a DDE client out of the sandbox:
 //
@@ -613,7 +614,8 @@ _FX LRESULT Gui_DDE_DATA_Posting(HWND hWnd, WPARAM wParam, LPARAM lParam)
                 GUI_SEND_COPYDATA_RPL *rpl;
                 ULONG req_len;
 
-                req_len = sizeof(GUI_SEND_COPYDATA_REQ) + DdeDataLen;
+                req_len = FIELD_OFFSET(GUI_SEND_COPYDATA_REQ, cds_buf)
+                        + DdeDataLen;
                 req = Dll_AllocTemp(req_len);
 
                 req->msgid = GUI_SEND_COPYDATA;

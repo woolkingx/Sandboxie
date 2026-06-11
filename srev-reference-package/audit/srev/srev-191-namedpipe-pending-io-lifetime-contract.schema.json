@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-191-namedpipe-pending-io-lifetime-contract.schema.json",
+  "title": "SREV-191 Named pipe pending I/O lifetime contract",
+  "id": "NAMEDPIPE_PENDING_IO_LIFETIME_CONTRACT",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/svc/namedpipeserver.cpp"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 10
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 9
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/svc/namedpipeserver.cpp",
+  "contracts": [
+    "NamedPipeServer owns service-side pending NtReadFile and NtWriteFile lifetime for proxied named-pipe handles",
+    "A caller-supplied IO_STATUS_BLOCK passed to NtReadFile or NtWriteFile must remain valid until the operation completes",
+    "A transfer buffer passed to NtReadFile or NtWriteFile must remain valid until the operation completes",
+    "STATUS_PENDING requires waiting for I/O completion before trusting the final IO_STATUS_BLOCK",
+    "CancelIo requests cancellation but does not prove that the canceled operation has completed",
+    "The timeout path must wait for completion after requesting cancellation before returning STATUS_CANCELLED with zero transfer bytes",
+    "A reused per-handle event must be reset before each native I/O issue",
+    "Only one native read write or set operation may use a proxied named-pipe handle event at a time",
+    "The per-handle I/O lock is owned by PROXY_PIPE lifetime and released by CloseCallback",
+    "LPC and ALPC proxy handles do not own a named-pipe I/O lock and are outside this contract",
+    "runtime proof is required on Windows for timeout cancellation and concurrent read write behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntreadfile",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntwritefile",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_io_status_block",
+    "https://learn.microsoft.com/en-us/windows/win32/fileio/cancelio",
+    "https://learn.microsoft.com/en-us/windows/win32/fileio/cancelioex-func",
+    "https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-readfile",
+    "https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-writefile",
+    "https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-createeventw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-resetevent"
+  ],
+  "runtime_gate": "Windows SbieSvc build plus named-pipe read write concurrent same-handle timeout cancel and blocked-peer smoke proving no stale event wrong completion stack corruption nonzero timeout payload or service-wide deadlock"
+}

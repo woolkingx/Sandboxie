@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-060-file-snapshot-relocation-copy-path.schema.json",
+  "title": "SREV-060 file snapshot relocation copy path contract",
+  "id": "FILE_SNAPSHOT_RELOCATION_COPY_PATH",
+  "api": "File_GetName relocation conversion",
+  "owner": "Sandboxie/core/dll/file_snapshots.c and Sandboxie/core/dll/file_dir.c",
+  "type": "object",
+  "properties": {
+    "relocation_true_path": {
+      "type": "string",
+      "description": "Relocated true path returned from the deletion/path tree"
+    },
+    "conversion_status": {
+      "type": "string",
+      "description": "NTSTATUS returned by File_GetName"
+    },
+    "copy_path_output": {
+      "type": "string",
+      "description": "CopyPath2 output pointer from File_GetName"
+    },
+    "snapshot_continuation": {
+      "type": "string",
+      "description": "Whether parent snapshot lookup or merge may continue"
+    }
+  },
+  "required": [
+    "relocation_true_path",
+    "conversion_status",
+    "copy_path_output",
+    "snapshot_continuation"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "File_GetName initializes output path pointers to NULL before conversion",
+    "CopyPath2 may be passed to wcslen or wcscpy only after NT_SUCCESS(status) and CopyPath2 non-null proof",
+    "Snapshot lookup must not continue with a stale previous CopyPath after relocation conversion failure",
+    "Directory merge must not continue parent snapshot traversal after relocation conversion failure"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/strlen-wcslen-mbslen-mbslen-l-mbstrlen-mbstrlen-l?view=msvc-170",
+    "https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/strcpy-s-wcscpy-s-mbscpy-s?view=msvc-170",
+    "https://learn.microsoft.com/en-gb/windows-hardware/drivers/kernel/using-ntstatus-values"
+  ]
+}

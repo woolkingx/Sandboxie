@@ -1,0 +1,135 @@
+# SREV-140: HostInject Service Restart State
+
+## Stage Gate
+
+| Field | Value |
+|---|---|
+| Stage | action |
+| Input artifact | `Sandboxie/core/svc/HostInjectProcessUtil.cpp`, `docs/plan/srev-107-driverassist-host-inject-restart-coalescing.md`, Microsoft SCM service-control, service-status, process/module enumeration, and C++ delete references |
+| Output artifact | `docs/plan/srev-140-hostinject-service-restart-state.schema.json`, `docs/plan/check-srev-140.py`, `docs/plan/check-srev-140.sh`, ledger fragment |
+| Owner | `Sandboxie/core/svc/HostInjectProcessUtil.cpp` host-injected service restart executor |
+| Acceptance gate | source checker plus full SREV/KPATH/core coverage matrix; Windows service restart runtime proof remains required |
+
+## Evidence
+
+`Sandboxie/core/svc/HostInjectProcessUtil.cpp` is the top unnamed reviewable core
+file after SREV-139. It builds the configured `HostInjectProcess` service set,
+enumerates active Win32 services, checks whether `SbieDll.dll` is loaded in the
+service process, and restarts services whose injection state no longer matches
+policy.
+
+SREV-107 already fixed restart request coalescing in `DriverAssist.cpp` while
+preserving the `HostInjectProcessUtil.cpp` policy. That left this file as the
+actual SCM executor. The old executor called `ControlService(... STOP ...)` and
+then called `StartServiceW` immediately. Microsoft documents `ControlService`
+as sending a control request through the SCM, and documents
+`QueryServiceStatusEx` as the API that retrieves current service state through
+`SERVICE_STATUS_PROCESS`. Microsoft also documents that `StartServiceW` returns
+after the SCM creates the service main thread and does not wait for full service
+initialization.
+
+The old executor also allocated the service enumeration buffer with
+`new BYTE[dwProcBufSize]` but released it with scalar `delete`. Microsoft C++
+documentation distinguishes scalar `delete` from array-form `delete[]`.
+
+Official references:
+
+- https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-controlservice
+- https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-startservicew
+- https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-queryservicestatusex
+- https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-enumservicesstatusexw
+- https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openservicew
+- https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openprocess
+- https://learn.microsoft.com/en-us/windows/win32/api/psapi/nf-psapi-enumprocessmodules
+- https://learn.microsoft.com/en-us/cpp/cpp/delete-operator-cpp
+
+## Data
+
+`HostInjectProcess` config values, `g_setSvcNames`, active service names and
+process ids from `EnumServicesStatusExW`, `SbieDll.dll` module presence from
+`EnumProcessModules` / `GetModuleBaseNameW`, service handles returned by
+`OpenService`, stop request state from `ControlService`, current service state
+from `QueryServiceStatusEx`, `SERVICE_STOPPED`, `SERVICE_STOP_PENDING`,
+`ERROR_SERVICE_NOT_ACTIVE`, `ERROR_SERVICE_CANNOT_ACCEPT_CTRL`, and the
+heap-owned service enumeration byte buffer.
+
+## Schema
+
+`HOSTINJECT_SERVICE_RESTART_STATE` says:
+
+- `HostInjectProcessUtil.cpp` owns only the executor edge: enumerate active
+  services, compare policy to module-injection state, then restart mismatches.
+- `BuildSvcSet` and `IsSvcInjected` policy matching remain unchanged.
+- A restart stop edge is complete only when `QueryServiceStatusEx` reports
+  `SERVICE_STOPPED`, or the service was already inactive.
+- `StartServiceW` may run only after the stop edge is complete.
+- If stop fails for a reason other than already-inactive or stop-pending state,
+  the executor must not issue a blind start against the still-running service.
+- Stop-pending state may be waited through `QueryServiceStatusEx`.
+- The service enumeration buffer allocated with `new BYTE[]` must be released
+  with `delete[]`.
+
+## Topology
+
+Legal restart flow:
+
+```text
+BuildSvcSet()
+  -> EnumServicesStatusExW(active Win32 services)
+  -> skip SBIESVC
+  -> compare configured service-name set with IsSvcInjected(pid)
+  -> RestartService(hScm, serviceName)
+  -> OpenService
+  -> ControlService(STOP)
+  -> QueryServiceStatusEx until SERVICE_STOPPED or timeout
+  -> StartServiceW only when stop edge is complete
+  -> CloseServiceHandle
+```
+
+Legal memory-owner flow:
+
+```text
+new BYTE[dwProcBufSize]
+  -> EnumServicesStatusExW writes ENUM_SERVICE_STATUS_PROCESS rows
+  -> iterate dwServicesReturned
+  -> delete[] pProcBuf
+```
+
+## Logic Risk
+
+Restarting host-injected services is a state transition, not a single API call.
+Calling `StartServiceW` immediately after a stop request can race a still-running
+or stop-pending service. That defeats the repair intent: the service may never
+restart into the desired injection state. A scalar `delete` on an array
+allocation is a separate local ownership bug in the same executor.
+
+This SREV does not change which services are restarted, how
+`HostInjectProcess` is parsed, how injected state is detected, or how restart
+requests are coalesced by SREV-107.
+
+## Fix
+
+`HostInjectProcessUtil.cpp` now has `WaitForServiceState`, which polls
+`QueryServiceStatusEx(SC_STATUS_PROCESS_INFO)` until the desired state is
+observed or the timeout expires. `RestartService` waits for
+`SERVICE_STOPPED` after a successful stop request, treats
+`ERROR_SERVICE_NOT_ACTIVE` as already stopped, waits through
+`ERROR_SERVICE_CANNOT_ACCEPT_CTRL` stop-pending state, and skips
+`StartServiceW` when the stop edge did not complete.
+
+The service enumeration buffer is now released with `delete[]`.
+
+## Acceptance Gate
+
+`docs/plan/check-srev-140.py` validates the draft-07 schema, official reference
+links, SREV-107 preservation boundary, service wait helper topology,
+`RestartService` stop-before-start gating, `HostInjectProcess` matching
+preservation, `delete[]` ownership, and ledger fragment.
+
+Runtime/build gate: Windows service build; service that needs injection but is
+missing `SbieDll.dll` restarts and later reports loaded `SbieDll.dll`; service
+that should no longer be injected restarts without `SbieDll.dll`; service stuck
+in stop-pending does not receive a blind `StartServiceW`; already stopped
+service can be started; access-denied/dependent-service stop failures do not
+issue a misleading start; and shared-process services remain observed in the
+SREV-107 matrix.

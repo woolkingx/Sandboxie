@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-096-clipboard-window-station-reference-owner.schema.json",
+  "title": "SREV-096 Clipboard window-station reference owner",
+  "id": "CLIPBOARD_WINDOW_STATION_REFERENCE_OWNER",
+  "owner": "Sandboxie/core/drv/gui.c",
+  "type": "object",
+  "properties": {
+    "caller_gate": {
+      "type": "string",
+      "description": "SbieSvc-only API_GUI_CLIPBOARD caller boundary"
+    },
+    "window_station_reference": {
+      "type": "string",
+      "description": "Held Object Manager reference for the current process window station"
+    },
+    "clipboard_pointer": {
+      "type": "string",
+      "description": "Private clipboard memory pointer scoped to the held window-station reference"
+    },
+    "delayed_rendering": {
+      "type": "string",
+      "description": "SbieSvc-owned OpenClipboard/GetClipboardData force-render loop"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows UIPI clipboard runtime proof"
+    }
+  },
+  "required": [
+    "caller_gate",
+    "window_station_reference",
+    "clipboard_pointer",
+    "delayed_rendering",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "API_GUI_CLIPBOARD may inspect private clipboard state only from SbieSvc",
+    "the current process window-station handle is only a handle source",
+    "ObReferenceObjectByHandle must hold the window-station object while clipboard memory is read or modified",
+    "the returned clipboard pointer is valid only inside the held window-station reference scope",
+    "Gui_InitClipboard must release the reference on every exit after acquisition",
+    "Gui_FixClipboard must release the reference after mutating clipboard items",
+    "private clipboard layout discovery remains Dyndata/version gated",
+    "SbieSvc remains the clipboard open/lock and delayed-rendering owner"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/winstation/about-window-stations-and-desktops",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getprocesswindowstation",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-obreferenceobjectbyhandle",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/life-cycle-of-an-object",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setclipboarddata",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getclipboarddata",
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/clipboard-operations",
+    "https://learn.microsoft.com/en-us/windows/win32/secauthz/mandatory-integrity-control"
+  ]
+}

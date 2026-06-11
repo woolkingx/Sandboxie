@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-011-named-pipe-lpc-reply-shape.schema.json",
+  "title": "SREV-011 named-pipe LPC connect reply shape",
+  "id": "NAMED_PIPE_LPC_CONNECT_REPLY_SHAPE",
+  "owner": "Sandboxie/core/dll/ipc.c",
+  "type": "object",
+  "properties": {
+    "internal_api_caveat": {
+      "type": "string",
+      "description": "winternl.h APIs are internal Windows surface that can change between releases; NtConnectPort connection-info semantics are not a documented public contract"
+    },
+    "reply_wire_layout": {
+      "type": "string",
+      "description": "NAMED_PIPE_LPC_CONNECT_RPL = { MSG_HEADER h; ULONG handle; ULONG max_msg_len; ULONG info_len; UCHAR info_data[1]; }; h.length is the allocated reply byte length"
+    },
+    "fixed_field_gate": {
+      "type": "string",
+      "description": "Successful replies must prove h.length >= FIELD_OFFSET(NAMED_PIPE_LPC_CONNECT_RPL, info_data) before reading handle, max_msg_len, info_len"
+    },
+    "payload_fit_gate": {
+      "type": "string",
+      "description": "info_len must satisfy info_len <= h.length - FIELD_OFFSET(NAMED_PIPE_LPC_CONNECT_RPL, info_data); failure returns STATUS_INVALID_PARAMETER"
+    },
+    "copy_clamp": {
+      "type": "string",
+      "description": "memcpy length is min(reply_info_len, caller_capacity); ConnectionInfoLength reports the reply's declared length"
+    },
+    "short_reply_invariant": {
+      "type": "string",
+      "description": "Failed replies may legally be SHORT_REPLY(status) carrying only MSG_HEADER; successful replies cannot be short"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate: malformed replies fail closed; normal LPC connect with connection info still works"
+    }
+  },
+  "required": [
+    "internal_api_caveat",
+    "reply_wire_layout",
+    "fixed_field_gate",
+    "payload_fit_gate",
+    "copy_clamp",
+    "short_reply_invariant",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "The pre-patch no-op clamp `if (rpl->info_len < info_len) info_len = info_len;` must be removed",
+    "Successful replies prove h.length covers fixed reply fields before any trusted access",
+    "info_len must fit inside h.length - FIELD_OFFSET(NAMED_PIPE_LPC_CONNECT_RPL, info_data)",
+    "memcpy uses min(reply_info_len, caller_capacity)",
+    "ConnectionInfoLength receives the reply's declared info_len even when payload is clamped to caller capacity"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/devnotes/calling-internal-apis",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winternl/"
+  ]
+}

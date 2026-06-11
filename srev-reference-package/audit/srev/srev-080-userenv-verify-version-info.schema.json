@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-080-userenv-verify-version-info.schema.json",
+  "title": "SREV-080 UserEnv VerifyVersionInfo override contract",
+  "id": "USERENV_VERIFY_VERSION_INFO_OVERRIDE",
+  "owner": "Sandboxie/core/dll/userenv.c",
+  "type": "object",
+  "properties": {
+    "override": {
+      "type": "string",
+      "description": "OverrideOsBuild-derived synthetic version tuple"
+    },
+    "requirement": {
+      "type": "string",
+      "description": "Caller OSVERSIONINFOEXW and dwTypeMask selection"
+    },
+    "condition": {
+      "type": "string",
+      "description": "Comparison operators encoded by VerSetConditionMask"
+    },
+    "result": {
+      "type": "string",
+      "description": "VerifyVersionInfoW boolean result and GetLastError projection"
+    }
+  },
+  "required": [
+    "override",
+    "requirement",
+    "condition",
+    "result"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "documented VerifyVersionInfoW is the public boundary, not private RtlSwitchedVVI",
+    "condition-mask decoding goes through VerSetConditionMask and does not hardcode bit layout",
+    "OverrideOsBuild changes only major, minor, build, and service-pack fields",
+    "platform, product type, and suite comparisons keep the real system fields",
+    "version mismatch returns ERROR_OLD_WIN_VERSION",
+    "invalid mask, invalid condition, or invalid input shape returns ERROR_INVALID_PARAMETER"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-verifyversioninfow",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winnt/nf-winnt-versetconditionmask",
+    "https://learn.microsoft.com/en-us/windows/win32/sysinfo/version-helper-apis",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtlverifyversioninfo"
+  ]
+}

@@ -392,18 +392,16 @@ _FX HDC Gdi_CreateDCW2(
     void *lpszDriver, void *lpszDevice, void *lpszOutput, void *lpInitData)
 {
     //
-    // on 64-bit Windows 8, some 32-bit programs (Notepad, Chrome) cannot
-    // create a printer DC (via WINSPOOL) if an instance of SplWow64.exe
-    // has been terminated, since the last time that 32-bit process has
-    // connected to SplWow64.exe.  the reason for this is not clear, but
-    // it seems a possible workaround is to try recreating the DC several
-    // times, until the CreateDC call finally works.
+    // SREV-287: 32-bit WINSPOOL CreateDCW crosses the SplWow64
+    // print-driver host on 64-bit Windows.  If that bridge has exited
+    // since this process last connected, retry the same printer DC
+    // request through the SREV-061 lpszDevice/DocumentProperties gate.
     //
 
     HDC hdc = __sys_CreateDCW(
                         lpszDriver, lpszDevice, lpszOutput, lpInitData);
 
-    if ((! hdc) && lpszDriver && _wcsicmp(lpszDriver, L"WINSPOOL") == 0) {
+    if ((! hdc) && lpszDriver && lpszDevice && _wcsicmp(lpszDriver, L"WINSPOOL") == 0) {
 
         P_DocumentProperties __sys_DocumentProperties =
             Ldr_GetProcAddrNew(L"winspool.drv", L"DocumentPropertiesW","DocumentPropertiesW");
@@ -416,11 +414,11 @@ _FX HDC Gdi_CreateDCW2(
 
             Sleep(retry * 25);
 
-            if (! __sys_OpenPrinter2W(lpInitData, &hPrinter, NULL, NULL))
+            if (! __sys_OpenPrinter2W(lpszDevice, &hPrinter, NULL, NULL))
                 break;
 
             __sys_DocumentProperties(
-                NULL, hPrinter, lpInitData, NULL, NULL, 0);
+                NULL, hPrinter, lpszDevice, NULL, NULL, 0);
 
             hdc = __sys_CreateDCW(
                         lpszDriver, lpszDevice, lpszOutput, lpInitData);
@@ -1073,13 +1071,10 @@ _FX BOOLEAN Gdi_Init(HMODULE module)
 	return Gdi_Full_Init_impl(module, FALSE);
 }
 
-//Workaround for a rare chrome crash in a non-vm environment.  There is a chance for gdi32full!GetStockObject to cause a crash 
-//(memory access violation) when accessing the SYSTEM_FONT (13) object from the chrome sandbox.  GetStockObject accesses a dll shared memory
-//section that is not initialized at the time GetStockObject is called. And there is no error handling in GetStockObject 
-//to check this case.  The following function handles the unhandled error and returns 0 (Object not found) to the caller.
-//Chrome continues to function normally with the return of 0.  However, there is a deeper problem that is likely caused by
-//high entropy ASLR in windows 10 when the GDI environment initializes during chrome_child.dll load in a sandboxie and 
-//chrome sandbox environment.
+// SREV-288: gdi32full GetStockObject is hooked only in full GDI init.
+// If the real call raises while Chrome's sandbox is still initializing
+// GDI shared state, report the documented GetStockObject failure result:
+// NULL. Keep the SEH guard narrow around the native GetStockObject call.
 
 _FX HGDIOBJ Gdi_GetStockObject(int fnObject) {
     HGDIOBJ rc = 0;

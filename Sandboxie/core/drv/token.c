@@ -873,9 +873,18 @@ _FX NTSTATUS Token_SetHandleDacl(HANDLE Handle, ACL *Dacl)
 {
     UCHAR sd_space[64];
     PSECURITY_DESCRIPTOR sd = (PSECURITY_DESCRIPTOR)sd_space;
+    NTSTATUS status;
 
-    RtlCreateSecurityDescriptor(sd, SECURITY_DESCRIPTOR_REVISION);
-    RtlSetDaclSecurityDescriptor(sd, TRUE, Dacl, FALSE);
+    if (!Dacl)
+        return STATUS_INVALID_ACL;
+
+    status = RtlCreateSecurityDescriptor(sd, SECURITY_DESCRIPTOR_REVISION);
+    if (!NT_SUCCESS(status))
+        return status;
+
+    status = RtlSetDaclSecurityDescriptor(sd, TRUE, Dacl, FALSE);
+    if (!NT_SUCCESS(status))
+        return status;
 
     return ZwSetSecurityObject(Handle, DACL_SECURITY_INFORMATION, sd);
 }
@@ -1183,8 +1192,8 @@ _FX void *Token_RestrictHelper1(
 
             if (SidAndAttrsInToken) {
 
-                UCHAR *SidInToken = (UCHAR *)SidAndAttrsInToken->Sid;
-                if (SidInToken && SidInToken[1] >= 1) { // SubAuthorityCount >= 1
+                PSID SidInToken = SidAndAttrsInToken->Sid;
+                if (SidInToken && RtlValidSid(SidInToken)) {
 
                     // debug tip. To disable anonymous logon, set AnonymousLogon=n
 
@@ -1195,32 +1204,39 @@ _FX void *Token_RestrictHelper1(
 
 				    if (proc->SandboxieLogonSid)
 				    {
-					    //  In windows 8.1 Sid can be in two difference places. One is relative to SidAndAttrsInToken. 
-					    //  By debugger, the offset is 0xf0 after SidAndAttrsInToken. The other one is with KB2919355, 
-					    //  Sid is not relative to SidAndAttrsInToken, it is shared with other processes and it doesn't 
-					    //  have its own memory inside the token. We can't call memcpy on this shared memory. Workaround is
-					    //  to assign Sandbox's AnonymousLogonSid to it.
-
-					    // If user sid points to the end of token's UserAndGroups, the sid is not shared. 
-
-					    if (Token_IsSharedSid_W8(TempNewTokenObject)
-					
-					    // When trying apply the SbieLogin token to a system process there is not enough space in the SID
-					    // so we need to use a workaround not unlike the one for win 8
-				        || (RtlLengthSid(SidInToken) < RtlLengthSid(proc->SandboxieLogonSid))
-						    ) {
-
-						    //DbgPrint("Sbie, hacking token pointer\n");
-
-							OrigTokenSid = SidAndAttrsInToken->Sid;
-
-						    SidAndAttrsInToken->Sid = proc->SandboxieLogonSid;
+					    if (!RtlValidSid(proc->SandboxieLogonSid)) {
+						    status = STATUS_UNKNOWN_REVISION;
 					    }
 					    else {
-						    memcpy(SidInToken, proc->SandboxieLogonSid, RtlLengthSid(proc->SandboxieLogonSid));
+						    ULONG TokenSidLength = RtlLengthSid(SidInToken);
+						    ULONG SandboxieSidLength = RtlLengthSid(proc->SandboxieLogonSid);
+
+						    //
+						    // Windows 8.1 token SID storage can either be inline
+						    // after UserAndGroups or point at shared storage. Also,
+						    // system-process token SIDs may be shorter than the
+						    // configured sandbox SID. Only copy into proven inline
+						    // storage that is large enough; otherwise substitute the
+						    // SID pointer and restore it before dereferencing the
+						    // temporary token object.
+						    //
+
+						    if (Token_IsSharedSid_W8(TempNewTokenObject)
+							    || (TokenSidLength < SandboxieSidLength)) {
+
+							    //DbgPrint("Sbie, hacking token pointer\n");
+
+								OrigTokenSid = SidAndAttrsInToken->Sid;
+
+							    SidAndAttrsInToken->Sid = proc->SandboxieLogonSid;
+						    }
+						    else {
+							    status = RtlCopySid(
+								    TokenSidLength, SidInToken, proc->SandboxieLogonSid);
+						    }
 					    }
 				    }
-                }
+	                }
                 else
                     status = STATUS_UNKNOWN_REVISION;
             }
@@ -1626,10 +1642,10 @@ _FX NTSTATUS Token_AssignPrimaryHandle(
     }
 
     //
-    // replace the primary token and restore the PrimaryTokenFrozen bit
-    //
-    // note that on Windows 7, driver verifier will crash if the token
-    // handle is not a kernel handle
+    // SREV-342: ProcessAccessToken consumes a kernel-only token handle.
+    // Token_AssignPrimary opens TokenObject with OBJ_KERNEL_HANDLE before
+    // this call; keep that owner boundary paired with ZwSetInformationProcess
+    // and Driver Verifier's kernel-handle checks.
     //
 
     PROCESS_ACCESS_TOKEN info;
@@ -2623,4 +2639,3 @@ finish:
     }
     return NewTokenObject;
 }
-

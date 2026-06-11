@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "LOWLEVEL_DEF_LEGACY_STUB_CONTRACT",
+  "owner": "Sandboxie/core/low/LowLevel.def",
+  "related_owners": [
+    "Sandboxie/core/low/LowLevel.vcxproj",
+    "Sandboxie/core/low/entry_asm.asm",
+    "Sandboxie/core/low/entry_arm.asm",
+    "Sandboxie/core/low/init.c",
+    "Sandboxie/core/low/inject.c",
+    "Sandboxie/core/dll/lowlevel.rc",
+    "docs/plan/ledger/srev-132.md",
+    "docs/plan/ledger/srev-133.md",
+    "docs/plan/ledger/srev-106.md",
+    "docs/plan/ledger/srev-221.md"
+  ],
+  "status": "docs-only-source-topology-reviewed-dormant-legacy-stub",
+  "official_references": [
+    "docs/plan/srev-132-low-arm64-entry-syscall-abi-contract.md",
+    "docs/plan/srev-133-low-x64-entry-nonvolatile-register.md",
+    "docs/plan/srev-221-core-resource-topology.md"
+  ],
+  "contracts": [
+    "LowLevel.def is a legacy DEF stub not the active linker export table for the current LowLevel project",
+    "LowLevel.vcxproj lists the file as a None item only",
+    "The current LowLevel link topology does not set ModuleDefinitionFile",
+    "LowLevel runtime behavior is owned by entry assembly init.c inject.c and SbieDll resource embedding not this DEF stub",
+    "Removing or reviving the stub is a project cleanup decision requiring maintainer/build-system proof",
+    "Any future export-table claim needs Windows LowLevel.dll build and dumpbin /exports proof"
+  ],
+  "runtime_gate": "None for current project behavior because the stub is not a selected module-definition file. Any future removal or revival needs Windows LowLevel.dll build and dumpbin /exports proof."
+}

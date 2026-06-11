@@ -199,8 +199,9 @@ _FX NTSTATUS Key_Callback(void *Context, void *Arg1, void *Arg2)
 
     Info = (REG_OPEN_CREATE_KEY_INFORMATION_VISTA *)Arg2;
 
-    // HACK ALERT! If you click a link in a Word doc, it will try to start an embedded IE, which cannot be forced into Sandboxie.
-    // Hiding this key appears to fix that problem. It causes IE to start a normal IE process, which can be forced into the sandbox
+    // BlockIEEmbedding policy: hide the InternetExplorer COM class from
+    // selected host callers so COM activation cannot start an embedded
+    // IE server path that bypasses Sandboxie's process-launch forcing.
 
     if (SearchUnicodeString(Info->CompleteName, L"CLSID\\{0002df01-0000-0000-c000-000000000046}", TRUE))
     {

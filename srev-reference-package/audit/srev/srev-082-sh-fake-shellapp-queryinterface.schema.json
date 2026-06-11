@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-082-sh-fake-shellapp-queryinterface.schema.json",
+  "title": "SREV-082 Shell FakeApp QueryInterface vtable boundary",
+  "id": "SH_FAKE_SHELLAPP_QUERYINTERFACE",
+  "owner": "Sandboxie/core/dll/sh.c",
+  "type": "object",
+  "properties": {
+    "object": {
+      "type": "string",
+      "description": "Synthetic FakeShellApp COM object"
+    },
+    "query": {
+      "type": "string",
+      "description": "QueryInterface IID and ppv output"
+    },
+    "vtable": {
+      "type": "string",
+      "description": "39-entry IShellDispatch2 executable contract"
+    },
+    "result": {
+      "type": "string",
+      "description": "S_OK/AddRef or E_NOINTERFACE/null output result"
+    }
+  },
+  "required": [
+    "object",
+    "query",
+    "vtable",
+    "result"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "FakeShellApp may return self for IUnknown, IDispatch, IShellDispatch, and IShellDispatch2",
+    "successful QueryInterface increments the object refcount",
+    "unsupported interfaces set *ppv to NULL and return E_NOINTERFACE",
+    "IShellDispatch3/4/5/6 must not be accepted by a 39-entry IShellDispatch2 vtable",
+    "null ppv returns E_POINTER",
+    "the supported interface set is static for the object"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/unknwn/nf-unknwn-iunknown-queryinterface%28refiid_void%29",
+    "https://learn.microsoft.com/en-us/windows/win32/com/rules-for-implementing-queryinterface",
+    "https://learn.microsoft.com/en-us/windows/win32/shell/ishelldispatch2-object"
+  ]
+}

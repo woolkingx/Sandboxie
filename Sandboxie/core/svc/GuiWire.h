@@ -521,7 +521,7 @@ struct tagGUI_SEND_COPYDATA_REQ
     ULONG timeout;
     ULONG64 cds_key;
     ULONG cds_len;
-    WCHAR cds_buf[1];
+    UCHAR cds_buf[1];
 };
 
 struct tagGUI_SEND_COPYDATA_RPL
@@ -549,7 +549,15 @@ struct tagGUI_CLIP_CURSOR_REQ
     LONG64 dpi_awareness_ctx;
 };
 
+struct tagGUI_CLIP_CURSOR_RPL
+{
+    ULONG status;
+    ULONG error;
+    ULONG retval;
+};
+
 typedef struct tagGUI_CLIP_CURSOR_REQ GUI_CLIP_CURSOR_REQ;
+typedef struct tagGUI_CLIP_CURSOR_RPL GUI_CLIP_CURSOR_RPL;
 
 
 //---------------------------------------------------------------------------

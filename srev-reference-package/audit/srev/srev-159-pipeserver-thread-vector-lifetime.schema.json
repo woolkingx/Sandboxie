@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "PIPESERVER_THREAD_VECTOR_LIFETIME",
+  "title": "SREV-159 PipeServer Thread Vector Lifetime",
+  "type": "object",
+  "owner": "Sandboxie/core/svc/PipeServer.cpp",
+  "properties": {
+    "owner_files": {
+      "type": "array",
+      "items": { "type": "string" },
+      "contains": { "const": "Sandboxie/core/svc/PipeServer.h" }
+    },
+    "contracts": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "official_references": {
+      "type": "array",
+      "items": { "type": "string", "format": "uri" }
+    },
+    "runtime_gates": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "required": [
+    "owner_files",
+    "contracts",
+    "official_references",
+    "runtime_gates"
+  ],
+  "additionalProperties": false,
+  "owner_files": [
+    "Sandboxie/core/svc/PipeServer.h",
+    "Sandboxie/core/svc/PipeServer.cpp"
+  ],
+  "contracts": [
+    "PipeServer owns a thread handle vector allocated from GetProcessHeap",
+    "Start must not create the server port or index m_Threads when the vector allocation failed",
+    "m_ThreadCount is the number of valid thread handles currently stored at the front of m_Threads",
+    "waits termination close and cleanup may operate only on m_ThreadCount valid handles",
+    "every successful CreateThread handle is eventually closed with CloseHandle",
+    "startup failure after partial thread creation shuts down the published port wakes existing worker threads closes their handles preserves the CreateThread GetLastError value and returns false",
+    "the HeapAlloc vector is freed with HeapFree in the destructor",
+    "does not change LPC message framing request dispatch target registration impersonation or server-port security descriptor policy",
+    "Linux source gate is not Windows runtime proof"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heapalloc",
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createthread",
+    "https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitformultipleobjects",
+    "https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-closehandle",
+    "https://learn.microsoft.com/en-us/windows/win32/api/heapapi/nf-heapapi-heapfree"
+  ],
+  "runtime_gates": [
+    "Windows SbieSvc build for PipeServer.h and PipeServer.cpp",
+    "forced HeapAlloc failure proves Start returns ERROR_NOT_ENOUGH_MEMORY before publishing the port",
+    "forced mid-loop CreateThread failure proves already-created workers exit and handles are closed",
+    "ordinary startup and shutdown smoke proves all worker handles close and normal LPC requests still dispatch"
+  ]
+}

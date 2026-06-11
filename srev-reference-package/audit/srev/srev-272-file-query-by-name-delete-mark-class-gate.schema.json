@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-272-file-query-by-name-delete-mark-class-gate.schema.json",
+  "id": "FILE_QUERY_BY_NAME_DELETE_MARK_CLASS_GATE",
+  "title": "File query-by-name delete-mark class gate",
+  "type": "object",
+  "required": [
+    "owner",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/file.c"
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 5
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 2
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "owner": "Sandboxie/core/dll/file.c",
+  "contracts": [
+    "NtQueryInformationByName output layout is owned by FileInformationClass",
+    "Delete-mark filtering may inspect CreationTime only for classes whose output schema has a compatible CreationTime member and when Length covers that field",
+    "FileInformation must not be treated as FILE_BASIC_INFORMATION for all query-by-name classes",
+    "The current commented legacy check remains disabled until a class-specific parser is added",
+    "This SREV changes comments and proof only; copy-path true-path routing and delete-v2 policy are unchanged"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntqueryinformationbyname",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ns-wdm-_file_basic_information"
+  ],
+  "runtime_gate": "Windows NtQueryInformationByName matrix for supported FileInformationClass values, including copy-path delete-marker cases, proving any future class-specific parser hides deleted copy-path entries without reading outside the returned buffer or misclassifying unsupported classes"
+}

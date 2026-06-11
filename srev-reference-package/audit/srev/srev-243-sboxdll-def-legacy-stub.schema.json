@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "SBOXDLL_DEF_LEGACY_STUB_CONTRACT",
+  "owner": "Sandboxie/core/dll/SboxDll.def",
+  "related_owners": [
+    "Sandboxie/core/dll/SboxDll32.def",
+    "Sandboxie/core/dll/SboxDll64.def",
+    "Sandboxie/core/dll/SboxDll.vcxproj",
+    "Sandboxie/core/dll/SboxDll.vcxproj.filters",
+    "docs/plan/ledger/srev-136.md"
+  ],
+  "status": "docs-only-source-topology-reviewed-dormant-legacy-stub",
+  "official_references": [
+    "docs/plan/srev-136-sboxdll32-def-export-abi-contract.md"
+  ],
+  "contracts": [
+    "SboxDll.def is a legacy DEF preprocessor stub not the active linker export table for current project builds",
+    "The active Win32 export table is SboxDll32.def",
+    "The active x64 ARM64EC and ARM64 export table is SboxDll64.def",
+    "SboxDll.def is incomplete in this worktree because its included sbiedll.def target is absent",
+    "Export ABI behavior changes must target SboxDll32.def / SboxDll64.def and SREV-136 not this stub",
+    "Removing or reviving the stub is a project cleanup decision that needs maintainer/build-system proof not a runtime behavior patch"
+  ],
+  "runtime_gate": "None for current project behavior because the stub is not selected by SboxDll.vcxproj. Any future removal or revival needs Windows SbieDll build and dumpbin /exports proof."
+}

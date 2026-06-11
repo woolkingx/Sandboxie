@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "FILE_FLT_SPOOLER_PROBE_EXCEPTIONS",
+  "title": "File filter spooler probe exceptions",
+  "type": "object",
+  "owner": "Sandboxie/core/drv/file_flt.c",
+  "stage": "schema -> boundary -> verify",
+  "source_functions": [
+    "File_MiniFilter"
+  ],
+  "contracts": [
+    "file_flt.c owns the spoolsv impersonated write deny gate",
+    "spooler probe exceptions remain scoped to spoolsv.exe generic-write create requests from a system-account process impersonating a sandboxed user",
+    "target names ending in ':' fall through so native path or device-name parsing owns the failure status",
+    "tpwinprn-stat.txt remains a printer-driver status probe exception",
+    "\\pipe\\spoolss remains a spooler pipe exception",
+    "AllowSpoolerPrintToFile and spooler_directory behavior remain unchanged",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/print/print-spooler-architecture",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/print/introduction-to-spooler-components",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/print/port-monitors",
+    "https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file",
+    "https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea",
+    "https://learn.microsoft.com/en-us/windows/win32/devio/communications-resource-handles"
+  ],
+  "local_edges": [
+    "spoolsv.exe + SBIE_FILE_GENERIC_WRITE + system account -> sandbox owner process -> print-to-file deny gate",
+    "target ends with ':' -> native path/device-name parser owns result",
+    "target contains tpwinprn-stat.txt -> printer-driver status probe exception",
+    "target contains \\pipe\\spoolss -> spooler pipe exception",
+    "non-exception spooler write create -> File_CreateOperation or STATUS_ACCESS_DENIED"
+  ],
+  "runtime_gate": "Windows print matrix for sandboxed print-to-file denial, AllowSpoolerPrintToFile, spooler work directory, colon-suffix probe, tpwinprn-stat.txt, spoolss pipe, and non-spooler negative control",
+  "status": "patched-comment-topology-after-official-spooler-port-monitor-review-no-behavior-change"
+}

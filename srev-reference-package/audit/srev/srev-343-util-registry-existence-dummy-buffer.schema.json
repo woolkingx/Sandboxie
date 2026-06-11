@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "UTIL_REGISTRY_EXISTENCE_DUMMY_BUFFER",
+  "title": "Util registry existence dummy buffer",
+  "type": "object",
+  "owner": "Sandboxie/core/drv/util.c",
+  "stage": "schema -> topology -> verify",
+  "source_functions": [
+    "DoesRegValueExist",
+    "GetRegString"
+  ],
+  "contracts": [
+    "DoesRegValueExist owns caller-provided storage for a status-only registry existence probe",
+    "RTL_QUERY_REGISTRY_DIRECT string data requires EntryContext to point to an initialized UNICODE_STRING",
+    "A NULL UNICODE_STRING Buffer lets RtlQueryRegistryValues allocate string storage",
+    "The dummy one-WCHAR buffer prevents API allocation during the existence probe",
+    "GetRegString owns the RTL_QUERY_REGISTRY_DIRECT and RTL_QUERY_REGISTRY_TYPECHECK table shape",
+    "STATUS_SUCCESS STATUS_OBJECT_TYPE_MISMATCH and STATUS_BUFFER_TOO_SMALL are accepted existence statuses",
+    "This SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtlqueryregistryvalues",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/bug-check-0x139--kernel-security-check-failure"
+  ],
+  "local_edges": [
+    "DoesRegValueExist -> DummyBuffer[1] -> initialized UNICODE_STRING",
+    "UNICODE_STRING -> GetRegString -> RTL_QUERY_REGISTRY_TABLE.EntryContext",
+    "RTL_QUERY_REGISTRY_DIRECT -> caller-owned buffer",
+    "RTL_QUERY_REGISTRY_TYPECHECK -> REG_SZ expected type",
+    "RtlQueryRegistryValues status -> DoesRegValueExist boolean"
+  ],
+  "runtime_gate": "Windows registry smoke for existing REG_SZ missing value wrong-type value too-small dummy buffer untrusted hive typecheck and pool allocation observation",
+  "status": "patched-comment-topology-after-official-rtlqueryregistryvalues-direct-query-review-no-behavior-change"
+}

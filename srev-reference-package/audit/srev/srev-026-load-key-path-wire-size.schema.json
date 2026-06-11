@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-026-load-key-path-wire-size.schema.json",
+  "title": "SREV-026 LoadKey path wire size",
+  "id": "LOAD_KEY_PATH_WIRE_SIZE",
+  "owner": "Sandboxie/core/svc/filewire.h",
+  "type": "object",
+  "properties": {
+    "unicode_string_shape": {
+      "type": "string",
+      "description": "UNICODE_STRING.Length and MaximumLength are byte counts for a Unicode buffer; native registry/file object paths are counted Unicode strings at the OS boundary"
+    },
+    "wire_layout": {
+      "type": "string",
+      "description": "FILE_LOAD_KEY_REQ carries KeyPath (registry key path to mount) and FilePath (hive file path) both sized FILE_LOAD_KEY_PATH_CHARS = 1024 WCHARs"
+    },
+    "shared_capacity_constant": {
+      "type": "string",
+      "description": "FILE_LOAD_KEY_PATH_CHARS names the wire capacity once; both Key_NtLoadKeyImpl sender and the SbieSvc receiver enforce that capacity"
+    },
+    "sender_gate": {
+      "type": "string",
+      "description": "Sender checks wcslen(path) < FILE_LOAD_KEY_PATH_CHARS before copy; oversized paths fail closed before SbieDll_CallServer"
+    },
+    "receiver_gate": {
+      "type": "string",
+      "description": "Receiver terminates using FILE_LOAD_KEY_PATH_CHARS - 1 instead of hard-coded 127"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate: TrustedInstaller COMPONENTS/SCHEMA hive load works; long Windows directory paths below 1024 WCHARs reach service allowlist; paths >= FILE_LOAD_KEY_PATH_CHARS fail closed; malformed messages still fail closed"
+    }
+  },
+  "required": [
+    "unicode_string_shape",
+    "wire_layout",
+    "shared_capacity_constant",
+    "sender_gate",
+    "receiver_gate",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "LoadKey request path capacity is declared once via FILE_LOAD_KEY_PATH_CHARS",
+    "Sender rejects paths whose length reaches the wire capacity before any wcscpy",
+    "Receiver uses FILE_LOAD_KEY_PATH_CHARS - 1 for the terminator slot",
+    "128-WCHAR limit was a Sandboxie service-wire limit, not an OS limit"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/ntdef/ns-ntdef-_unicode_string"
+  ]
+}

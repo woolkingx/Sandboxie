@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-115-my-winnt-warning-boundary.schema.json",
+  "title": "SREV-115 my_winnt warning boundary",
+  "id": "MY_WINNT_WARNING_BOUNDARY",
+  "owner": "Sandboxie/core/drv/my_winnt.h",
+  "type": "object",
+  "properties": {
+    "official_compiler_shape": {
+      "type": "string",
+      "description": "Official MSVC warning pragma and C4267 warning shape"
+    },
+    "source_change": {
+      "type": "string",
+      "description": "Header-local warning push/pop around C4267 suppression"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows WDK build and private NT layout consumer proof"
+    }
+  },
+  "required": [
+    "official_compiler_shape",
+    "source_change",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "my_winnt.h is a driver-wide NT compatibility shim for declarations not supplied by every target WDK DDK combination",
+    "private NT structure declarations are compatibility data shapes and not architecture truth by themselves",
+    "the header may suppress C4267 only for declarations inside the header",
+    "any warning-state mutation introduced by the header is restored before the include guard closes",
+    "the C4267 suppression does not cross into includer code",
+    "this SREV must not change private NT structure layouts function prototypes access masks object-manager structures or system-information structures"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/cpp/preprocessor/warning?view=msvc-170",
+    "https://learn.microsoft.com/en-us/cpp/error-messages/compiler-warnings/compiler-warning-level-3-c4267?view=msvc-170"
+  ]
+}

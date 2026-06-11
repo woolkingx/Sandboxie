@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "SESSION_MONITOR_OBJECT_NAME_STAGING",
+  "title": "Session monitor object name staging",
+  "type": "object",
+  "owner": "Sandboxie/core/drv/session.c",
+  "stage": "schema -> topology -> verify",
+  "source_functions": [
+    "Session_Api_MonitorPut2",
+    "Session_MonitorPutEx",
+    "Obj_GetNameOrFileName"
+  ],
+  "contracts": [
+    "Session_Api_MonitorPut2 owns conversion from user byte length or counted object-manager name to a bounded local WCHAR staging string",
+    "max_buff is a WCHAR count and not a byte count",
+    "The staging allocation keeps plus four WCHARs of slack so truncation can still write a local NUL terminator",
+    "Obj_GetNameOrFileName returns OBJECT_NAME_INFORMATION Name as a counted UNICODE_STRING",
+    "Name Length is a byte count and is converted to WCHAR count before copy",
+    "Session_MonitorPutEx uses wcslen when lengths is NULL so the staged name must be NUL-terminated",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-obquerynamestring",
+    "https://learn.microsoft.com/en-us/windows/win32/api/subauth/ns-subauth-unicode_string",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntddk/nf-ntddk-iocreatefilespecifydeviceobjecthint"
+  ],
+  "local_edges": [
+    "user monitor bytes -> ProbeForRead -> local WCHAR staging buffer",
+    "Obj_ObjectTypes and ObReferenceObjectByName -> object pointer for IPC monitor names",
+    "IoCreateFileSpecifyDeviceObjectHint and ObReferenceObjectByHandle -> object pointer for pipe monitor names",
+    "Obj_GetNameOrFileName -> counted OBJECT_NAME_INFORMATION.Name -> local NUL terminated staging string",
+    "Session_Api_MonitorPut2 -> Session_MonitorPutEx with lengths NULL"
+  ],
+  "runtime_gate": "Windows monitor trace matrix for long user names long object names exact cap truncation IPC pipe unnamed object and stack trace monitor entries",
+  "status": "patched-comment-topology-after-official-object-name-unicode-monitor-staging-review-no-behavior-change"
+}

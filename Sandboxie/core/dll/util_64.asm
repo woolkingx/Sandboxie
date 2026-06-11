@@ -161,12 +161,15 @@ Ldr_Inject_Entry64      PROC
     ; assumes the stack is zero
     ;
     
-    ; $Workaround$ - 3rd party fix
-    lea rdi,[rsp-200h]
+    ; F-Secure compatibility: clear the former injection frame only while
+    ; this stub owns that stack range.
+    sub rsp,200h
+    mov rdi,rsp
     mov rcx,200h/8
     xor rax,rax
     cld
     rep stosq
+    add rsp,200h
     
 ;    ret
 

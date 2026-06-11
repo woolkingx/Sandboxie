@@ -179,30 +179,40 @@ _FX BOOLEAN File_Init(void)
 
     
     Dll_BoxFileDosPath = Dll_Alloc((Dll_BoxFilePathLen + 1) * sizeof(WCHAR));
-    wcscpy((WCHAR *)Dll_BoxFileDosPath, Dll_BoxFilePath);
-    if (!SbieDll_TranslateNtToDosPath((WCHAR *)Dll_BoxFileDosPath) /*|| _wcsnicmp(Dll_BoxFileDosPath, L"\\\\.\\", 4) == 0*/)
-    {
-        Dll_Free((WCHAR *)Dll_BoxFileDosPath);
-        Dll_BoxFileDosPath = NULL;
+    if (Dll_BoxFileDosPath) {
+        wcscpy((WCHAR *)Dll_BoxFileDosPath, Dll_BoxFilePath);
+        if (!SbieDll_TranslateNtToDosPath((WCHAR *)Dll_BoxFileDosPath) /*|| _wcsnicmp(Dll_BoxFileDosPath, L"\\\\.\\", 4) == 0*/)
+        {
+            Dll_Free((WCHAR *)Dll_BoxFileDosPath);
+            Dll_BoxFileDosPath = NULL;
+        }
+    }
 
+    if (!Dll_BoxFileDosPath)
+    {
         //
-        // the root is redirected with a reparse point and the target device does not have a drvie letter
-        // implement workaround, see SbieDll_TranslateNtToDosPath
+        // SREV-280: if the normal box root lacks a caller-visible DOS
+        // presentation, query the driver-published raw root and run the
+        // same NT-to-DOS namespace translator before publishing lengths.
         //
 
         ULONG BoxFileRawPathLen;
-        if (NT_SUCCESS(SbieApi_QueryProcessInfoStr(0, 'root', NULL, &BoxFileRawPathLen))) 
+        if (NT_SUCCESS(SbieApi_QueryProcessInfoStr(0, 'root', NULL, &BoxFileRawPathLen)) &&
+                BoxFileRawPathLen >= sizeof(WCHAR) && BoxFileRawPathLen <= 0xFFFF)
         {
-            Dll_BoxFileRawPath = Dll_AllocTemp(BoxFileRawPathLen);
-            if (NT_SUCCESS(SbieApi_QueryProcessInfoStr(0, 'root', (WCHAR*)Dll_BoxFileRawPath, &BoxFileRawPathLen))) 
+            WCHAR* BoxFileRawPath = Dll_AllocTemp(BoxFileRawPathLen);
+            if (BoxFileRawPath && NT_SUCCESS(SbieApi_QueryProcessInfoStr(0, 'root', BoxFileRawPath, &BoxFileRawPathLen)) && *BoxFileRawPath)
             {
+                Dll_BoxFileRawPath = BoxFileRawPath;
                 Dll_BoxFileRawPathLen = wcslen(Dll_BoxFileRawPath);
 
                 Dll_BoxFileDosPath = Dll_Alloc(BoxFileRawPathLen);
-                wcscpy((WCHAR*)Dll_BoxFileDosPath, Dll_BoxFileRawPath);
-                if (!SbieDll_TranslateNtToDosPath((WCHAR*)Dll_BoxFileDosPath)) {
-                    Dll_Free((WCHAR *)Dll_BoxFileDosPath);
-                    Dll_BoxFileDosPath = NULL;
+                if (Dll_BoxFileDosPath) {
+                    wcscpy((WCHAR*)Dll_BoxFileDosPath, Dll_BoxFileRawPath);
+                    if (!SbieDll_TranslateNtToDosPath((WCHAR*)Dll_BoxFileDosPath)) {
+                        Dll_Free((WCHAR *)Dll_BoxFileDosPath);
+                        Dll_BoxFileDosPath = NULL;
+                    }
                 }
             }
         }
@@ -247,7 +257,10 @@ _FX BOOLEAN File_Init(void)
     SBIEDLL_HOOK(File_,NtWriteFile);
     SBIEDLL_HOOK(File_,NtFsControlFile);
 
-    if (!Dll_CompartmentMode) // else ping does not work
+    // SREV-281: compartment mode keeps the native device-control route
+    // for ICMP/IP helper behavior.  The BlockNetParam TCP/NSI IOCTL
+    // deny hook belongs to non-compartment boxes.
+    if (!Dll_CompartmentMode)
     if (File_IsBlockedNetParam(NULL)) {
         SBIEDLL_HOOK(File_,NtDeviceIoControlFile);
     }
@@ -290,11 +303,9 @@ _FX BOOLEAN File_Init(void)
         }
     }
 
-    // $Workaround$ - 3rd party fix
-    //
-    // support for Google Chrome flash plugin process
-    //
-    // $Workaround$ - 3rd party fix
+    // SREV-282: dormant GetVolumeInformationW registration is kept inactive.
+    // Active volume-info ownership stays with NtQueryVolumeInformationFile
+    // and GetVolumeInformationByHandleW paths until Windows proof revives it.
     //void *GetVolumeInformationW =
     //    GetProcAddress(Dll_KernelBase ? Dll_KernelBase : Dll_Kernel32,
     //        "GetVolumeInformationW");
@@ -963,18 +974,21 @@ _FX void File_InitLinks(THREAD_DATA *TlsData)
 
         WCHAR *TruePath = Dll_GetTlsNameBuffer(TlsData, TRUE_NAME_BUFFER,
                                 (Dll_BoxFilePathLen + 1) * sizeof(WCHAR));
-        wmemcpy(TruePath, Dll_BoxFilePath, Dll_BoxFilePathLen + 1);
 
         if (TruePath) {
+            wmemcpy(TruePath, Dll_BoxFilePath, Dll_BoxFilePathLen + 1);
 
             BOOLEAN converted =
                 File_GetName_ConvertLinks(TlsData, &TruePath, FALSE);
             if (converted) {
 
                 ULONG len = wcslen(TruePath);
-                File_AltBoxPath = Dll_Alloc((len + 1) * sizeof(WCHAR));
-                wmemcpy(File_AltBoxPath, TruePath, len + 1);
-                File_AltBoxPathLen = len;
+                WCHAR *AltBoxPath = Dll_Alloc((len + 1) * sizeof(WCHAR));
+                if (AltBoxPath) {
+                    wmemcpy(AltBoxPath, TruePath, len + 1);
+                    File_AltBoxPath = AltBoxPath;
+                    File_AltBoxPathLen = len;
+                }
             }
         }
     }

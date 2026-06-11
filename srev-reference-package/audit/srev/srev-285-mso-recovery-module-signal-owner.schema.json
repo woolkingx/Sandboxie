@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "MSO_RECOVERY_MODULE_SIGNAL_OWNER",
+  "title": "MSO recovery module signal owner",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/file_recovery.c",
+  "additional_owners": [
+    "Sandboxie/core/dll/ldr.c"
+  ],
+  "stage": "schema -> boundary -> verify",
+  "source_function": "File_MsoDll",
+  "contracts": [
+    "DLL load state is process-local module presence",
+    "mso.dll callback publishes only File_MsoDllLoaded",
+    "File_MsoDllLoaded is a module-presence signal for the Office recovery filter",
+    "File_IsRecoverable owns the Office temporary-file recovery classification",
+    "Office temporary-file filtering applies only after RecoverFolder prefix match",
+    "SREV-072 owns recoverable-path redirector normalization",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-functions"
+  ],
+  "local_edges": [
+    "ldr.c module callback table -> mso.dll -> File_MsoDll",
+    "File_MsoDll -> File_MsoDllLoaded = TRUE",
+    "File_IsRecoverable -> RecoverFolder prefix match",
+    "File_MsoDllLoaded -> Office ~$ and extensionless-name filter",
+    "File_IsRecoverable -> AutoRecoverIgnore checks"
+  ],
+  "runtime_gate": "Windows Office recovery matrix with mso-loaded and mso-not-loaded processes, Office temp names, RecoverFolder, AutoRecoverIgnore, and SREV-072 redirector normalization",
+  "status": "patched-comment-topology-after-official-dll-module-review-no-behavior-change"
+}

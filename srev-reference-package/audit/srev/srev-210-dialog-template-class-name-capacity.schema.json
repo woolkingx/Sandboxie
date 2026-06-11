@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "GUI_DIALOG_TEMPLATE_CLASS_NAME_CAPACITY",
+  "owner": "Sandboxie/core/dll/guidlg.c",
+  "implementation": "Sandboxie/core/dll/guidlg.h",
+  "status": "patched-source-level-after-official-dialog-template-item-count-shape-review-needs-windows-runtime-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-dlgtemplate",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-dlgitemtemplate",
+    "https://learn.microsoft.com/en-us/windows/win32/dlgbox/dlgtemplateex",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-createdialogindirectparamw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-dialogboxindirectparamw"
+  ],
+  "contracts": [
+    "guidlg.c owns the dialog hook boundary and fallback behavior",
+    "guidlg.h owns the generated standard and extended template rewrite helper",
+    "The legal template item count comes from the official template header not local array capacity",
+    "The local class-name rewrite state stores one dialog-class slot plus one slot per control",
+    "If cDlgItems cannot fit in the local state the helper fails before parsing item classes",
+    "A failed rewrite returns NULL and the caller passes the original template to user32",
+    "Every successful or failed rewrite path releases temporary renamed class and title buffers exactly once"
+  ],
+  "runtime_gate": "Windows DLL build plus dialog smoke tests for standard and extended templates with 0, 1, 255, and 256+ controls. The 256+ case must not overwrite stack state and should fall back to the original template; normal class/title rewriting must still work for supported counts."
+}

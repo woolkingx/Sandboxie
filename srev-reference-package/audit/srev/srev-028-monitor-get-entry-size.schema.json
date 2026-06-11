@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-028-monitor-get-entry-size.schema.json",
+  "title": "SREV-028 monitor get uses wrong entry payload size",
+  "id": "MONITOR_GET_ENTRY_SIZE_SHAPE",
+  "owner": "Sandboxie/core/drv/session.c",
+  "type": "object",
+  "properties": {
+    "unicode_string_shape": {
+      "type": "string",
+      "description": "UNICODE_STRING.Length is bytes and does not include a terminating NULL; MaximumLength is total Buffer byte capacity; null-terminated output needs Length + sizeof(WCHAR)"
+    },
+    "user_buffer_shape": {
+      "type": "string",
+      "description": "User buffers and embedded user pointers must be probed and accessed under structured exception handling"
+    },
+    "entry_layout": {
+      "type": "string",
+      "description": "Monitor entry header is [Time 8][Type 4][PID 4][TID 4] = 20 bytes; Session_MonitorPutEx writes header then data; Session_Api_MonitorGetEx returns type/pid/tid separately and data through UNICODE_STRING64"
+    },
+    "shared_header_constant": {
+      "type": "string",
+      "description": "SESSION_MONITOR_ENTRY_HEADER_SIZE names the shared 20-byte header; both writer and reader subtract it when computing data size"
+    },
+    "reader_gates": {
+      "type": "string",
+      "description": "Reader rejects entries smaller than the header, leaves MaximumLength - sizeof(WCHAR) for terminator, aligns truncated byte count to WCHAR boundary, probes data_size + sizeof(WCHAR), writes terminator at data_size / sizeof(WCHAR)"
+    },
+    "no_legacy_arithmetic": {
+      "type": "string",
+      "description": "No entry_size - (4 + 4 + 4) payload computation remains; no MaximumLength - 1 byte terminator gate remains"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate: enable monitor logging, read API_MONITOR_GET_EX through DLL with 256-WCHAR buffer; verify Length excludes header bytes and buffer is NUL-terminated on exact-fit and truncated records"
+    }
+  },
+  "required": [
+    "unicode_string_shape",
+    "user_buffer_shape",
+    "entry_layout",
+    "shared_header_constant",
+    "reader_gates",
+    "no_legacy_arithmetic",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Writer and reader both reference SESSION_MONITOR_ENTRY_HEADER_SIZE",
+    "User-facing UNICODE_STRING64.Length describes only returned data bytes",
+    "Truncation preserves a WCHAR terminator slot",
+    "Reader probes data_size + sizeof(WCHAR) under exception handling"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/subauth/ns-subauth-unicode_string",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-probeforread",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-probeforwrite",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/errors-in-referencing-user-space-addresses"
+  ]
+}

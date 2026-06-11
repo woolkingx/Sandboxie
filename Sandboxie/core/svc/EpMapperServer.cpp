@@ -63,10 +63,63 @@ MSG_HEADER *EpMapperServer::Handler(void *_this, MSG_HEADER *msg)
 //---------------------------------------------------------------------------
 
 
+static bool EpMapper_CopyFixedWString(WCHAR *dst, ULONG dst_chars, const WCHAR *src)
+{
+    ULONG i;
+
+    if (!dst || !src || dst_chars == 0)
+        return false;
+
+    wmemzero(dst, dst_chars);
+    for (i = 0; i < dst_chars; ++i) {
+        if (src[i] == L'\0')
+            return i != 0;
+        if (i == dst_chars - 1)
+            break;
+        dst[i] = src[i];
+    }
+
+    return false;
+}
+
+
+static bool EpMapper_CopyNcalrpcEndpoint(WCHAR *dst, ULONG dst_chars, RPC_WSTR binding)
+{
+    const WCHAR *str = (const WCHAR *)binding;
+    const WCHAR *endpoint;
+    const WCHAR *end;
+    ULONG i;
+
+    if (!dst || dst_chars == 0)
+        return false;
+
+    wmemzero(dst, dst_chars);
+    if (!str || _wcsnicmp(str, L"ncalrpc:[", 9) != 0)
+        return false;
+
+    endpoint = str + 9;
+    end = wcschr(endpoint, L']');
+    if (!end || end == endpoint)
+        return false;
+
+    for (i = 0; endpoint + i < end && i < dst_chars - 1; ++i)
+        dst[i] = endpoint[i];
+
+    if (endpoint + i != end)
+        return false;
+
+    return true;
+}
+
+
 MSG_HEADER *EpMapperServer::EpmapperGetPortNameHandler(MSG_HEADER *msg)
 {
     EPMAPPER_GET_PORT_NAME_REQ *req = (EPMAPPER_GET_PORT_NAME_REQ *)msg;
     if (req->h.length < sizeof(EPMAPPER_GET_PORT_NAME_REQ))
+        return SHORT_REPLY(E_INVALIDARG);
+
+    WCHAR portId[DYNAMIC_PORT_ID_CHARS];
+    if (!EpMapper_CopyFixedWString(portId, DYNAMIC_PORT_ID_CHARS, req->wszPortId))
         return SHORT_REPLY(E_INVALIDARG);
 
     HANDLE idProcess = (HANDLE)(ULONG_PTR)PipeServer::GetCallerProcessId();
@@ -89,30 +142,30 @@ MSG_HEADER *EpMapperServer::EpmapperGetPortNameHandler(MSG_HEADER *msg)
 
     WCHAR buf[MAX_PATH];
 
-    if (_wcsicmp(req->wszPortId, SPOOLER_PORT_ID) == 0) {
+    if (_wcsicmp(portId, SPOOLER_PORT_ID) == 0) {
         if (SbieApi_QueryConfBool(boxname, L"ClosePrintSpooler", FALSE)) 
             return SHORT_REPLY(E_ACCESSDENIED);
         wcscpy_s(pwszServiceName, 81, wstrSpooler);
     }
-    /*else if (_wcsicmp(req->wszPortId, WPAD_PORT_ID) == 0) {
+    /*else if (_wcsicmp(portId, WPAD_PORT_ID) == 0) {
         wcscpy_s(pwszServiceName, 81, wstrWPAD);
     }
-    else if (_wcsicmp(req->wszPortId, BT_PORT_ID) == 0) {
+    else if (_wcsicmp(portId, BT_PORT_ID) == 0) {
         if (!SbieApi_QueryConfBool(boxname, L"OpenBluetooth", FALSE)) 
             return SHORT_REPLY(E_ACCESSDENIED);
         //wcscpy_s(pwszServiceName, 81, wstrBT);
         memcpy(&ifidRequest, &ifidBluetooth, sizeof(RPC_IF_ID)); 
     }
-    else if (_wcsicmp(req->wszPortId, SSDP_PORT_ID) == 0) {
+    else if (_wcsicmp(portId, SSDP_PORT_ID) == 0) {
         if (!SbieApi_QueryConfBool(boxname, L"OpenUPnP", FALSE)) 
             return SHORT_REPLY(E_ACCESSDENIED);
         //wcscpy_s(pwszServiceName, 81, wstrSSDP);
         memcpy(&ifidRequest, &ifidSSDP, sizeof(RPC_IF_ID));
     }
-    else if (_wcsicmp(req->wszPortId, GAME_CONFIG_STORE_PORT_ID) == 0) {
+    else if (_wcsicmp(portId, GAME_CONFIG_STORE_PORT_ID) == 0) {
         memcpy(&ifidRequest, &ifidGCS, sizeof(RPC_IF_ID));
     }
-    else if (_wcsicmp(req->wszPortId, SMART_CARD_PORT_ID) == 0) {
+    else if (_wcsicmp(portId, SMART_CARD_PORT_ID) == 0) {
         if (!SbieApi_QueryConfBool(boxname, L"OpenSmartCard", TRUE)) 
             return SHORT_REPLY(E_ACCESSDENIED);
         memcpy(&ifidRequest, &ifidSmartCard, sizeof(RPC_IF_ID));
@@ -121,7 +174,7 @@ MSG_HEADER *EpMapperServer::EpmapperGetPortNameHandler(MSG_HEADER *msg)
         return SHORT_REPLY(E_INVALIDARG);*/
     else
     {
-        if (SbieDll_GetStringForStringList(req->wszPortId, boxname, L"RpcPortBindingIfId", buf, sizeof(buf)))
+        if (SbieDll_GetStringForStringList(portId, boxname, L"RpcPortBindingIfId", buf, sizeof(buf)))
         {
             unsigned short uuid[37];
             wmemcpy((WCHAR*)uuid, buf + 1, 36); uuid[36] = 0;
@@ -131,7 +184,7 @@ MSG_HEADER *EpMapperServer::EpmapperGetPortNameHandler(MSG_HEADER *msg)
             if(UuidFromString(uuid, &ifidRequest.Uuid) != RPC_S_OK)
                 return SHORT_REPLY(E_INVALIDARG);
         }
-        else if (SbieDll_GetStringForStringList(req->wszPortId, boxname, L"RpcPortBindingSvc", buf, sizeof(buf)))
+        else if (SbieDll_GetStringForStringList(portId, boxname, L"RpcPortBindingSvc", buf, sizeof(buf)))
         {
             wcscpy_s(pwszServiceName, 81, buf);
         }
@@ -200,19 +253,23 @@ MSG_HEADER *EpMapperServer::EpmapperGetPortNameHandler(MSG_HEADER *msg)
                 WCHAR wstrPortName[DYNAMIC_PORT_NAME_CHARS];
 
                 RPC_WSTR pwszPortName = NULL;
-                RpcBindingToStringBindingW(hBinding, &pwszPortName);   // Get string port name. Format is "ncalrpc:[LRPC-f760d5b40689a98168]"
-                if (pwszPortName == NULL)
-                    continue;
-                wcsncpy(wstrPortName, (wchar_t*)pwszPortName + 9, DYNAMIC_PORT_NAME_CHARS); // format is "ncalrpc:[LRPC-f760d5b40689a98168]" We only want actual port name
-                wstrPortName[23] = 0;                                                       // Take off the ']'
-                RpcStringFreeW(&pwszPortName);
-
-                if (wcsncmp(wstrPortName, L"LRPC-", 5) == 0 /*|| wcsncmp(wstrPortName, L"OLE", 3) == 0*/)
+                RPC_STATUS bindStatus = RpcBindingToStringBindingW(hBinding, &pwszPortName);   // Get string port name. Format is "ncalrpc:[LRPC-f760d5b40689a98168]"
+                if (bindStatus == RPC_S_OK && EpMapper_CopyNcalrpcEndpoint(wstrPortName, DYNAMIC_PORT_NAME_CHARS, pwszPortName))
                 {
-                    _snwprintf(rpl->wszPortName, DYNAMIC_PORT_NAME_CHARS, L"\\RPC Control\\%s", wstrPortName);
-                    rpl->h.status = STATUS_SUCCESS;
-                    break;
+                    if (wcsncmp(wstrPortName, L"LRPC-", 5) == 0 /*|| wcsncmp(wstrPortName, L"OLE", 3) == 0*/)
+                    {
+                        _snwprintf(rpl->wszPortName, DYNAMIC_PORT_NAME_CHARS, L"\\RPC Control\\%s", wstrPortName);
+                        rpl->wszPortName[DYNAMIC_PORT_NAME_CHARS - 1] = L'\0';
+                        rpl->h.status = STATUS_SUCCESS;
+                    }
                 }
+
+                if (pwszPortName != NULL)
+                    RpcStringFreeW(&pwszPortName);
+                RpcBindingFree(&hBinding);
+
+                if (rpl->h.status == STATUS_SUCCESS)
+                    break;
             }
             RpcMgmtEpEltInqDone(&hContext);
         }
@@ -223,12 +280,12 @@ MSG_HEADER *EpMapperServer::EpmapperGetPortNameHandler(MSG_HEADER *msg)
     if (rpl->h.status == STATUS_SUCCESS)
     {
         //
-        // Note: it seems that chrome.exe resolves GAME_CONFIG_STORE_PORT in one process and accesses from another.
-        // So, since here we only open non critical ports, we will use PID 0 to open them globally
-        // instead of only for the one process. Todo: make it per sandbox instead
+        // Dynamic RPC endpoints may be resolved by one sandboxed process and used by another.
+        // API_OPEN_DYNAMIC_PORT has only process-id or global scope; sandbox scope requires
+        // a driver/API schema extension rather than a service-only routing change.
         //
-        // Note: Filter is only support for globally open ports, i.e. when process_id == 0
-        // Todo: Add per process ALPC message filter
+        // The ALPC message-id filter is attached to the driver dynamic-port entry.
+        // Per-process or per-sandbox filtering requires a scoped dynamic-port key.
         //
 
         std::vector<UCHAR> FilterIDs;
@@ -239,7 +296,7 @@ MSG_HEADER *EpMapperServer::EpmapperGetPortNameHandler(MSG_HEADER *msg)
         //  * implemented in driver
         //
 
-        if(!SbieApi_QueryConfBool(boxname, (std::wstring(L"Open") + req->wszPortId + L"Endpoint").c_str(), FALSE)) 
+        if(!SbieApi_QueryConfBool(boxname, (std::wstring(L"Open") + portId + L"Endpoint").c_str(), FALSE))
         {
             //
             // For security reasons the setting RpcPortFilter=[Name],[message_id],[function_name] 
@@ -247,7 +304,7 @@ MSG_HEADER *EpMapperServer::EpmapperGetPortNameHandler(MSG_HEADER *msg)
             // function_name is only provided for reference and not currently used.
             //
 
-            for (int i = 0; SbieDll_GetStringsForStringList(req->wszPortId, boxname, L"RpcPortFilter", i, buf, sizeof(buf)); i++)
+            for (int i = 0; SbieDll_GetStringsForStringList(portId, boxname, L"RpcPortFilter", i, buf, sizeof(buf)); i++)
             {
                 WCHAR* test_value = NULL;
                 ULONG test_len = 0;
@@ -266,12 +323,10 @@ MSG_HEADER *EpMapperServer::EpmapperGetPortNameHandler(MSG_HEADER *msg)
         rpl->h.status = SbieApi_Call(API_OPEN_DYNAMIC_PORT, 5,
             (ULONG_PTR)rpl->wszPortName,
             (ULONG_PTR)0, 
-            (ULONG_PTR)req->wszPortId,
+            (ULONG_PTR)portId,
             (ULONG_PTR)FilterIDs.size(), // count
             (ULONG_PTR)FilterIDs.data());
     }
 
     return (MSG_HEADER *)rpl;
 }
-
-

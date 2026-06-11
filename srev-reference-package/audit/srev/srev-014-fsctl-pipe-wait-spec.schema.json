@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-014-fsctl-pipe-wait-spec.schema.json",
+  "title": "SREV-014 FSCTL_PIPE_WAIT buffer shape",
+  "id": "FSCTL_PIPE_WAIT_BUFFER_SHAPE",
+  "owner": "Sandboxie/core/dll/file_pipe.c",
+  "type": "object",
+  "properties": {
+    "fscc_wire_layout": {
+      "type": "string",
+      "description": "MS-FSCC FSCTL_PIPE_WAIT request: Timeout(8 bytes), NameLength(4 bytes, size in bytes of Name), TimeoutSpecified(1 byte), Padding(1 byte), Name(variable Unicode string without the \\pipe\\ prefix)"
+    },
+    "smb2_failure_modes": {
+      "type": "string",
+      "description": "Malformed names fail as not found; non-pipe objects fail as invalid device request; timeout expiration fails as timeout"
+    },
+    "input_validation_owner": {
+      "type": "string",
+      "description": "File_WaitNamedPipe rejects InputBuffer==NULL, InputBufferLength < FIELD_OFFSET(...,Name), NameLength not WCHAR-aligned, NameLength > InputBufferLength - name_offset before any field read"
+    },
+    "name_len_invariant": {
+      "type": "string",
+      "description": "name_len = NameLength / sizeof(WCHAR) must satisfy name_len + Dll_BoxIpcPathLen + 64 <= (ULONG)-1 / sizeof(WCHAR) before allocating the output buffer"
+    },
+    "alloc_invariant": {
+      "type": "string",
+      "description": "Output buffer allocated via Dll_AllocTemp(buf_len); allocation failure returns STATUS_INSUFFICIENT_RESOURCES before any write"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate: malformed FSCTL_PIPE_WAIT payloads fail closed; normal WaitNamedPipe still works"
+    }
+  },
+  "required": [
+    "fscc_wire_layout",
+    "smb2_failure_modes",
+    "input_validation_owner",
+    "name_len_invariant",
+    "alloc_invariant",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "InputBuffer must be non-null and InputBufferLength must cover FIELD_OFFSET(FILE_PIPE_WAIT_FOR_BUFFER, Name) before NameLength is read",
+    "NameLength must be WCHAR-aligned",
+    "NameLength must fit inside InputBufferLength minus the Name field offset",
+    "Rewritten output allocation is checked before any write",
+    "Hook validates the subset of the FSCTL payload it dereferences; native validation still owns the rest"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/pl-pl/openspecs/windows_protocols/ms-fscc/f030a3b9-539c-4c7b-a893-86b795b9b711",
+    "https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-smb2/6ea29283-b629-48a5-a7f8-ed7d09d42387",
+    "https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/4d23fdb5-840e-456a-858f-6a238011179f",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-waitnamedpipea"
+  ]
+}

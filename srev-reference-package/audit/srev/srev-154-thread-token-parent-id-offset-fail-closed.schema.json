@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-154-thread-token-parent-id-offset-fail-closed.schema.json",
+  "title": "SREV-154 thread token ParentId offset fail closed",
+  "id": "THREAD_TOKEN_PARENT_ID_OFFSET_FAIL_CLOSED",
+  "owner": "Sandboxie/core/drv/thread_token.c",
+  "type": "object",
+  "properties": {
+    "token_id_shape": {
+      "type": "string",
+      "description": "public TokenId comes from TOKEN_STATISTICS"
+    },
+    "private_parent_id_shape": {
+      "type": "string",
+      "description": "ParentTokenId remains a private offset boundary"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows primary-token assignment proof"
+    }
+  },
+  "required": [
+    "token_id_shape",
+    "private_parent_id_shape",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Thread_SetInformationProcess_PrimaryToken_3 mediates sandboxed child-process primary-token assignment",
+    "TOKEN_STATISTICS.TokenId is the documented public token id source for TokenObject1",
+    "SeQueryInformationToken returns a paged-pool buffer that must be freed with ExFreePool",
+    "ParentTokenId is not exposed as a documented PACCESS_TOKEN field in the Microsoft token-information shape",
+    "ParentTokenId_offset is private compatibility data and must be known before any TokenObject plus ParentTokenId_offset read",
+    "unknown token private layout must log STATUS_UNKNOWN_REVISION dereference TokenObject2 and return (void *)-1 before RtlEqualLuid relation checks",
+    "the fix must not change SeAssignPrimaryTokenPrivilege SandboxieDcomLaunch.exe or msiexec.exe compatibility exceptions",
+    "the Linux source gate is not Windows runtime proof"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessasusera",
+    "https://learn.microsoft.com/en-us/windows/win32/secauthz/restricted-tokens",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-sequeryinformationtoken",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_token_statistics",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-psimpersonateclient",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_se_exports"
+  ]
+}

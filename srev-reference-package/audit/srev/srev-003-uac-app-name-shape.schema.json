@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-003-uac-app-name-shape.schema.json",
+  "title": "SREV-003 UAC app name shape",
+  "id": "UAC_APP_NAME_SHAPE",
+  "owner": "Sandboxie/core/svc/serviceserver2.cpp",
+  "type": "object",
+  "properties": {
+    "shellexecute_field_shape": {
+      "type": "string",
+      "description": "ShellExecuteW separates lpFile (file or object being executed) from lpParameters (parameters when lpFile is an executable); runas is the UAC/elevation shell verb"
+    },
+    "packet_field_shape": {
+      "type": "string",
+      "description": "Sandboxie UAC packet carries three independent WCHAR arrays: app (identity or *MSI* token), cmd (full command line), dir (working directory or *MSI* token)"
+    },
+    "display_path_owner": {
+      "type": "string",
+      "description": "RunUacSlave4(..., OutAppName) returns the app token only when app is exactly *MSI*; otherwise it preserves the previous command-line return"
+    },
+    "msi_token_shape": {
+      "type": "string",
+      "description": "MSI token comparisons require exact five-WCHAR shape (*MSI* plus terminator) before treating the request as an MSI elevation token"
+    },
+    "execution_invariant": {
+      "type": "string",
+      "description": "Execution behavior is unchanged; only the display/classification data shape is fixed"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate: MSI elevation prompt displays 'Windows Installer'; normal executable elevation still displays executable/command identity"
+    }
+  },
+  "required": [
+    "shellexecute_field_shape",
+    "packet_field_shape",
+    "display_path_owner",
+    "msi_token_shape",
+    "execution_invariant",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "ShellExecuteW lpFile and lpParameters are separate fields",
+    "CommandLineToArgvW parses a full Unicode command line into argv",
+    "PathFindFileNameW extracts a filename component from a path",
+    "RunUacSlave4 OutAppName must not return cmd when classifying *MSI* display text",
+    "*MSI* token belongs to app, not to the command-line return",
+    "MSI token check must prove exact five-WCHAR field length before comparing",
+    "Default UAC display for non-MSI requests remains the command-line classification"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shellexecutew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-commandlinetoargvw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/shlwapi/nf-shlwapi-pathfindfilenamew"
+  ]
+}

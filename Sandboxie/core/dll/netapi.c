@@ -59,14 +59,12 @@ static P_IcfOpenDynamicFwPort   __sys_IcfOpenDynamicFwPort  = NULL;
 
 _FX HRESULT HNet_IcfOpenDynamicFwPort(void *p1, void *p2, void *p3)
 {
-    // bind (Winsock 2) calls WSPBind, then HNetCfg.IcfOpenDynamicFwPort.
-    // IcfOpenDynamicFwPort tries to talk to the Firewall service,
-    // which is probably only accessible as a COM object (as opposed to
-    // a well known port name), so it fails.
-    // Here we intercept IcfOpenDynamicFwPort and return a success status,
-    // while not actually talking to the Windows Firewall
+    // SREV-313: Winsock bind may call the private hnetcfg export
+    // IcfOpenDynamicFwPort. Sandboxie does not own host Windows Firewall
+    // policy mutation, so report local success without opening a firewall
+    // port.
 
-    return 0;
+    return S_OK;
 }
 
 

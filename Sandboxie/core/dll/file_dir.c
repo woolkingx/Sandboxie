@@ -820,13 +820,16 @@ _FX NTSTATUS File_OpenForMerge(
 
 				    Dll_PushTlsNameBuffer(TlsData);
 
-				    WCHAR* TruePath2, *CopyPath2;
+				    WCHAR* TruePath2 = NULL, *CopyPath2 = NULL;
 				    RtlInitUnicodeString(&objname, Relocation);
-				    File_GetName(NULL, &objname, &TruePath2, &CopyPath2, NULL);
+				    status = File_GetName(NULL, &objname, &TruePath2, &CopyPath2, NULL);
 
 				    Dll_PopTlsNameBuffer(TlsData);
 
 				    // note: pop leaves TruePath2 valid we can still use it
+
+				    if (!NT_SUCCESS(status) || !CopyPath2)
+					    break;
 
 				    CopyPath = Dll_GetTlsNameBuffer(TlsData, COPY_NAME_BUFFER, (wcslen(CopyPath2) + 1) * sizeof(WCHAR));
 				    wcscpy(CopyPath, CopyPath2);
@@ -1181,9 +1184,11 @@ _FX NTSTATUS File_MergeCache(
                     break;
                 ins_point = List_Next(ins_point);
             }
-            // There is a bug with Isilon drives.  NtQueryDirectoryFile does not return STATUS_NO_MORE_FILES but always returns STATUS_SUCCESS with the same file name.
-            // This causes an infinite loop in this code.  So, if the name_uni we just received is the same as what we just added to the list, assume it is the Isilon bug
-            // and break out of this loop.
+            //
+            // SREV-278: directory enumeration must make progress.  If the
+            // provider repeats a name already present in the merge cache,
+            // synthesize the normal end-of-enumeration status and stop.
+            //
             if (cmp == 0)
             {
                 status = STATUS_NO_MORE_FILES;
@@ -1361,6 +1366,7 @@ _FX NTSTATUS File_MergeDummy(
     FILE_MERGE_CACHE_FILE *ins_point;
     ULONG len;
     const ULONG INFO_AREA_LEN = 0x10000;  // the size used by cmd.exe
+    BOOLEAN info_area_full = FALSE;
 
 
     if (qfile->cache_pool) {
@@ -1380,8 +1386,11 @@ _FX NTSTATUS File_MergeDummy(
     List_Init(cache_list);
 
     info_area = Pool_Alloc(qfile->cache_pool, INFO_AREA_LEN);
-    if (! info_area)
+    if (! info_area) {
+        Pool_Delete(qfile->cache_pool);
+        qfile->cache_pool = NULL;
         return STATUS_INSUFFICIENT_RESOURCES;
+    }
 
     //
     // create a dummy directory, build a sorted files list
@@ -1391,6 +1400,11 @@ _FX NTSTATUS File_MergeDummy(
     if (FileMask->Buffer) 
         mask = Pattern_Create(qfile->cache_pool, FileMask->Buffer, TRUE, 0);
     WCHAR* test_buf = Pool_Alloc(qfile->cache_pool, 0x1000);
+    if (! test_buf) {
+        Pool_Delete(qfile->cache_pool);
+        qfile->cache_pool = NULL;
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
 
     LIST* lists[4];
     SbieDll_GetReadablePaths(L'f', lists);
@@ -1401,10 +1415,10 @@ _FX NTSTATUS File_MergeDummy(
 
     ULONG* PrevEntry = NULL;
     info_ptr = info_area;
-    for (int i=0; lists[i] != NULL; i++) {
+    for (int i=0; lists[i] != NULL && !info_area_full; i++) {
 
         PATTERN* pat = List_Head(lists[i]);
-        while (pat) {
+        while (pat && !info_area_full) {
 
             const WCHAR* patstr = Pattern_Source(pat);
 
@@ -1417,6 +1431,9 @@ _FX NTSTATUS File_MergeDummy(
                 ULONG name_len = (ULONG)(end - ptr);
 
                 if (mask) {
+
+                    if ((name_len + 1) * sizeof(WCHAR) > 0x1000)
+                        goto next;
                     
                     memcpy(test_buf, ptr, (name_len + 1) * sizeof(WCHAR));
                     _wcslwr(test_buf);
@@ -1449,9 +1466,27 @@ _FX NTSTATUS File_MergeDummy(
 
                 if (NT_SUCCESS(status)) {
 
-                    info_ptr->FileNameLength = name_len * sizeof(WCHAR);
+                    if (name_len > (INFO_AREA_LEN -
+                            FIELD_OFFSET(FILE_ID_BOTH_DIR_INFORMATION, FileName)) / sizeof(WCHAR)) {
+                        info_area_full = TRUE;
+                        break;
+                    }
+
+                    ULONG file_name_len = name_len * sizeof(WCHAR);
+                    ULONG entry_len = FIELD_OFFSET(FILE_ID_BOTH_DIR_INFORMATION, FileName) + file_name_len;
+                    ULONG tmp = (entry_len & 0x07);
+                    ULONG used = (ULONG)((UCHAR*)info_ptr - (UCHAR*)info_area);
+
+                    if (tmp != 0)
+                        entry_len += 0x8 - tmp;
+
+                    if (used > INFO_AREA_LEN || entry_len > INFO_AREA_LEN - used) {
+                        info_area_full = TRUE;
+                        break;
+                    }
+
+                    info_ptr->FileNameLength = file_name_len;
                     memcpy(info_ptr->FileName, ptr, info_ptr->FileNameLength);
-                    info_ptr->FileName[info_ptr->FileNameLength] = L'\0';
 
                     info_ptr->CreationTime = info.CreationTime;
                     info_ptr->LastAccessTime = info.LastAccessTime;
@@ -1474,16 +1509,10 @@ _FX NTSTATUS File_MergeDummy(
 
                     PrevEntry = &info_ptr->NextEntryOffset;
 
-                    info_ptr->NextEntryOffset = sizeof(FILE_ID_BOTH_DIR_INFORMATION) + info_ptr->FileNameLength + sizeof(WCHAR) + 16; // +16 some buffer space
-
-                    ULONG tmp = (info_ptr->NextEntryOffset & 0x07);
-                    if (tmp != 0) // fix alignment when needed
-                        info_ptr->NextEntryOffset += 0x8 - tmp;
+                    info_ptr->NextEntryOffset = entry_len;
 
                     info_ptr = (FILE_ID_BOTH_DIR_INFORMATION*)
                         ((UCHAR*)info_ptr + info_ptr->NextEntryOffset);
-
-                    // todo: fix-me possible info_area buffer overflow!!!!
                 }
             }
 
@@ -3079,10 +3108,20 @@ _FX NTSTATUS File_NtQueryVolumeInformationFile(
     HANDLE handle;
     BOOLEAN IsBoxedPath;
     WCHAR *path;
+    THREAD_DATA *TlsData = Dll_GetTlsData(NULL);
 
-    // NtQueryObject on a named pipe handle can hang when it is in pending read/write. See P.71 NT/2000 Native API Reference
-    // If the caller only asks about FileFsDeviceInformation and it is a named pipe, hook can return right away without the 
-    // need to wait on NtQueryObject called by SbieDll_GetHandlePath
+    if (TlsData && (
+            TlsData->ipc_KnownDlls_lock ||
+            TlsData->file_NtQueryVolumeInformation_lock)) {
+        return __sys_NtQueryVolumeInformationFile(
+            FileHandle, IoStatusBlock, FsInformation, Length, FsInformationClass);
+    }
+
+    //
+    // SREV-279: FileFsDeviceInformation is enough to classify named-pipe
+    // handles.  Return that device-info result directly so this volume-info
+    // query does not cross into object-name resolution first.
+    //
     if (FsInformationClass == FileFsDeviceInformation && Length >= sizeof(FILE_FS_DEVICE_INFORMATION))
     {
         FILE_FS_DEVICE_INFORMATION devInfo = { 0 };
@@ -3107,12 +3146,24 @@ _FX NTSTATUS File_NtQueryVolumeInformationFile(
 
     handle = FileHandle;
 
+    if (TlsData)
+        TlsData->file_NtQueryVolumeInformation_lock = TRUE;
+
     status = SbieDll_GetHandlePath(FileHandle, NULL, &IsBoxedPath);
+    if (TlsData)
+        TlsData->file_NtQueryVolumeInformation_lock = FALSE;
+
     if (IsBoxedPath && (
             NT_SUCCESS(status) || (status == STATUS_BAD_INITIAL_PC))) {
         
         path = Dll_AllocTemp(8192);
+        if (TlsData)
+            TlsData->file_NtQueryVolumeInformation_lock = TRUE;
+
         status = SbieDll_GetHandlePath(FileHandle, path, NULL);
+        if (TlsData)
+            TlsData->file_NtQueryVolumeInformation_lock = FALSE;
+
         if (NT_SUCCESS(status)) {
 
             const FILE_DRIVE *drive =
@@ -3175,7 +3226,6 @@ _FX NTSTATUS File_NtQueryVolumeInformationFile(
         Dll_Free(path);
     }
 
-
     status = __sys_NtQueryVolumeInformationFile(
         handle, IoStatusBlock, FsInformation, Length, FsInformationClass);
 
@@ -3194,8 +3244,22 @@ _FX NTSTATUS File_NtQueryVolumeInformationFile(
 WCHAR* File_CanonizePath(const wchar_t* absolute_path, ULONG abs_path_len, const wchar_t* relative_path, ULONG rel_path_len) 
 {
     ULONG i, j;
+    ULONG root_floor = 0;
     
-    while(absolute_path[abs_path_len-1] == L'\\')
+    if ((! absolute_path) || (! relative_path) || (! abs_path_len))
+        return NULL;
+
+    if (absolute_path[0] == L'\\')
+        root_floor = 1;
+
+    for (j = 0; j + 1 < abs_path_len; ++j) {
+        if (absolute_path[j] == L':' && absolute_path[j + 1] == L'\\') {
+            root_floor = j + 2;
+            break;
+        }
+    }
+
+    while(abs_path_len > root_floor && absolute_path[abs_path_len-1] == L'\\')
         abs_path_len--;
 
     WCHAR* result = (WCHAR*)Dll_Alloc((abs_path_len + rel_path_len + 1) * sizeof(wchar_t));
@@ -3205,20 +3269,30 @@ WCHAR* File_CanonizePath(const wchar_t* absolute_path, ULONG abs_path_len, const
 
     for (i = 0; i < rel_path_len; ) {
 
-        if (relative_path[i] == L'.' && relative_path[i + 1] == L'.' && (relative_path[i + 2] == L'\\' || relative_path[i + 2] == L'\0')) {
+        if (relative_path[i] == L'.' &&
+                i + 1 < rel_path_len && relative_path[i + 1] == L'.' &&
+                (i + 2 == rel_path_len || relative_path[i + 2] == L'\\')) {
 
-            for (j = abs_path_len - 1; j >= 0 && result[j] != L'\\'; --j)
-                result[j] = L'\0';
-            if (j >= 0)
-                result[j] = L'\0';
+            if (abs_path_len <= root_floor) {
+                Dll_Free(result);
+                return NULL;
+            }
+
+            for (j = abs_path_len; j > root_floor && result[j - 1] != L'\\'; --j)
+                result[j - 1] = L'\0';
+            while (j > root_floor && result[j - 1] == L'\\') {
+                result[j - 1] = L'\0';
+                --j;
+            }
 
             abs_path_len = j;
 
-            i += 3;
+            i += (i + 2 < rel_path_len && relative_path[i + 2] == L'\\') ? 3 : 2;
 
-        } else if (relative_path[i] == L'.' && (relative_path[i + 1] == L'\\' || relative_path[i + 1] == L'\0')) {
+        } else if (relative_path[i] == L'.' &&
+                (i + 1 == rel_path_len || relative_path[i + 1] == L'\\')) {
 
-            i += 2;
+            i += (i + 1 < rel_path_len && relative_path[i + 1] == L'\\') ? 2 : 1;
 
         } else {
 
@@ -3235,7 +3309,9 @@ WCHAR* File_CanonizePath(const wchar_t* absolute_path, ULONG abs_path_len, const
 
             abs_path_len += j - i;
 
-            i = j + (relative_path[j] == L'\\' ? 1 : 0);
+            i = j;
+            if (i < rel_path_len && relative_path[i] == L'\\')
+                i++;
         }
     }
 
@@ -3246,6 +3322,41 @@ WCHAR* File_CanonizePath(const wchar_t* absolute_path, ULONG abs_path_len, const
 //---------------------------------------------------------------------------
 // File_SetReparsePoint
 //---------------------------------------------------------------------------
+
+
+_FX BOOLEAN File_CheckReparseNameRange(
+    ULONG DataLen,
+    USHORT ReparseDataLength,
+    ULONG PathBufferOffset,
+    USHORT NameOffset,
+    USHORT NameLength)
+{
+    ULONG ReparseHeaderLength = UFIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer);
+    ULONG PathBufferRelativeOffset;
+    ULONG PathBufferLength;
+
+    if (DataLen < ReparseHeaderLength)
+        return FALSE;
+    if (ReparseDataLength > DataLen - ReparseHeaderLength)
+        return FALSE;
+    if (PathBufferOffset < ReparseHeaderLength)
+        return FALSE;
+
+    PathBufferRelativeOffset = PathBufferOffset - ReparseHeaderLength;
+    if (PathBufferRelativeOffset > ReparseDataLength)
+        return FALSE;
+
+    PathBufferLength = ReparseDataLength - PathBufferRelativeOffset;
+    if ((NameOffset & (sizeof(WCHAR) - 1)) ||
+            (NameLength & (sizeof(WCHAR) - 1)))
+        return FALSE;
+    if (NameOffset > PathBufferLength)
+        return FALSE;
+    if (NameLength > PathBufferLength - NameOffset)
+        return FALSE;
+
+    return TRUE;
+}
 
 
 _FX NTSTATUS File_SetReparsePoint(
@@ -3262,6 +3373,8 @@ _FX NTSTATUS File_SetReparsePoint(
     ULONG FileFlags, mp_flags;
     PREPARSE_DATA_BUFFER NewData = NULL;
     ULONG NewDataLen;
+    ULONG PathBufferOffset;
+    ULONG NewSubstituteNameLength;
     IO_STATUS_BLOCK MyIoStatusBlock;
     BOOLEAN MigrateTarget = FALSE;
 
@@ -3279,6 +3392,11 @@ _FX NTSTATUS File_SetReparsePoint(
         WCHAR* SubstituteNameBuffer;
         USHORT PrintNameLength;
         WCHAR* PrintNameBuffer;
+
+        if (DataLen < UFIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer)) {
+            status = STATUS_BAD_INITIAL_PC;
+            __leave;
+        }
 
         //
         // get copy path of reparse source
@@ -3316,23 +3434,71 @@ _FX NTSTATUS File_SetReparsePoint(
 
         if (Data->ReparseTag == IO_REPARSE_TAG_SYMLINK)
         {
+            PathBufferOffset = UFIELD_OFFSET(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer);
+            if (DataLen < PathBufferOffset) {
+                status = STATUS_BAD_INITIAL_PC;
+                __leave;
+            }
+
             SubstituteNameLength = Data->SymbolicLinkReparseBuffer.SubstituteNameLength;
+            if (! File_CheckReparseNameRange(
+                    DataLen, Data->ReparseDataLength, PathBufferOffset,
+                    Data->SymbolicLinkReparseBuffer.SubstituteNameOffset,
+                    SubstituteNameLength)) {
+                status = STATUS_BAD_INITIAL_PC;
+                __leave;
+            }
             SubstituteNameBuffer = &Data->SymbolicLinkReparseBuffer.PathBuffer[Data->SymbolicLinkReparseBuffer.SubstituteNameOffset/sizeof(WCHAR)];
             PrintNameLength = Data->SymbolicLinkReparseBuffer.PrintNameLength;
+            if (! File_CheckReparseNameRange(
+                    DataLen, Data->ReparseDataLength, PathBufferOffset,
+                    Data->SymbolicLinkReparseBuffer.PrintNameOffset,
+                    PrintNameLength)) {
+                status = STATUS_BAD_INITIAL_PC;
+                __leave;
+            }
             PrintNameBuffer = &Data->SymbolicLinkReparseBuffer.PathBuffer[Data->SymbolicLinkReparseBuffer.PrintNameOffset/sizeof(WCHAR)];
             if (Data->SymbolicLinkReparseBuffer.Flags & SYMLINK_FLAG_RELATIVE) {
 
                 WCHAR* LinkName = wcsrchr(TruePath, L'\\');
+                if (! LinkName) {
+                    status = STATUS_INVALID_PARAMETER;
+                    __leave;
+                }
                 AbsolutePath = File_CanonizePath(TruePath, (ULONG)(LinkName - TruePath), SubstituteNameBuffer, SubstituteNameLength / sizeof(wchar_t));
+                if (! AbsolutePath) {
+                    status = STATUS_INVALID_PARAMETER;
+                    __leave;
+                }
             }
 
             NewDataLen = (UFIELD_OFFSET(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) - UFIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer));
         }
         else if (Data->ReparseTag == IO_REPARSE_TAG_MOUNT_POINT)
         {
+            PathBufferOffset = UFIELD_OFFSET(REPARSE_DATA_BUFFER, MountPointReparseBuffer.PathBuffer);
+            if (DataLen < PathBufferOffset) {
+                status = STATUS_BAD_INITIAL_PC;
+                __leave;
+            }
+
             SubstituteNameLength = Data->MountPointReparseBuffer.SubstituteNameLength;
+            if (! File_CheckReparseNameRange(
+                    DataLen, Data->ReparseDataLength, PathBufferOffset,
+                    Data->MountPointReparseBuffer.SubstituteNameOffset,
+                    SubstituteNameLength)) {
+                status = STATUS_BAD_INITIAL_PC;
+                __leave;
+            }
             SubstituteNameBuffer = &Data->MountPointReparseBuffer.PathBuffer[Data->MountPointReparseBuffer.SubstituteNameOffset/sizeof(WCHAR)];
             PrintNameLength = Data->MountPointReparseBuffer.PrintNameLength;
+            if (! File_CheckReparseNameRange(
+                    DataLen, Data->ReparseDataLength, PathBufferOffset,
+                    Data->MountPointReparseBuffer.PrintNameOffset,
+                    PrintNameLength)) {
+                status = STATUS_BAD_INITIAL_PC;
+                __leave;
+            }
             PrintNameBuffer = &Data->MountPointReparseBuffer.PathBuffer[Data->MountPointReparseBuffer.PrintNameOffset/sizeof(WCHAR)]; 
 
             NewDataLen = (UFIELD_OFFSET(REPARSE_DATA_BUFFER, MountPointReparseBuffer.PathBuffer) - UFIELD_OFFSET(REPARSE_DATA_BUFFER, GenericReparseBuffer));
@@ -3391,10 +3557,24 @@ _FX NTSTATUS File_SetReparsePoint(
             wcsncpy(NewSubstituteNameBuffer, L"\\??\\", 4);
         }
 
-        SubstituteNameLength = wcslen(NewSubstituteNameBuffer) * sizeof(WCHAR);
+        NewSubstituteNameLength = wcslen(NewSubstituteNameBuffer) * sizeof(WCHAR);
+        if (NewSubstituteNameLength > 0xFFFF) {
+            status = STATUS_INVALID_PARAMETER;
+            __leave;
+        }
+        SubstituteNameLength = (USHORT)NewSubstituteNameLength;
 
         NewDataLen += SubstituteNameLength + sizeof(WCHAR) + PrintNameLength + sizeof(WCHAR) + 8;
+        if (NewDataLen > MAXIMUM_REPARSE_DATA_BUFFER_SIZE) {
+            status = STATUS_INVALID_PARAMETER;
+            __leave;
+        }
+
         NewData = Dll_Alloc(NewDataLen);
+        if (! NewData) {
+            status = STATUS_INSUFFICIENT_RESOURCES;
+            __leave;
+        }
         memzero(NewData, sizeof(REPARSE_DATA_BUFFER));
 
         NewData->ReparseTag = Data->ReparseTag;
@@ -3422,7 +3602,8 @@ _FX NTSTATUS File_SetReparsePoint(
         }
 
         memcpy(SubstituteNameBuffer, NewSubstituteNameBuffer, SubstituteNameLength + sizeof(WCHAR));
-        memcpy(PrintNameBuffer, OldPrintNameBuffer, PrintNameLength + sizeof(WCHAR));
+        memcpy(PrintNameBuffer, OldPrintNameBuffer, PrintNameLength);
+        PrintNameBuffer[PrintNameLength / sizeof(WCHAR)] = L'\0';
 
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         status = GetExceptionCode();

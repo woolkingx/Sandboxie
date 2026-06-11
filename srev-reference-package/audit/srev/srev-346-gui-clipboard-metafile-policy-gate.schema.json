@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "GUI_CLIPBOARD_METAFILE_POLICY_GATE",
+  "title": "GUI clipboard metafile policy gate",
+  "type": "object",
+  "owner": "Sandboxie/core/svc/GuiServer.cpp",
+  "stage": "schema -> boundary -> topology -> action -> verify",
+  "source_functions": [
+    "GuiServer::GetClipboardDataSlave",
+    "GuiServer::GetClipboardMetaFileSlave",
+    "Gui_GetClipboardData_MF"
+  ],
+  "contracts": [
+    "OpenClipboard is a Sandboxie box policy for clipboard access",
+    "GuiServer GetClipboardDataSlave enforces OpenClipboard before opening the clipboard",
+    "GuiServer GetClipboardMetaFileSlave is a secondary CF_METAFILEPICT read broker and must enforce the same OpenClipboard policy",
+    "OpenClipboard denied path returns GUI_GET_CLIPBOARD_DATA_RPL with result zero and ERROR_ACCESS_DENIED",
+    "GetClipboardMetaFileSlave must not call OpenClipboard NULL before the policy check passes",
+    "Allowed callers preserve the existing CF_METAFILEPICT GetClipboardData GlobalLock GetMetaFileBitsEx section-copy topology",
+    "Windows runtime proof is still required for SbieSvc DLL clipboard behavior"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/dataxchg/clipboard",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-openclipboard",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getclipboarddata",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-closeclipboard",
+    "https://learn.microsoft.com/en-us/windows/win32/winstation/about-window-stations-and-desktops",
+    "https://learn.microsoft.com/en-us/windows/win32/winstation/window-station-security-and-access-rights"
+  ],
+  "local_edges": [
+    "Gui_GetClipboardData CF_METAFILEPICT -> GUI_GET_CLIPBOARD_DATA -> METAFILEPICT section",
+    "Gui_GetClipboardData_MF -> GUI_GET_CLIPBOARD_METAFILE",
+    "GUI_GET_CLIPBOARD_METAFILE -> SbieApi_QueryProcess -> SbieApi_QueryConfBool OpenClipboard",
+    "OpenClipboard false -> result zero error ERROR_ACCESS_DENIED",
+    "OpenClipboard true -> OpenClipboard NULL -> GetClipboardData CF_METAFILEPICT -> GlobalLock -> GetMetaFileBitsEx -> GetClipboardDataSlave2"
+  ],
+  "runtime_gate": "Windows SbieSvc and DLL build with OpenClipboard=n denied CF_METAFILEPICT broker read and OpenClipboard=y ordinary plus metafile clipboard smoke",
+  "status": "patched-source-level-after-official-clipboard-policy-review-needs-windows-runtime-proof"
+}

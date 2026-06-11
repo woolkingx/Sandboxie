@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-066-lowlevel-hotpatch-scan-window.schema.json",
+  "title": "SREV-066 low-level hotpatch scan window contract",
+  "id": "LOWLEVEL_HOTPATCH_SCAN_WINDOW",
+  "api": "SbieDll_InjectLow_getPage",
+  "owner": "Sandboxie/core/dll/lowlevel_inject.c",
+  "type": "object",
+  "properties": {
+    "remote_read": {
+      "type": "string",
+      "description": "ReadProcessMemory byte transfer from target process memory"
+    },
+    "local_buffer": {
+      "type": "string",
+      "description": "Local myBuffer capacity and byte-addressed scan offsets"
+    },
+    "pattern_window": {
+      "type": "string",
+      "description": "ULONG_PTR-sized pattern window used to find hotpatch space"
+    }
+  },
+  "required": [
+    "remote_read",
+    "local_buffer",
+    "pattern_window"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "ReadProcessMemory copies nSize bytes into the caller-provided local buffer and reports bytes read",
+    "The hotpatch scanner may read an ULONG_PTR pattern only when scan_offset plus sizeof(ULONG_PTR) fits inside myBuffer",
+    "Scan offsets are byte offsets because the selected remote table address is byte-oriented",
+    "The scanner must not use short-element indexing to derive byte offsets",
+    "The fallback scan must fail closed when no full ULONG_PTR pattern window is found",
+    "Fallback comments must name SREV-066 instead of generic hack wording"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-readprocessmemory"
+  ]
+}

@@ -21,8 +21,8 @@
 //---------------------------------------------------------------------------
 
 
-#ifndef _MY_HOOK_H
-//#define _MY_HOOK_H // defined by  "../dll/hook.h"
+#ifndef _MY_DRV_HOOK_H
+#define _MY_DRV_HOOK_H
 
 
 #include "driver.h"
@@ -73,4 +73,4 @@ NTSTATUS Hook_Api_Tramp(PROCESS *proc, ULONG64 *parms);
 //---------------------------------------------------------------------------
 
 
-#endif // _MY_HOOK_H
+#endif // _MY_DRV_HOOK_H

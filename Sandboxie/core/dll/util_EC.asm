@@ -284,11 +284,15 @@ ApiInstrumentationAsm PROC
     ;brk #0xF000
 
     ; spill arguments on the stack
+    stp     x6, x7, [sp, #-0x10]!
+    stp     x4, x5, [sp, #-0x10]!
     stp     x2, x3, [sp, #-0x10]!
     stp     x0, x1, [sp, #-0x10]!
     stp     fp, lr, [sp, #-0x10]!  
 
-    ; invoke api entry instrumentation
+    ; prepare ApiInstrumentation(pName, pArgs). x17 points at the trace
+    ; entry header emitted by dllhook.c; the saved x0-x7 frame begins at
+    ; [sp+16], and pArgs[-1] is the saved LR consumed as ReturnAddress.
 
     mov     x0, x17
     add     x0, x0, #8  ; pName
@@ -306,6 +310,8 @@ ApiInstrumentationAsm PROC
     ldp     fp, lr, [sp], #0x10
     ldp     x0, x1, [sp], #0x10
     ldp     x2, x3, [sp], #0x10
+    ldp     x4, x5, [sp], #0x10
+    ldp     x6, x7, [sp], #0x10
 
     ; jump to detour function
     ldr     x16, [x17]

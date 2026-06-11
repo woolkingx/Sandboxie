@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "MSCOREE_CLR_ENTRY_HOOK_BOUNDARY",
+  "owner": "Sandboxie/core/dll/mscoree.c",
+  "status": "classified-source-level-no-local-mutation-after-official-clr-loader-shape-review",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/dotnet/framework/unmanaged-api/hosting/corexemain-function",
+    "https://learn.microsoft.com/en-us/dotnet/framework/unmanaged-api/hosting/corvalidateimage-function",
+    "https://learn.microsoft.com/en-us/dotnet/framework/unmanaged-api/hosting/deprecated-clr-hosting-functions"
+  ],
+  "contracts": [
+    "_CorExeMain is the managed executable loader entry, not a normal Win32 process entry point",
+    "mscoree.c owns only the delayed Sandboxie injection edge before delegating to the original _CorExeMain",
+    "Hook installation fails closed when the original _CorExeMain cannot be resolved or captured",
+    "Ldr_LoadInjectDlls is called at most once from this hook instance before delegating to the original CLR entry",
+    "The private PEB ReadImageFileExecOptions workaround is a runtime compatibility dependency, not public API shape",
+    "This SREV intentionally makes no source mutation"
+  ],
+  "runtime_gate": "Windows DLL build plus managed EXE smoke proving delayed injection runs once and the original _CorExeMain still starts the CLR"
+}

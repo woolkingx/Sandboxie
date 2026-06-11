@@ -106,6 +106,7 @@ BOOLEAN MyIsTestSigning(void);
 // return TRUE if current process has a valid custom signature
 //
 
+BOOLEAN MyIsTestMode(void);
 BOOLEAN MyIsCallerSigned(void);
 
 

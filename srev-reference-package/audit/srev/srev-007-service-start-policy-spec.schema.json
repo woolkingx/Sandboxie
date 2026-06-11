@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-007-service-start-policy-spec.schema.json",
+  "title": "SREV-007 service start broker policy posture",
+  "id": "SERVICE_START_POLICY_POSTURE",
+  "owner": "Sandboxie/core/svc/serviceserver.cpp",
+  "type": "object",
+  "properties": {
+    "scm_access_shape": {
+      "type": "string",
+      "description": "OpenSCManager requires SC_MANAGER_CONNECT against SCM security descriptor; OpenServiceW checks the service object security descriptor against caller token; StartServiceW requires SERVICE_START on the handle"
+    },
+    "impersonation_topology": {
+      "type": "string",
+      "description": "ServiceServer::Handler calls PipeServer::ImpersonateCaller before dispatching MSGID_SERVICE_START so OpenSCManager/OpenService/StartService run under the impersonated client token"
+    },
+    "open_policy_question": {
+      "type": "string",
+      "description": "The current policy is SCM DACL delegation while impersonating the caller; a stricter Sandboxie policy must name a new owner such as admin-only, explicit allowlist, or configurable sandbox rule"
+    },
+    "decision_boundary": {
+      "type": "string",
+      "description": "A blind IsAdmin or elevation-style gate would be stricter than Windows service DACL semantics and could break legitimate non-admin service-start flows"
+    },
+    "owner_invariant": {
+      "type": "string",
+      "description": "SREV-006B service-name gate already prevents malformed names reaching SCM; SREV-007 documents the current SCM DACL delegation contract and rejects silent admin-only replacement"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime smoke must prove sandboxed non-admin caller without SERVICE_START on the target service receives ERROR_ACCESS_DENIED and identify any supported non-admin service-start flow relying on deliberate DACL grants"
+    }
+  },
+  "required": [
+    "scm_access_shape",
+    "impersonation_topology",
+    "open_policy_question",
+    "decision_boundary",
+    "owner_invariant",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "OpenSCManager requires SC_MANAGER_CONNECT against the SCM security descriptor",
+    "OpenServiceW grants service object access based on the service security descriptor",
+    "StartServiceW requires SERVICE_START on the service handle and fails with ERROR_ACCESS_DENIED otherwise",
+    "Sandboxie StartHandler runs under impersonated caller token via PipeServer::ImpersonateCaller",
+    "StartHandler documents SCM DACL delegation as the current authorization owner under caller impersonation",
+    "No code change replaces SCM DACL semantics with admin-only or elevation-style checks without compatibility evidence",
+    "If Sandboxie chooses a stricter policy, the patch must name the new owner: admin-only, explicit StartService allowlist, or configurable rule"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openservicew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-startservicew",
+    "https://learn.microsoft.com/en-us/windows/win32/services/service-security-and-access-rights",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openscmanagerw"
+  ]
+}

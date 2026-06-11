@@ -201,6 +201,7 @@ P_RegisterDeviceNotification
 P_UnregisterDeviceNotification
                             __sys_UnregisterDeviceNotification
                                                             = NULL;
+static ULONG Gui_DeviceNotificationCookie = 0;
 P_MsgWaitForMultipleObjects __sys_MsgWaitForMultipleObjects = NULL;
 
 P_PeekMessage               __sys_PeekMessageA              = NULL;
@@ -584,7 +585,7 @@ import_fail:
         ok = Gui_InitDlgTmpl(module);
 
     if (ok && SbieApi_QueryConfBool(NULL, L"BlockRegisterDeviceNotification", FALSE))
-        ok = Gui_Init3(module); // todo remove later
+        ok = Gui_Init3(module); // SREV-289: optional SREV-083 notification-block hook group
 
     if (Gui_UseProxyService) {
 
@@ -1347,16 +1348,11 @@ _FX HWND Gui_CreateWindowExW(
     HWND hwndResult;
 
     //
-    // Under Sandboxie 4, the Chrome sandbox child process gets confused
-    // (reason not known) and creates some top level windows, for which it
-    // does not process messages. This causes DDE message broadcast to
-    // hang for several seconds. To workaround this, we cause the windows
-    // to be created as message-only windows
-    //
-    // note:  the desktop window was made accessible in early v4 builds
-    // but this code is still here to handle any other parent windows
-    //
-    // note:  this code breaks Chrome hw acceleration, so it is no longer used
+    // SREV-290: inactive legacy Chrome message-only window experiment.
+    // HWND_MESSAGE creates a message-only window that does not receive
+    // broadcast messages, while DDE initiation may broadcast to top-level
+    // windows. Keep this branch inactive until Windows runtime proof shows
+    // Chrome child top-level windows should cross into message-only topology.
     //
 
     /*if (Dll_ChromeSandbox) { 
@@ -2226,8 +2222,12 @@ _FX BOOL Gui_ConsoleControl(ULONG ctlcode, ULONG *data, ULONG_PTR unknown)
 _FX ULONG_PTR Gui_RegisterDeviceNotificationA(
     HANDLE hRecipient, LPVOID NotificationFilter, DWORD Flags)
 {
+    UNREFERENCED_PARAMETER(hRecipient);
+    UNREFERENCED_PARAMETER(NotificationFilter);
+    UNREFERENCED_PARAMETER(Flags);
+
     SetLastError(0);
-    return (ULONG_PTR)0x12345678;
+    return (ULONG_PTR)&Gui_DeviceNotificationCookie;
 }
 
 
@@ -2239,8 +2239,12 @@ _FX ULONG_PTR Gui_RegisterDeviceNotificationA(
 _FX ULONG_PTR Gui_RegisterDeviceNotificationW(
     HANDLE hRecipient, LPVOID NotificationFilter, DWORD Flags)
 {
+    UNREFERENCED_PARAMETER(hRecipient);
+    UNREFERENCED_PARAMETER(NotificationFilter);
+    UNREFERENCED_PARAMETER(Flags);
+
     SetLastError(0);
-    return (ULONG_PTR)0x12345678;
+    return (ULONG_PTR)&Gui_DeviceNotificationCookie;
 }
 
 
@@ -2251,6 +2255,9 @@ _FX ULONG_PTR Gui_RegisterDeviceNotificationW(
 
 _FX BOOL Gui_UnregisterDeviceNotification(ULONG_PTR Handle)
 {
+    if (Handle != (ULONG_PTR)&Gui_DeviceNotificationCookie)
+        return __sys_UnregisterDeviceNotification(Handle);
+
     SetLastError(0);
     return TRUE;
 }

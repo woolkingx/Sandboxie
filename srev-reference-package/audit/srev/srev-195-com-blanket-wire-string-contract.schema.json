@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "COM_BLANKET_WIRE_STRING_CONTRACT",
+  "title": "SREV-195 COM blanket wire string contract",
+  "owner": "Sandboxie/core/svc/comserver.cpp",
+  "entry_surface": "Sandboxie/core/svc/comserver.h",
+  "wire_owner": "Sandboxie/core/svc/comwire.h",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-cosetproxyblanket",
+    "https://learn.microsoft.com/en-us/windows/win32/api/combaseapi/nf-combaseapi-coqueryproxyblanket"
+  ],
+  "contracts": [
+    "comserver.h declares the QueryBlanket and SetBlanket handler boundary",
+    "COM_SET_BLANKET_REQ ServerPrincName is a fixed WCHAR array",
+    "DefaultServerPrincName maps to COLE_DEFAULT_PRINCIPAL",
+    "non-default ServerPrincName must terminate inside the fixed wire field",
+    "SetBlanketHandler validates the terminator before shared-map copy",
+    "SetBlanketSlave validates the terminator before CoSetProxyBlanket",
+    "CoQueryProxyBlanket returned principal is released with CoTaskMemFree",
+    "QueryBlanketSlave sets BufferLength to sizeof COM_QUERY_BLANKET_RPL",
+    "QueryBlanketHandler validates BufferLength before copying reply fields"
+  ],
+  "type": "object",
+  "required": [
+    "set_blanket",
+    "query_blanket"
+  ],
+  "properties": {
+    "set_blanket": {
+      "type": "object",
+      "required": [
+        "default_principal",
+        "server_principal_name_max_chars"
+      ],
+      "properties": {
+        "default_principal": {
+          "type": "boolean"
+        },
+        "server_principal_name_max_chars": {
+          "const": 128
+        }
+      },
+      "additionalProperties": false
+    },
+    "query_blanket": {
+      "type": "object",
+      "required": [
+        "reply_size_owner",
+        "server_principal_release"
+      ],
+      "properties": {
+        "reply_size_owner": {
+          "const": "COM_SLAVE_MAP.BufferLength"
+        },
+        "server_principal_release": {
+          "const": "CoTaskMemFree"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

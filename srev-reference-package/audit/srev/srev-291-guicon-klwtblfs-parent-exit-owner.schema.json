@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "GUICON_KLWTBLFS_PARENT_EXIT_OWNER",
+  "title": "GuiCon klwtblfs parent-exit owner",
+  "type": "object",
+  "owner": "Sandboxie/core/dll/guicon.c",
+  "stage": "schema -> boundary -> topology -> verify",
+  "source_function": "Gui_InitConsole2",
+  "contracts": [
+    "Gui_InitConsole2 owns only the already-running klwtblfs parent-exit worker branch",
+    "proc.c owns SandboxieDcomLaunch create-process blocking for klwtblfs.exe",
+    "Proc_WaitForParentExit owns waiting for the parent and exiting when DoExitProcess is enabled",
+    "SREV-076 owns normal console helper handoff and cleanup",
+    "CreateThread failure must preserve the existing fall-through behavior",
+    "this SREV changes comments and proof only"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createthread",
+    "https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-closehandle"
+  ],
+  "local_edges": [
+    "Gui_InitConsole2 -> Dll_ImageName klwtblfs.exe gate",
+    "klwtblfs gate -> CreateThread Proc_WaitForParentExit DoExitProcess one",
+    "successful CreateThread -> CloseHandle thread handle",
+    "proc.c DcomLaunch create-process path -> block klwtblfs.exe",
+    "normal console helper -> SREV-076"
+  ],
+  "runtime_gate": "Windows Kaspersky klwtblfs compatibility or instrumented process-lifetime smoke plus SREV-076 console helper regression checks",
+  "status": "patched-comment-topology-after-proc-dcomlaunch-and-srev-076-parent-exit-review-no-behavior-change"
+}

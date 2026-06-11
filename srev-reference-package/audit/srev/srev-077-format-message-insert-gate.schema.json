@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-077-format-message-insert-gate.schema.json",
+  "title": "SREV-077 FormatMessage insert array gate contract",
+  "id": "FORMAT_MESSAGE_INSERT_ARRAY_GATE",
+  "owner": "Sandboxie/core/dll/support.c",
+  "type": "object",
+  "properties": {
+    "message_text": {
+      "type": "string",
+      "description": "First FormatMessage output that may contain .N. markers"
+    },
+    "insert_array": {
+      "type": "string",
+      "description": "Optional caller-provided insert array"
+    },
+    "rewrite": {
+      "type": "string",
+      "description": "Local .N. to %N compatibility rewrite"
+    },
+    "ownership": {
+      "type": "string",
+      "description": "LocalFree ownership for old, temporary, and replacement output buffers"
+    }
+  },
+  "required": [
+    "message_text",
+    "insert_array",
+    "rewrite",
+    "ownership"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "second FormatMessage pass may run only when an insert array exists",
+    "NULL insert array has no legal owner for replacement values",
+    "markers inside insert strings are rejected before message rewriting",
+    "successful replacement transfers output ownership and frees the old buffer",
+    "failed replacement preserves the original formatted output"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-formatmessagew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-localfree"
+  ]
+}

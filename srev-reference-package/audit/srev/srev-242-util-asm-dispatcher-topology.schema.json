@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "DLL_UTIL_ASM_DISPATCHER_TOPOLOGY_CONTRACT",
+  "owner": "Sandboxie/core/dll/util_asm.asm",
+  "related_owners": [
+    "Sandboxie/core/dll/util_32.asm",
+    "Sandboxie/core/dll/util_64.asm",
+    "Sandboxie/core/dll/util_arm.asm",
+    "Sandboxie/core/dll/util_EC.asm",
+    "Sandboxie/core/dll/SboxDll.vcxproj",
+    "Sandboxie/core/dll/SboxDll.vcxproj.filters",
+    "docs/plan/ledger/srev-095.md",
+    "docs/plan/ledger/srev-177.md",
+    "docs/plan/ledger/srev-164.md"
+  ],
+  "status": "docs-only-source-topology-reviewed-needs-windows-dll-build-proof",
+  "official_references": [
+    "docs/plan/srev-095-arm64-api-instrumentation-abi.md",
+    "docs/plan/srev-177-arm64ec-api-instrumentation-argument-preservation.md"
+  ],
+  "contracts": [
+    "util_asm.asm is the DLL utility assembly dispatcher for MASM include selection",
+    "util_32.asm owns the 32-bit implementation body reached when _WIN64 is not defined",
+    "util_64.asm owns the x64 and ARM64EC MASM body reached when _WIN64 is defined",
+    "Native ARM64 runtime assembly is not owned by this dispatcher; it is owned by util_arm.asm and its build item",
+    "SboxDll.vcxproj owns the active platform build selection",
+    "util_32.asm and util_64.asm are included source bodies not direct project build items",
+    "Behavior or ABI changes must target the included implementation owner and the concrete architecture SREV not the dispatcher"
+  ],
+  "runtime_gate": "Windows DLL builds for Win32, x64, ARM64EC, and ARM64 must continue to select the intended assembly owner. Runtime behavior remains covered by concrete owner SREV Windows gates."
+}

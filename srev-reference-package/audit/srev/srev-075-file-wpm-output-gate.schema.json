@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-075-file-wpm-output-gate.schema.json",
+  "title": "SREV-075 WriteProcessMemory workaround output gate contract",
+  "id": "FILE_WPM_WORKAROUND_OUTPUT_GATE",
+  "api": "File_WriteProcessMemory / WriteProcessMemory",
+  "owner": "Sandboxie/core/dll/file_misc.c",
+  "type": "object",
+  "properties": {
+    "target_write": {
+      "type": "string",
+      "description": "Caller WriteProcessMemory target address and byte count"
+    },
+    "workaround_scope": {
+      "type": "string",
+      "description": "Firefox or Thunderbird ntdll patch suppression branch"
+    },
+    "output_slot": {
+      "type": "string",
+      "description": "Optional lpNumberOfBytesWritten pointer"
+    },
+    "fallback": {
+      "type": "string",
+      "description": "Real WriteProcessMemory owner path"
+    }
+  },
+  "required": [
+    "target_write",
+    "workaround_scope",
+    "output_slot",
+    "fallback"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "WriteProcessMemory lpNumberOfBytesWritten is optional and NULL must be ignored",
+    "non-NULL lpNumberOfBytesWritten is a caller-owned output slot",
+    "fake-success workaround may write nSize only after the output slot write is protected",
+    "bad output slots fail the wrapper with ERROR_NOACCESS rather than crashing",
+    "non-workaround calls must flow to the real __sys_WriteProcessMemory owner"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-writeprocessmemory"
+  ]
+}

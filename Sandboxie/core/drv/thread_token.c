@@ -50,6 +50,9 @@ static NTSTATUS Thread_OpenProcessToken_Common(
     PROCESS *proc, HANDLE ProcessHandle, ACCESS_MASK DesiredAccess,
     HANDLE *TokenHandle);
 
+static NTSTATUS Thread_WriteTokenHandleToUser(
+    HANDLE *TokenHandle, HANDLE *MyTokenHandle);
+
 static NTSTATUS Thread_SetInformationProcess(
     PROCESS *proc, SYSCALL_ENTRY *syscall_entry, ULONG_PTR *user_args);
 
@@ -116,6 +119,33 @@ NTSTATUS Thread_GetKernelHandleForUserHandle(
 
 
 void *Thread_AnonymousToken = NULL;
+
+
+//---------------------------------------------------------------------------
+// Thread_WriteTokenHandleToUser
+//---------------------------------------------------------------------------
+
+
+static NTSTATUS Thread_WriteTokenHandleToUser(
+    HANDLE *TokenHandle, HANDLE *MyTokenHandle)
+{
+    NTSTATUS status;
+
+    __try {
+        ProbeForWrite(TokenHandle, sizeof(HANDLE), sizeof(HANDLE));
+        *TokenHandle = *MyTokenHandle;
+        status = STATUS_SUCCESS;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        status = GetExceptionCode();
+    }
+
+    if (! NT_SUCCESS(status)) {
+        ZwClose(*MyTokenHandle);
+        *MyTokenHandle = NULL;
+    }
+
+    return status;
+}
 
 
 //---------------------------------------------------------------------------
@@ -209,7 +239,7 @@ _FX NTSTATUS Thread_OpenProcessToken_Common(
     //
 
     __try {
-        ProbeForWrite(TokenHandle, sizeof(HANDLE), sizeof(UCHAR));
+        ProbeForWrite(TokenHandle, sizeof(HANDLE), sizeof(HANDLE));
         status = STATUS_SUCCESS;
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         status = GetExceptionCode();
@@ -298,12 +328,7 @@ _FX NTSTATUS Thread_OpenProcessToken_Common(
     ObDereferenceObject(ProcessObject);
 
     if (NT_SUCCESS(status) && MyTokenHandle) {
-
-        __try {
-            *TokenHandle = MyTokenHandle;
-        } __except (EXCEPTION_EXECUTE_HANDLER) {
-            status = GetExceptionCode();
-        }
+        status = Thread_WriteTokenHandleToUser(TokenHandle, &MyTokenHandle);
     }
 
     return status;
@@ -541,6 +566,8 @@ _FX void *Thread_SetInformationProcess_PrimaryToken_3(
     void *TokenObject2;
     ULONG TokenId_offset = 0;
     ULONG ParentTokenId_offset = 0;
+    PTOKEN_STATISTICS TokenStatistics1 = NULL;
+    NTSTATUS status;
     BOOLEAN CopyOnOpen;
     BOOLEAN EffectiveOnly;
     SECURITY_IMPERSONATION_LEVEL ImpersonationLevel;
@@ -593,22 +620,42 @@ _FX void *Thread_SetInformationProcess_PrimaryToken_3(
         ParentTokenId_offset    = 0x20;  //good for windows 10 - 10041
     }
 
-    if (! TokenId_offset)
+    if ((! TokenId_offset) || (! ParentTokenId_offset)) {
         Log_Status(MSG_1222, 0x63, STATUS_UNKNOWN_REVISION);
+        ObDereferenceObject(TokenObject2);
+        return (void *)-1;
+    }
+
+    //
+    // TokenId is public through TOKEN_STATISTICS.  ParentTokenId is still a
+    // private token field in this compatibility path, so the private offset
+    // must be known before it can participate in the relation check.
+    //
+
+    status = SeQueryInformationToken(
+                TokenObject1, TokenStatistics, &TokenStatistics1);
+    if (! NT_SUCCESS(status))
+        Log_Status(MSG_1222, 0x64, status);
 
     //
     // compare parent id in new token with token id in primary token
     //
 
-    if (RtlEqualLuid(
-                (LUID *)((ULONG_PTR)TokenObject1 + TokenId_offset),
+    if (TokenStatistics1 && RtlEqualLuid(
+                &TokenStatistics1->TokenId,
                 (LUID *)((ULONG_PTR)TokenObject2 + ParentTokenId_offset))) {
 
         //
         // TokenObject2.ParentId == TokenObject1.TokenId
         //
 
+        ExFreePool(TokenStatistics1);
         return TokenObject2;
+    }
+
+    if (TokenStatistics1) {
+        ExFreePool(TokenStatistics1);
+        TokenStatistics1 = NULL;
     }
 
     if (RtlEqualLuid(
@@ -765,7 +812,7 @@ _FX NTSTATUS Thread_OpenThreadToken_Common(
     //
 
     __try {
-        ProbeForWrite(TokenHandle, sizeof(HANDLE), sizeof(UCHAR));
+        ProbeForWrite(TokenHandle, sizeof(HANDLE), sizeof(HANDLE));
         status = STATUS_SUCCESS;
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         status = GetExceptionCode();
@@ -948,12 +995,7 @@ _FX NTSTATUS Thread_OpenThreadToken_Common(
     ObDereferenceObject(ThreadObject);
 
     if (NT_SUCCESS(status) && MyTokenHandle) {
-
-        __try {
-            *TokenHandle = MyTokenHandle;
-        } __except (EXCEPTION_EXECUTE_HANDLER) {
-            status = GetExceptionCode();
-        }
+        status = Thread_WriteTokenHandleToUser(TokenHandle, &MyTokenHandle);
     }
 
     return status;
@@ -1439,9 +1481,11 @@ _FX NTSTATUS Thread_SetInformationThread_ChangeNotifyToken(PROCESS *proc)
     // we will return to the caller with an active impersonation
     // thread that does not strip the change notify privilege.
     //
-    // note that Syscall_Api_Invoke wants to clear the thread token
-    // before returning to the caller, so we use a hack with special
-    // status return code, see Syscall_Api_Invoke
+    // SREV-341: Syscall_Api_Invoke normally clears the thread token
+    // before returning to the caller.  Use the local
+    // STATUS_THREAD_NOT_IN_PROCESS sentinel only for this current-thread
+    // change-notify-token path so the caller returns with impersonation
+    // still active.
     //
 
     if (! proc->change_notify_token_flag) {

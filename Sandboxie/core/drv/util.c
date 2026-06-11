@@ -23,6 +23,7 @@
 
 #include "util.h"
 #include "process.h"
+#include "conf.h"
 #include "common/my_version.h"
 #define KERNEL_MODE
 #include "verify.h"
@@ -235,10 +236,14 @@ BOOLEAN UnicodeStringEndsWith(PCUNICODE_STRING pString1, PWCHAR pString2, BOOLEA
 
 BOOLEAN DoesRegValueExist(ULONG RelativeTo, WCHAR *Path, WCHAR *ValueName)
 {
-    WCHAR DummyBuffer[1] = {0}; // if we provide a NULL buffer, this will cause a memory pool leak somewhere in the kernel
+    // SREV-343: RTL_QUERY_REGISTRY_DIRECT stores REG_SZ data through an
+    // initialized UNICODE_STRING; a NULL Buffer lets the API allocate
+    // storage.  This existence probe uses caller-owned one-WCHAR storage
+    // so no API allocation needs to be freed.
+    WCHAR DummyBuffer[1] = {0};
     UNICODE_STRING Dummy = { 0, sizeof(DummyBuffer), DummyBuffer };
     NTSTATUS status = GetRegString(RelativeTo, Path, ValueName, &Dummy);
-    return (status == STATUS_SUCCESS || status == STATUS_OBJECT_TYPE_MISMATCH);
+    return (status == STATUS_SUCCESS || status == STATUS_OBJECT_TYPE_MISMATCH || status == STATUS_BUFFER_TOO_SMALL);
 }
 
 NTSTATUS GetRegString(ULONG RelativeTo, const WCHAR *Path, const WCHAR *ValueName, UNICODE_STRING* pData)
@@ -477,10 +482,15 @@ void *memmem(const void *pSearchBuf,
     size_t nPatternSize)
 {
     UCHAR *pBuf = (UCHAR *)pSearchBuf;
-    UCHAR *pEos = pBuf + nBufSize - nPatternSize;
+    UCHAR *pEos;
 
-    if (!(pBuf && pEos && nBufSize && nPatternSize))
+    if ((! pBuf) || (! pPattern) || (! nBufSize) || (! nPatternSize))
         return NULL;
+
+    if (nPatternSize > nBufSize)
+        return NULL;
+
+    pEos = pBuf + nBufSize - nPatternSize;
 
     while (pBuf <= pEos) {
         if (*pBuf == *(UCHAR*)pPattern)
@@ -525,9 +535,38 @@ _FX BOOLEAN MyIsTestSigning(void)
 //---------------------------------------------------------------------------
 
 
+_FX BOOLEAN MyIsTestMode(void)
+{
+    const WCHAR *value;
+    BOOLEAN test = FALSE;
+
+    Conf_AdjustUseCount(TRUE);
+
+    value = Conf_Get(NULL, L"Test", 0);
+    if (value) {
+        if (_wcsicmp(value, L"true") == 0 ||
+            _wcsicmp(value, L"yes") == 0 ||
+            _wcsicmp(value, L"y") == 0 ||
+            _wcsicmp(value, L"1") == 0 ||
+            _wcsicmp(value, L"on") == 0) {
+
+            test = TRUE;
+        }
+    }
+
+    Conf_AdjustUseCount(FALSE);
+
+    return test;
+}
+
+
 _FX BOOLEAN MyIsCallerSigned(void)
 {
     NTSTATUS status;
+
+    // Test=true is a local Sandboxie test gate for unsigned development tools.
+    if (MyIsTestMode())
+        return TRUE;
 
     // in test signing mode don't verify the signature
     if (Driver_OsTestSigning)

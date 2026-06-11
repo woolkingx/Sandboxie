@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-116-advapi-header-out-param-schema.schema.json",
+  "title": "SREV-116 advapi header out-param schema",
+  "id": "ADVAPI_HEADER_OUT_PARAM_SCHEMA",
+  "owner": "Sandboxie/core/dll/advapi.h",
+  "type": "object",
+  "properties": {
+    "official_api_shape": {
+      "type": "string",
+      "description": "Official Advapi/Cred pointer-depth and output-parameter shape"
+    },
+    "source_change": {
+      "type": "string",
+      "description": "Header typedef and hook prototype alignment for out parameters"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows build/runtime proof for hooked Advapi/Cred API paths"
+    }
+  },
+  "required": [
+    "official_api_shape",
+    "source_change",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "advapi.h owns the hooked Advapi Cred function pointer shapes shared by advapi.c and cred.c",
+    "hook typedefs that model Windows APIs preserve pointer-depth for out parameters",
+    "GetSecurityInfo receives PSID pointer output slots PACL pointer output slots and a PSECURITY_DESCRIPTOR pointer output slot",
+    "CredRead receives a credential output slot not a credential value",
+    "CredEnumerate receives a credential-array output slot not an opaque input pointer",
+    "hook implementation prototypes in advapi.c match the hooked API pointer typedef",
+    "this SREV does not change hook selection access masks window-station fallback behavior credential serialization credential conversion or PStore merge logic"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-getsecurityinfo",
+    "https://learn.microsoft.com/en-us/windows/win32/api/wincred/nf-wincred-credreadw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/wincred/nf-wincred-credenumeratew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-lookupaccountnamew"
+  ]
+}

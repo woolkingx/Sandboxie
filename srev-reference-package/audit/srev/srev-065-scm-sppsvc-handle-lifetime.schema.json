@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-065-scm-sppsvc-handle-lifetime.schema.json",
+  "title": "SREV-065 SCM sppsvc handle lifetime contract",
+  "id": "SCM_SPPSVC_HANDLE_LIFETIME",
+  "api": "Scm_Start_Sppsvc",
+  "owner": "Sandboxie/core/dll/scm_misc.c",
+  "type": "object",
+  "properties": {
+    "scm_handle": {
+      "type": "string",
+      "description": "SCM database handle returned by Scm_OpenSCManagerW"
+    },
+    "service_handle": {
+      "type": "string",
+      "description": "sppsvc service handle returned by Scm_OpenServiceWImpl"
+    },
+    "cleanup": {
+      "type": "string",
+      "description": "CloseServiceHandle ownership release for opened SCM/service handles"
+    }
+  },
+  "required": [
+    "scm_handle",
+    "service_handle",
+    "cleanup"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Handles returned by OpenSCManagerW and OpenServiceW are SCM/service object handles",
+    "SCM and service object handles must be closed with CloseServiceHandle when no longer needed",
+    "Scm_Start_Sppsvc owns both handle1 and handle2 until its cleanup block",
+    "The service handle returned by Scm_OpenServiceWImpl must be assigned to the outer handle2 lifetime slot",
+    "A nested handle2 declaration must not shadow the cleanup-owned service handle"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openscmanagerw",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-openservicew",
+    "https://learn.microsoft.com/en-us/windows/win32/api/winsvc/nf-winsvc-closeservicehandle"
+  ]
+}

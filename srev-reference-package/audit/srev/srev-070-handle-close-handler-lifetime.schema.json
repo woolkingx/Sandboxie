@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-070-handle-close-handler-lifetime.schema.json",
+  "title": "SREV-070 handle close handler lifetime contract",
+  "id": "HANDLE_CLOSE_HANDLER_LIFETIME",
+  "api": "Handle_RegisterHandler / Handle_UnRegisterHandler / Handle_ExecuteCloseHandler",
+  "owner": "Sandboxie/core/dll/handle.c",
+  "type": "object",
+  "properties": {
+    "handler_node": {
+      "type": "string",
+      "description": "HANDLE_HANDLER node allocated by Handle_RegisterHandler"
+    },
+    "param_output": {
+      "type": "string",
+      "description": "Optional pParams output slot in Handle_UnRegisterHandler"
+    },
+    "node_lifetime": {
+      "type": "string",
+      "description": "List removal and Dll_Free ownership release"
+    }
+  },
+  "required": [
+    "handler_node",
+    "param_output",
+    "node_lifetime"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Handle_RegisterHandler may initialize and insert a HANDLE_HANDLER node only after Dll_Alloc returns non-null",
+    "Handle_UnRegisterHandler pParams is an optional caller-owned output slot",
+    "When pParams is non-null, unregister must write the stored Param through *pParams",
+    "A handler node removed by Handle_UnRegisterHandler must be released with Dll_Free",
+    "A handler node executed by Handle_ExecuteCloseHandler must be released with Dll_Free",
+    "The handle module owns HANDLE_HANDLER node lifetime until unregister or close execution"
+  ],
+  "local_references": [
+    "Sandboxie/core/dll/handle.h",
+    "Sandboxie/core/dll/handle.c"
+  ]
+}

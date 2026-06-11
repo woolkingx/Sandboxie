@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "DRIVER_DLL_ENTRY_RESOURCE_LIFETIME",
+  "owner": "Sandboxie/core/drv/dll.c",
+  "declaration": "Sandboxie/core/drv/dll.h",
+  "status": "patched-source-level-after-official-object-handle-and-section-view-lifetime-review-needs-windows-runtime-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwcreatefile",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwcreatesection",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwmapviewofsection",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwunmapviewofsection",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwclose",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/object-handles"
+  ],
+  "contracts": [
+    "dll.c owns driver-side DLL image load entries",
+    "A DLL_ENTRY owns exactly one optional mapped view one optional section handle one optional file handle and its pool allocation",
+    "Failure after any partial acquisition releases the acquired view section handle file handle and pool allocation before returning NULL",
+    "Successful entries remain owned by Dll_List until Dll_Unload removes and releases them",
+    "Driver-private handles opened by this loader use OBJ_CASE_INSENSITIVE combined with OBJ_KERNEL_HANDLE"
+  ],
+  "runtime_gate": "Windows driver build plus a loader failure-injection smoke that exercises failure after file open, after section creation, and after view mapping, proving no handle/view/pool leak under Driver Verifier or equivalent pool/handle tracking. A normal driver init/unload smoke must prove successful DLL entries still support syscall/export discovery and are freed at unload."
+}

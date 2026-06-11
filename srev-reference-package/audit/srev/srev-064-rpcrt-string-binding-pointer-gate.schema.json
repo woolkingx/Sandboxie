@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-064-rpcrt-string-binding-pointer-gate.schema.json",
+  "title": "SREV-064 RPCRT string binding pointer gate contract",
+  "id": "RPCRT_STRING_BINDING_POINTER_GATE",
+  "api": "RpcRt_RpcBindingFromStringBindingW",
+  "owner": "Sandboxie/core/dll/rpcrt.c",
+  "type": "object",
+  "properties": {
+    "string_binding": {
+      "type": "string",
+      "description": "Caller-provided RPC string binding pointer"
+    },
+    "out_binding": {
+      "type": "string",
+      "description": "Caller-provided output pointer for the binding handle"
+    },
+    "local_rewrite": {
+      "type": "string",
+      "description": "Sandboxie RPC port binding rewrite path before RPCRT4 is called"
+    }
+  },
+  "required": [
+    "string_binding",
+    "out_binding",
+    "local_rewrite"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "RpcBindingFromStringBindingW takes a pointer to a string binding and an output binding pointer",
+    "The Sandboxie wrapper may parse StringBinding only after StringBinding is non-null and not the 0x4 sentinel",
+    "The Sandboxie wrapper may call RPCRT4 or trace the returned handle only after OutBinding is non-null",
+    "Invalid pointer-shaped input returns RPC_S_INVALID_ARG before local wide-string parsing",
+    "The existing spooler dynamic-port rewrite remains behind the same pointer gate"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/api/rpcdce/nf-rpcdce-rpcbindingfromstringbindingw",
+    "https://learn.microsoft.com/en-us/windows/win32/rpc/rpc-return-values"
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-122-process-force-map-allocation-lifetime.schema.json",
+  "title": "SREV-122 Process force map allocation lifetime",
+  "id": "PROCESS_FORCE_MAP_ALLOCATION_LIFETIME",
+  "owner": "Sandboxie/core/drv/process_force.c",
+  "type": "object",
+  "properties": {
+    "allocation_shape": {
+      "type": "string",
+      "description": "Mem_Alloc may fail and return NULL"
+    },
+    "dfp_lifetime": {
+      "type": "string",
+      "description": "DFP map records are initialized only after allocation succeeds"
+    },
+    "fcp_lifetime": {
+      "type": "string",
+      "description": "FCP map records are initialized only after allocation succeeds"
+    },
+    "lock_irql_balance": {
+      "type": "string",
+      "description": "Externally locked and self-locked paths preserve their lock/IRQL ownership"
+    }
+  },
+  "required": [
+    "allocation_shape",
+    "dfp_lifetime",
+    "fcp_lifetime",
+    "lock_irql_balance"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Mem_Alloc may return NULL because pool allocation can fail",
+    "Process_DfpInsert PROCESS_TERMINATED owns Process_ListLock and IRQL restoration on allocation failure",
+    "Process_DfpInsert parent-child path is called with the process list already locked",
+    "Process_DfpInsert parent-child allocation failure returns FALSE without inserting a map record",
+    "Process_FcpInsert owns Process_ListLock and IRQL restoration on allocation failure",
+    "DFP and FCP record fields are written only after allocation succeeds",
+    "DFP FCP delete check map key silent flag box-name copy and force-policy semantics are unchanged"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-exallocatepoolwithtag",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-exacquireresourceexclusivelite",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-exreleaseresourcelite",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-keraiseirql",
+    "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-kelowerirql"
+  ]
+}

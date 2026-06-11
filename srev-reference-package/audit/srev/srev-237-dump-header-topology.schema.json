@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "DUMP_HEADER_TOPOLOGY_CONTRACT",
+  "owner": "Sandboxie/core/dll/dump.h",
+  "related_owners": [
+    "Sandboxie/core/dll/dump.c",
+    "Sandboxie/core/dll/dllmain.c",
+    "Sandboxie/core/dll/SboxDll.vcxproj",
+    "docs/plan/ledger/srev-156.md"
+  ],
+  "status": "docs-only-source-topology-reviewed-needs-windows-dll-build-proof",
+  "official_references": [
+    "docs/plan/srev-156-dump-dbghelp-entry-and-client-pointers.md"
+  ],
+  "contracts": [
+    "dump.h is the DLL minidump helper declaration header",
+    "The header may declare Dump_Init",
+    "The header does not own DbgHelp loading MiniDumpWriteDump function-pointer resolution minidump flag parsing crash-handler installation dump-file path construction exception-pointer shape or unhandled-exception-filter policy",
+    "Runtime behavior changes belong to dump.c dllmain.c SboxDll.vcxproj or the settings surface depending on the transition",
+    "Future header changes must prove caller topology and concrete runtime owner before behavior claims"
+  ],
+  "runtime_gate": "Windows SboxDll build continues to compile dump.h and wire the Dump_Init caller to dump.c; runtime behavior remains covered by existing and future concrete-owner SREV Windows gates."
+}

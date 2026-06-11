@@ -52,6 +52,8 @@ struct _DLL_ENTRY {
 static void *Dll_GetProc2(
     DLL_ENTRY *dll, const UCHAR *ProcName, BOOLEAN returnOffset);
 
+static void Dll_FreeEntry(DLL_ENTRY *dll);
+
 
 //---------------------------------------------------------------------------
 
@@ -118,13 +120,29 @@ _FX void Dll_Unload(void)
             break;
         List_Remove(&Dll_List, dll);
 
-        if (dll->base)
-            ZwUnmapViewOfSection(NtCurrentProcess(), dll->base);
-        if (dll->hSection)
-            ZwClose(dll->hSection);
-        if (dll->hFile)
-            ZwClose(dll->hFile);
+        Dll_FreeEntry(dll);
     }
+}
+
+
+//---------------------------------------------------------------------------
+// Dll_FreeEntry
+//---------------------------------------------------------------------------
+
+
+_FX void Dll_FreeEntry(DLL_ENTRY *dll)
+{
+    if (! dll)
+        return;
+
+    if (dll->base)
+        ZwUnmapViewOfSection(NtCurrentProcess(), dll->base);
+    if (dll->hSection)
+        ZwClose(dll->hSection);
+    if (dll->hFile)
+        ZwClose(dll->hFile);
+
+    Mem_Free(dll, sizeof(DLL_ENTRY));
 }
 
 
@@ -182,7 +200,7 @@ _FX DLL_ENTRY *Dll_Load(const WCHAR *DllBaseName)
 
     RtlInitUnicodeString(&uni, path);
     InitializeObjectAttributes(
-        &objattrs, &uni, OBJ_CASE_INSENSITIVE, NULL, NULL);
+        &objattrs, &uni, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
 
     status = ZwCreateFile(
         &dll->hFile, FILE_GENERIC_READ, &objattrs, &MyIoStatusBlock, NULL,
@@ -289,6 +307,7 @@ _FX DLL_ENTRY *Dll_Load(const WCHAR *DllBaseName)
 finish:
     if (err) {
         Log_Status_Ex(MSG_DLL_LOAD, err, status, DllBaseName);
+        Dll_FreeEntry(dll);
         dll = NULL;
     }
 

@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "QUEUE_NAME_WIRE_COPY_CONTRACT",
+  "owner": "Sandboxie/core/svc/queueserver.h",
+  "implementation": "Sandboxie/core/dll/callsvc.c",
+  "wire_schema": "Sandboxie/core/svc/queuewire.h",
+  "status": "patched-source-level-after-official-bounded-string-copy-shape-review-needs-windows-runtime-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/strcpy-wcscpy-mbscpy?view=msvc-170",
+    "https://learn.microsoft.com/en-us/windows/win32/secbp/avoiding-buffer-overruns",
+    "https://learn.microsoft.com/en-us/windows/win32/api/strsafe/nf-strsafe-stringcchcopyw"
+  ],
+  "contracts": [
+    "queueserver.h owns the QueueServer declaration boundary for queue name normalization and lookup",
+    "queuewire.h fixes every queue name field at QUEUE_NAME_MAXLEN WCHARs",
+    "DLL-side queue helpers must validate and copy queue names through a bounded helper before sending a queue wire packet",
+    "Queue names that do not fit in QUEUE_NAME_MAXLEN including the terminating null are rejected with STATUS_INVALID_PARAMETER",
+    "Heap request packets must be checked after Dll_Alloc before writing header or queue-name fields",
+    "Server-side MakeQueueName still owns sandbox path prefixing and asterisk queue access policy"
+  ],
+  "runtime_gate": "Windows DLL/service build plus queue smoke for normal *USERPROXY, *GUIPROXY, and RPCSS_SXS names, and malformed overlong queue names returning STATUS_INVALID_PARAMETER without corrupting the request packet"
+}

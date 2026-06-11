@@ -38,6 +38,10 @@
 #define SOCKS_SUCCESS           0
 #define SOCKS_GENERAL_FAILURE   1
 
+#ifndef WSA_NOT_ENOUGH_MEMORY
+#define WSA_NOT_ENOUGH_MEMORY   ERROR_NOT_ENOUGH_MEMORY
+#endif
+
 #define IOC_IN                  0x80000000      /* copy in parameters */
 #define _WSAIOW(x,y)            (IOC_IN|(x)|(y))
 #define IOC_WS2                 0x08000000

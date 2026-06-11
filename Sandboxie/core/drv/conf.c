@@ -536,8 +536,10 @@ _FX CONF_SECTION* Conf_Add_Sections(
     section->include_path = NULL;
 
     section->name = Mem_AllocString(data->pool, section_name);
-    if (! section->name) 
+    if (! section->name) {
+        Mem_Free(section, sizeof(CONF_SECTION));
         return NULL;
+    }
 
     List_Init(&section->settings);
     map_init(&section->settings_map, data->pool);
@@ -546,12 +548,16 @@ _FX CONF_SECTION* Conf_Add_Sections(
     section->settings_map.func_hash_key = &str_map_hash;
     map_resize(&section->settings_map, 16); // prepare some buckets for better performance
 
+    if(map_insert(&data->sections_map, section->name, section, 0) == NULL) {
+        Mem_FreeString(section->name);
+        Mem_Free(section, sizeof(CONF_SECTION));
+        return NULL;
+    }
+
     if(insert) // insert at the top so it is not after the templates
         List_Insert_Before(&data->sections, NULL, section);
     else
         List_Insert_After(&data->sections, NULL, section);
-    if(map_insert(&data->sections_map, section->name, section, 0) == NULL) 
-        return NULL;
 
     return section;
 }
@@ -672,18 +678,29 @@ _FX CONF_SETTING* Conf_Add_Setting(
     setting->from_template = FALSE;
 
     setting->name = Mem_AllocString(data->pool, setting_name);
-    if (! setting->name) 
+    if (! setting->name) {
+        Mem_Free(setting, sizeof(CONF_SETTING));
         return NULL;
+    }
 
     setting->value = Mem_AllocString(data->pool, value);
-    if (! setting->value) return NULL;
+    if (! setting->value) {
+        Mem_FreeString(setting->name);
+        Mem_Free(setting, sizeof(CONF_SETTING));
+        return NULL;
+    }
+
+    if(map_append(&section->settings_map, setting->name, setting, 0) == NULL) {
+        Mem_FreeString(setting->value);
+        Mem_FreeString(setting->name);
+        Mem_Free(setting, sizeof(CONF_SETTING));
+        return NULL;
+    }
 
     if(insert)
-		List_Insert_Before(&section->settings, NULL, setting);
-	else
+        List_Insert_Before(&section->settings, NULL, setting);
+    else
         List_Insert_After(&section->settings, NULL, setting);
-    if(map_append(&section->settings_map, setting->name, setting, 0) == NULL) 
-        return NULL;
 
     return setting;
 }
@@ -1089,8 +1106,9 @@ _FX NTSTATUS Conf_Import_Include(CONF_DATA *data, ULONG session_id, const WCHAR*
         }
 
         //
-        // Drop the section if something went wrong, except if there were additional sections,
-		// for future extensibility and forwards compatibility we tolerate that case.
+        // SREV-330: roll back the imported section on a single-section import
+        // failure.  If additional sections were present, keep the imported
+        // section for forward-compatible include handling.
         //
 
         if (!NT_SUCCESS(status) && status != STATUS_TOO_MANY_SESSIONS)
@@ -1127,7 +1145,7 @@ _FX NTSTATUS Conf_Import_AllIncludes(CONF_DATA *data, ULONG session_id)
 		return STATUS_OBJECT_NAME_NOT_FOUND;
 
     //
-    // use a keyed iterator to quickly go through all IncludeBox=Xxx settings
+    // SREV-330: iterate only ImportBox settings through the keyed settings map.
     //
 
     map_iter_t iter2 = map_key_iter(&section->settings_map, Conf_ImportBox);
@@ -1205,7 +1223,7 @@ _FX NTSTATUS Conf_Merge_AllTemplates(CONF_DATA *data, ULONG session_id)
         }
 
         //
-        // scan the section for a Template=Xxx setting
+        // SREV-330: scan the section for Template setting entries.
         //
 
         status = Conf_Merge_Templates(data, session_id, sandbox, sandbox, sandbox->name);
@@ -1237,7 +1255,7 @@ _FX NTSTATUS Conf_Merge_Templates(
     CONF_SETTING *setting;
 
     //
-    // use a keyed iterator to quickly go through all Template=Xxx settings
+    // SREV-330: iterate only Template settings through the keyed settings map.
     //
 
     map_iter_t iter2 = map_key_iter(&section->settings_map, Conf_Template);

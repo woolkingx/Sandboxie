@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "CORE_RESOURCE_TOPOLOGY",
+  "owner": "Sandboxie/core/dll/lowlevel.rc",
+  "additional_owners": [
+    "Sandboxie/core/dll/resource.rc",
+    "Sandboxie/core/drv/resource.rc",
+    "Sandboxie/core/svc/resource.rc",
+    "Sandboxie/core/svc/resource2.h"
+  ],
+  "consumer": "Sandboxie/core/dll/lowlevel_inject.c",
+  "status": "patched-comment-topology-after-official-resource-and-versioninfo-review-needs-windows-resource-build-proof",
+  "official_references": [
+    "https://learn.microsoft.com/en-us/windows/win32/menurc/finding-and-loading-resources",
+    "https://learn.microsoft.com/en-us/windows/win32/menurc/versioninfo-resource"
+  ],
+  "contracts": [
+    "lowlevel.rc is compiled into SbieDll by SboxDll.vcxproj",
+    "lowlevel.rc owns the LOWLEVEL32 and LOWLEVEL64 RCDATA resource names consumed by lowlevel_inject.c",
+    "lowlevel_inject.c describes the resource as embedded in SbieDll because it looks up the resource from Dll_Instance",
+    "Driver DLL and service resource.rc files own VERSIONINFO metadata, not runtime policy",
+    "svc/resource2.h is not compiled by the current service project and is not the active LowLevel embedding surface",
+    "Runtime behavior defects belong to the resource consumer or project build topology, not version metadata strings"
+  ],
+  "runtime_gate": "Windows build must prove SbieDll contains LOWLEVEL32 and LOWLEVEL64 resources for the relevant platform, and LowLevel injection still loads the matching embedded resource."
+}

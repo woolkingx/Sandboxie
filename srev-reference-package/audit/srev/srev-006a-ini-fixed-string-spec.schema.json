@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sandboxie.local/schemas/srev-006a-ini-fixed-string-spec.schema.json",
+  "title": "SREV-006A SbieIni broker fixed string shape",
+  "id": "SBIEINI_FIXED_STRING_SHAPE",
+  "owner": "Sandboxie/core/svc/sbieiniserver.cpp",
+  "type": "object",
+  "properties": {
+    "crt_string_shape": {
+      "type": "string",
+      "description": "CRT string manipulation routines operate on NUL-terminated narrow, wide, or multibyte strings; non-terminated character arrays must be treated as buffers"
+    },
+    "fixed_field_inventory": {
+      "type": "string",
+      "description": "SbieIni broker fixed WCHAR[66] fields: SBIE_INI_SETTING_REQ.{password,section,setting}; SBIE_INI_TEMPLATE_REQ.{password,varname}; SBIE_INI_PASSWORD_REQ.{old_password,new_password}"
+    },
+    "terminator_gate": {
+      "type": "string",
+      "description": "Shared SbieIni_HasTerminator helper scans bounded WCHAR arrays for L'\\0' before any wcslen/wcscpy/wcscmp/_wcsicmp/_wcsnicmp/wcsrchr/wcsstr/IsCallerAuthorized/INI call"
+    },
+    "consumption_scope": {
+      "type": "string",
+      "description": "Each fixed field is checked only on the request paths that actually consume it: CheckRequest covers password+section+setting; GetSetting covers section+setting; SetDatFile covers setting; SetTemplate covers varname plus used password; SetOrTestPassword covers used password fields"
+    },
+    "value_tail_invariant": {
+      "type": "string",
+      "description": "Variable value tails prove the terminator byte is inside the broker message before code reads value[value_len]; CheckSettingValue and CheckTemplateValue enforce value_len bounds plus terminator-in-message"
+    },
+    "runtime_matrix": {
+      "type": "string",
+      "description": "Windows runtime gate: malformed broker messages with unterminated fields return invalid-parameter replies without entering INI/password/path logic"
+    }
+  },
+  "required": [
+    "crt_string_shape",
+    "fixed_field_inventory",
+    "terminator_gate",
+    "consumption_scope",
+    "value_tail_invariant",
+    "runtime_matrix"
+  ],
+  "additionalProperties": false,
+  "contracts": [
+    "Fixed WCHAR[66] inline strings must contain a L'\\0' inside the declared array before C-string API consumption",
+    "SbieIni_HasTerminator is the only legal way to certify a fixed inline string before use",
+    "CheckSettingStrings calls SbieIni_HasTerminator on password, section, setting",
+    "CheckSettingValue and CheckTemplateValue verify FIELD_OFFSET(...,value) <= req->h.length, available bytes >= sizeof(WCHAR), value_len bounded by PIPE_MAX_DATA_LEN/sizeof(WCHAR), value_len*sizeof(WCHAR) <= available - sizeof(WCHAR), req->value[value_len] == 0",
+    "Password fields are checked only on the request paths that consume them"
+  ],
+  "official_references": [
+    "https://learn.microsoft.com/en-us/cpp/c-runtime-library/string-manipulation-crt?view=msvc-170"
+  ]
+}

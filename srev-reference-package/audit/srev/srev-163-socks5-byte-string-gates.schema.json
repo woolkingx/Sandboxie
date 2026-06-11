@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "id": "SOCKS5_BYTE_STRING_GATES",
+  "type": "object",
+  "required": [
+    "owner",
+    "data",
+    "contracts",
+    "official_references",
+    "runtime_gate"
+  ],
+  "properties": {
+    "owner": {
+      "const": "Sandboxie/core/dll/proxy.c"
+    },
+    "data": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "Sandboxie/core/dll/proxy.c"
+      }
+    },
+    "contracts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "contains": {
+        "const": "SOCKS username and password byte fields must be between 1 and 255 bytes after conversion before writing ULEN or PLEN"
+      }
+    },
+    "official_references": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "minItems": 3
+    },
+    "runtime_gate": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "official_references": [
+    "https://www.rfc-editor.org/rfc/rfc1928",
+    "https://www.rfc-editor.org/rfc/rfc1929",
+    "https://learn.microsoft.com/en-us/cpp/c-runtime-library/reference/wcstombs-wcstombs-l?view=msvc-170"
+  ],
+  "contracts": [
+    "proxy.c owns SOCKS5 protocol frame construction",
+    "net.c owns NetworkUseProxy config parsing before credentials enter the SOCKS5 frame builder",
+    "SOCKS_AUTH_MAX_SIZE is a protocol byte maximum not a null-terminated WCHAR storage size",
+    "local credential text buffers need SOCKS_AUTH_MAX_SIZE + 1 WCHAR slots",
+    "wcstombs conversion failure is not a legal SOCKS5 field length",
+    "SOCKS username and password byte fields must be between 1 and 255 bytes after conversion before writing ULEN or PLEN",
+    "SOCKS domain names must be between 1 and 255 bytes before writing the one-byte domain length",
+    "does not change proxy selection bypass policy socket blocking state tracking relay topology proxy address parsing or non-auth SOCKS5 handshakes",
+    "Linux source gate is not Windows networking runtime proof"
+  ],
+  "owner": "Sandboxie/core/dll/proxy.c",
+  "data": [
+    "Sandboxie/core/dll/proxy.c",
+    "Sandboxie/core/dll/net.c",
+    "socks5_handshake",
+    "socks5_auth_field_to_bytes",
+    "socks5_request",
+    "socks5_request_add_domain",
+    "NetworkUseProxy",
+    "NETPROXY_RULE.login",
+    "NETPROXY_RULE.pass",
+    "wcstombs",
+    "RFC 1928 SOCKS5 domain-name length",
+    "RFC 1929 SOCKS username/password ULEN PLEN"
+  ],
+  "runtime_gate": "Windows DLL build, SOCKS5 auth valid invalid boundary smoke, hostname-resolving CONNECT boundary smoke, and no-auth connect regression smoke"
+}

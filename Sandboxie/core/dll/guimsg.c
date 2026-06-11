@@ -77,16 +77,16 @@ static LRESULT Gui_SendMessageTimeoutW(
     HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
     UINT fuFlags, UINT uTimeout, PDWORD_PTR lpdwResult);
 
-static LRESULT Gui_SendNotifyMessageA(
+static BOOL Gui_SendNotifyMessageA(
     HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-static LRESULT Gui_SendNotifyMessageW(
+static BOOL Gui_SendNotifyMessageW(
     HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-static LRESULT Gui_PostMessageA(
+static BOOL Gui_PostMessageA(
     HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-static LRESULT Gui_PostMessageW(
+static BOOL Gui_PostMessageW(
     HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 static LRESULT Gui_SendPostMessageCommon(
@@ -378,10 +378,10 @@ _FX LRESULT Gui_SendMessageTimeoutW(
 //---------------------------------------------------------------------------
 
 
-_FX LRESULT Gui_SendNotifyMessageA(
+_FX BOOL Gui_SendNotifyMessageA(
     HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    return Gui_SendPostMessageCommon(
+    return (BOOL)Gui_SendPostMessageCommon(
                     'snma', hWnd, uMsg, wParam, lParam, 0, 0, NULL);
 }
 
@@ -391,10 +391,10 @@ _FX LRESULT Gui_SendNotifyMessageA(
 //---------------------------------------------------------------------------
 
 
-_FX LRESULT Gui_SendNotifyMessageW(
+_FX BOOL Gui_SendNotifyMessageW(
     HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    return Gui_SendPostMessageCommon(
+    return (BOOL)Gui_SendPostMessageCommon(
                     'snmw', hWnd, uMsg, wParam, lParam, 0, 0, NULL);
 }
 
@@ -404,7 +404,7 @@ _FX LRESULT Gui_SendNotifyMessageW(
 //---------------------------------------------------------------------------
 
 
-_FX LRESULT Gui_PostMessageA(
+_FX BOOL Gui_PostMessageA(
     HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     LRESULT lResult;
@@ -433,7 +433,7 @@ _FX LRESULT Gui_PostMessageA(
         }
     }
 
-    return lResult;
+    return lResult != 0;
 }
 
 
@@ -442,7 +442,7 @@ _FX LRESULT Gui_PostMessageA(
 //---------------------------------------------------------------------------
 
 
-_FX LRESULT Gui_PostMessageW(
+_FX BOOL Gui_PostMessageW(
     HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     LRESULT lResult;
@@ -471,7 +471,7 @@ _FX LRESULT Gui_PostMessageW(
         }
     }
 
-    return lResult;
+    return lResult != 0;
 }
 
 
@@ -678,7 +678,7 @@ _FX LRESULT Gui_SendCopyData(
     // initialize a request buffer and send it
     //
 
-    req_len = sizeof(GUI_SEND_COPYDATA_REQ) + cds_len;
+    req_len = FIELD_OFFSET(GUI_SEND_COPYDATA_REQ, cds_buf) + cds_len;
     req = Dll_AllocTemp(req_len);
 
     req->msgid = GUI_SEND_COPYDATA;
@@ -878,10 +878,11 @@ _FX BOOLEAN Gui_Hook_DispatchMessage8(HMODULE module)
     // and corrupt surrounding code.  to work around this, we analyze the
     // short functions in order to hook user32!DispatchMessageWorker instead
     //
+    // SREV-295: opcode comments use parser terms from SREV-062.
     // DispatchMessageA     mov edx,1           BA 01 00 00 00
-    //      (10 bytes)      jmp xxx             E9 xx xx xx xx
+    //      (10 bytes)      jmp rel32           E9 xx xx xx xx
     // DispatchMessageW     xor edx,edx         33 D2
-    //      (6 bytes)       jmp short xxx       EB xx
+    //      (6 bytes)       jmp rel8            EB xx
     //
 
     UCHAR *a = (UCHAR *)__sys_DispatchMessageA;
@@ -889,20 +890,22 @@ _FX BOOLEAN Gui_Hook_DispatchMessage8(HMODULE module)
 
     if (*(ULONG *)a == 0x000001BA && *(USHORT *)w == 0xD233) {
 
-        LONG  a_offset;
-        LONG  w_offset;
+        LONG  a_offset = 0;
+        LONG  w_offset = 0;
 
         if (a[5] == 0xEB)                       // short jmp
             a_offset = *(CHAR *)(a + 6) + 7;
         else if (a[5] == 0xE9)                  // normal jmp
             a_offset = *(LONG *)(a + 6) + 10;
+        else
+            return FALSE;
 
         if (w[2] == 0xEB)                       // short jmp
             w_offset = *(CHAR *)(w + 3) + 4;
         else if (w[2] == 0xE9)                  // normal jmp
             w_offset = *(LONG *)(w + 3) + 7;
         else
-            w_offset = 0;
+            return FALSE;
 
         if ((a + a_offset) == (w + w_offset)) {
 

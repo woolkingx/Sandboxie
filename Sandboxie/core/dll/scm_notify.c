@@ -157,18 +157,32 @@ _FX DWORD Scm_NotifyServiceStatusChangeW(
 {
     WCHAR *ServiceNm;
     SCM_NOTIFY_ELEM *notify_elem;
+    SERVICE_NOTIFY *data;
     HANDLE handle;
     ULONG dwVersion;
+    ULONG LastError;
+    BOOLEAN inserted;
 
     //
     // validate parameters
     //
 
-    dwVersion = ((SERVICE_NOTIFY *)pNotifyBuffer)->dwVersion;
+    if (! pNotifyBuffer)
+        return ERROR_INVALID_PARAMETER;
+
+    data = (SERVICE_NOTIFY *)pNotifyBuffer;
+
+    dwVersion = data->dwVersion;
     if (dwVersion != 1 && dwVersion != 2) {
         SbieApi_Log(2205, L"NotifyServiceStatusChange (%d)", dwVersion);
         return ERROR_INVALID_PARAMETER;
     }
+
+    if (! data->pfnNotifyCallback)
+        return ERROR_INVALID_PARAMETER;
+
+    if (! dwNotifyMask)
+        return ERROR_INVALID_PARAMETER;
 
     ServiceNm = Scm_GetHandleName(hService);
     if (! ServiceNm)
@@ -182,10 +196,16 @@ _FX DWORD Scm_NotifyServiceStatusChangeW(
 
     if (! Scm_Notify_Global) {
         Scm_Notify_Global = Dll_Alloc(sizeof(SCM_NOTIFY_GLOBAL));
+        if (! Scm_Notify_Global) {
+            LeaveCriticalSection(Scm_Notify_CritSec);
+            return ERROR_NOT_ENOUGH_MEMORY;
+        }
         List_Init(&Scm_Notify_Global->list);
         Scm_Notify_Global->hThread = NULL;
         Scm_Notify_Global->hEvent = NULL;
     }
+
+    inserted = FALSE;
 
     notify_elem = List_Head(&Scm_Notify_Global->list);
     while (notify_elem) {
@@ -202,7 +222,7 @@ _FX DWORD Scm_NotifyServiceStatusChangeW(
 
         handle = OpenThread(THREAD_SET_CONTEXT, FALSE, GetCurrentThreadId());
         if (! handle) {
-            ULONG LastError = GetLastError();
+            LastError = GetLastError();
             LeaveCriticalSection(Scm_Notify_CritSec);
             return LastError;
         }
@@ -212,32 +232,61 @@ _FX DWORD Scm_NotifyServiceStatusChangeW(
         //
 
         notify_elem = Dll_Alloc(sizeof(SCM_NOTIFY_ELEM));
+        if (! notify_elem) {
+            CloseHandle(handle);
+            LeaveCriticalSection(Scm_Notify_CritSec);
+            return ERROR_NOT_ENOUGH_MEMORY;
+        }
+
         notify_elem->hThread = handle;
         notify_elem->hService = hService;
-        notify_elem->data = pNotifyBuffer;
+        notify_elem->data = data;
         notify_elem->mask = dwNotifyMask;
         notify_elem->state = 0;
         notify_elem->active = TRUE;
         List_Insert_After(&Scm_Notify_Global->list, NULL, notify_elem);
+        inserted = TRUE;
     }
 
+    notify_elem->data = data;
+    notify_elem->mask = dwNotifyMask;
     notify_elem->active = TRUE;
 
     //
     // start the service watcher thread if necessary
     //
 
-    if (! Scm_Notify_Global->hEvent)
+    if (! Scm_Notify_Global->hEvent) {
         Scm_Notify_Global->hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+        if (! Scm_Notify_Global->hEvent) {
+            LastError = GetLastError();
+            if (inserted) {
+                CloseHandle(notify_elem->hThread);
+                List_Remove(&Scm_Notify_Global->list, notify_elem);
+                Dll_Free(notify_elem);
+            }
+            LeaveCriticalSection(Scm_Notify_CritSec);
+            return LastError;
+        }
+    }
 
     if (! Scm_Notify_Global->hThread) {
         ULONG idThread;
         Scm_Notify_Global->hThread = CreateThread(
                         NULL, 0, Scm_Notify_ThreadProc, NULL, 0, &idThread);
+        if (! Scm_Notify_Global->hThread) {
+            LastError = GetLastError();
+            if (inserted) {
+                CloseHandle(notify_elem->hThread);
+                List_Remove(&Scm_Notify_Global->list, notify_elem);
+                Dll_Free(notify_elem);
+            }
+            LeaveCriticalSection(Scm_Notify_CritSec);
+            return LastError;
+        }
     }
 
-    if (Scm_Notify_Global->hThread && Scm_Notify_Global->hEvent)
-        SetEvent(Scm_Notify_Global->hEvent);
+    SetEvent(Scm_Notify_Global->hEvent);
 
     LeaveCriticalSection(Scm_Notify_CritSec);
 
@@ -336,21 +385,24 @@ _FX void Scm_Notify_ThreadProc2(SCM_NOTIFY_ELEM *notify_elem)
 
                 SERVICE_NOTIFY *data = notify_elem->data;
 
-                memcpy(&data->ServiceStatus, ss,
-                       sizeof(SERVICE_STATUS_PROCESS));
-                data->dwNotificationStatus = ERROR_SUCCESS;
+                if (data && data->pfnNotifyCallback) {
 
-                if (data->dwVersion == 2) {
-                    data->dwNotificationTriggered = state;
-                    data->pszServiceNames = NULL;
+                    memcpy(&data->ServiceStatus, ss,
+                           sizeof(SERVICE_STATUS_PROCESS));
+                    data->dwNotificationStatus = ERROR_SUCCESS;
+
+                    if (data->dwVersion == 2) {
+                        data->dwNotificationTriggered = state;
+                        data->pszServiceNames = NULL;
+                    }
+
+                    if (QueueUserAPC(Scm_Notify_ApcProc,
+                                     notify_elem->hThread, (ULONG_PTR)data)) {
+
+                        notify_elem->state = state;
+                        notify_elem->active = FALSE;
+                    }
                 }
-
-                notify_elem->state = state;
-
-                notify_elem->active = FALSE;
-
-                QueueUserAPC(Scm_Notify_ApcProc,
-                             notify_elem->hThread, (ULONG_PTR)data);
             }
          }
 
@@ -373,8 +425,11 @@ _FX void Scm_Notify_ApcProc(ULONG_PTR data)
     //
 
     SCM_NOTIFY_ELEM *notify_elem;
+    SERVICE_NOTIFY *notify_data;
 
     EnterCriticalSection(Scm_Notify_CritSec);
+
+    notify_data = (SERVICE_NOTIFY *)data;
 
     notify_elem = List_Head(&Scm_Notify_Global->list);
 
@@ -386,7 +441,8 @@ _FX void Scm_Notify_ApcProc(ULONG_PTR data)
             // Scm_Notify_ThreadProc2 clears notify_elem->active before
             if (! notify_elem->active) {
 
-                ((SERVICE_NOTIFY *)data)->pfnNotifyCallback((PVOID)data);
+                if (notify_data->pfnNotifyCallback)
+                    notify_data->pfnNotifyCallback((PVOID)data);
                 break;
             }
         }
@@ -454,25 +510,27 @@ _FX DWORD Scm_WaitServiceState(
         if (rpl && rpl->h.status == 0) {
 
             SERVICE_STATUS_PROCESS *ss = &rpl->service_status;
+            DWORD current_state;
 
             //
             // convert dwCurrentState to notification mask
             //
 
+            current_state = ss->dwCurrentState;
             dwState = 0;
-            if (ss->dwCurrentState == SERVICE_STOPPED)
+            if (current_state == SERVICE_STOPPED)
                 dwState = SERVICE_NOTIFY_STOPPED;
-            else if (ss->dwCurrentState == SERVICE_START_PENDING)
+            else if (current_state == SERVICE_START_PENDING)
                 dwState = SERVICE_NOTIFY_START_PENDING;
-            else if (ss->dwCurrentState == SERVICE_STOP_PENDING)
+            else if (current_state == SERVICE_STOP_PENDING)
                 dwState = SERVICE_NOTIFY_STOP_PENDING;
-            else if (ss->dwCurrentState == SERVICE_RUNNING)
+            else if (current_state == SERVICE_RUNNING)
                 dwState = SERVICE_NOTIFY_RUNNING;
-            else if (ss->dwCurrentState == SERVICE_CONTINUE_PENDING)
+            else if (current_state == SERVICE_CONTINUE_PENDING)
                 dwState = SERVICE_NOTIFY_CONTINUE_PENDING;
-            else if (ss->dwCurrentState == SERVICE_PAUSE_PENDING)
+            else if (current_state == SERVICE_PAUSE_PENDING)
                 dwState = SERVICE_NOTIFY_PAUSE_PENDING;
-            else if (ss->dwCurrentState == SERVICE_PAUSED)
+            else if (current_state == SERVICE_PAUSED)
                 dwState = SERVICE_NOTIFY_PAUSED;
 
             Dll_Free(rpl);
@@ -484,7 +542,7 @@ _FX DWORD Scm_WaitServiceState(
 
             if (dwNotify & dwState) {
                 SetLastError(ERROR_SUCCESS);
-                return ss->dwCurrentState;
+                return current_state;
             }
 
         } else {
